@@ -78,12 +78,38 @@ export async function findVulnerabilities(packages: readonly PackageVersion[]): 
   })
 }
 
+// OSV's prefix for its malicious packages list, which describes a whole package or version as an attack.
+const MALICIOUS_ADVISORY_PREFIX = "MAL-"
+
+export function isMaliciousAdvisory(id: string): boolean {
+  return id.startsWith(MALICIOUS_ADVISORY_PREFIX)
+}
+
+/**
+ * Package name to its malicious advisory. Asks by name without a version, because a manifest often
+ * declares a range, and a package that has ever been malicious shouldn't be newly added.
+ */
+export async function findMaliciousPackages(packages: readonly { readonly ecosystem: string; readonly name: string }[]): Promise<ReadonlyMap<string, string>> {
+  const malicious = new Map<string, string>()
+  for (let start = 0; start < packages.length; start += MAX_QUERIES_PER_BATCH) {
+    const batch = packages.slice(start, start + MAX_QUERIES_PER_BATCH)
+    const response = await postJson(`${OSV_API}/querybatch`, { queries: batch.map((entry) => ({ package: { name: entry.name, ecosystem: entry.ecosystem } })) })
+    batchResponseSchema.parse(response).results.forEach((result, index) => {
+      const advisory = result.vulns?.find((vulnerability) => isMaliciousAdvisory(vulnerability.id))
+      const entry = batch.at(index)
+      if (advisory !== undefined && entry !== undefined) malicious.set(entry.name, advisory.id)
+    })
+  }
+  return malicious
+}
+
 export function toKnownVulnerability(id: string, detail: z.infer<typeof vulnerabilitySchema> | undefined, entry: PackageVersion): KnownVulnerability {
   return {
     id,
     aliases: detail?.aliases ?? [],
     summary: detail?.summary,
-    severity: severityOf(detail?.database_specific?.severity),
+    // Often has no severity rating, and "medium" would badly undersell an attack.
+    severity: isMaliciousAdvisory(id) ? RiskSeverity.High : severityOf(detail?.database_specific?.severity),
     fixedIn: fixedVersion(detail, entry),
   }
 }

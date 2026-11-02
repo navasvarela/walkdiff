@@ -66,6 +66,7 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
     network: request.network,
     runScanner: request.runScanner,
     disabled: request.disabledChecks,
+    privatePackages: config.dependencies.private,
   })
   const codeScan = await runCodeScanners({ files: scanned, semgrepRules: config.scanners.semgrep.rules, network: request.network, run: request.runScanner, disabled: request.disabledChecks })
   const quality = config.quality.enabled ? await assessQuality(request, scanned, config) : { findings: [], checksRun: [], notChecked: [QUALITY_TURNED_OFF] }

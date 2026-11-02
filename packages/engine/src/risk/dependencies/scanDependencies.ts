@@ -4,9 +4,11 @@ import type { CheckRun, CommitSha, FileDiff, Risk, SkippedCheck } from "@walkdif
 import { readBlobs } from "../../blobs.ts"
 import { findingAt } from "../scannedFile.ts"
 import type { RuleDescription } from "../scannedFile.ts"
-import { findVulnerabilities, OsvUnavailableError } from "./osv.ts"
+import { findVulnerabilities, isMaliciousAdvisory, OsvUnavailableError } from "./osv.ts"
 import type { VulnerablePackage } from "./osv.ts"
 import { scanUnreadLockfiles } from "./osvScanner.ts"
+import { assessPackageTrust, isFromRegistry, isPrivatePackage, LIVE_TRUST_SOURCES } from "./packageTrust.ts"
+import type { DeclaredPackage, TrustSources } from "./packageTrust.ts"
 import { lockfileFormatFor, manifestFormatFor, UNREAD_LOCKFILES } from "./packages.ts"
 import { TURNED_OFF_IN_SETTINGS } from "../scanners/scanWorkspace.ts"
 import type { ScannerProcessRunner } from "../scanners/scannerProcess.ts"
@@ -22,6 +24,11 @@ export interface DependencyScanRequest {
   readonly runScanner: ScannerProcessRunner
   /** Checks the person turned off. */
   readonly disabled?: ReadonlySet<CheckId>
+  /** Team-owned package names, never sent to a public service. From the merge base's config. */
+  readonly privatePackages?: readonly string[]
+  /** Replaces the live services in tests. */
+  readonly trustSources?: TrustSources
+  readonly now?: Date
 }
 
 export interface DependencyScan {
@@ -33,6 +40,8 @@ export interface DependencyScan {
 const OSV_DATABASE_CHECK: CheckRun = { name: "OSV database", detail: "package versions new to lockfiles" }
 
 const VULNERABILITY_CHECK = "Known vulnerabilities in new dependency versions"
+const TRUST_CHECK = "Dependency trust"
+const TRUST_CHECK_RUN: CheckRun = { name: TRUST_CHECK, detail: "new direct dependencies: known malicious, not on the registry, very new or a lookalike name" }
 
 const NEW_DEPENDENCY: RuleDescription = {
   id: "dependency.added",
@@ -66,16 +75,21 @@ export async function scanDependencies(request: DependencyScanRequest): Promise<
       { commit: request.head, path: diff.path },
     ]),
   )
+  const privatePackages = request.privatePackages ?? []
+  const declared: DeclaredPackage[] = []
   const newVersions: { version: PackageVersion; lockfile: string; text: string }[] = []
   relevant.forEach((diff, index) => {
     const before = blobs.at(2 * index)?.toString("utf8")
     const after = blobs.at(2 * index + 1)?.toString("utf8")
     if (after === undefined) return
     findings.push(...newlyDeclared(diff.path, before, after))
+    declared.push(...newlyDeclaredPackages(diff.path, before, after, privatePackages))
     for (const version of newlyLocked(diff.path, before, after)) {
-      newVersions.push({ version, lockfile: diff.path, text: after })
+      if (!isPrivatePackage(version.name, privatePackages)) newVersions.push({ version, lockfile: diff.path, text: after })
     }
   })
+
+  await checkTrustInto(declared, request, { findings, checksRun, notChecked })
 
   if (newVersions.length === 0) {
     return { findings, checksRun, notChecked }
@@ -92,7 +106,9 @@ export async function scanDependencies(request: DependencyScanRequest): Promise<
     const vulnerable = withoutAliasDuplicates(await findVulnerabilities(newVersions.map((entry) => entry.version)))
     for (const found of vulnerable) {
       const source = newVersions.find((entry) => entry.version === found.package)
-      if (source !== undefined) findings.push(vulnerabilityFinding(found, source.lockfile, source.text))
+      // The trust check already says this about a package the PR declares, with what to do about it.
+      const alreadyFlagged = isMaliciousAdvisory(found.vulnerability.id) && declared.some((entry) => entry.name === found.package.name)
+      if (source !== undefined && !alreadyFlagged) findings.push(vulnerabilityFinding(found, source.lockfile, source.text))
     }
     checksRun.push(OSV_DATABASE_CHECK)
   } catch (error: unknown) {
@@ -100,6 +116,30 @@ export async function scanDependencies(request: DependencyScanRequest): Promise<
     notChecked.push({ check: VULNERABILITY_CHECK, reason: error.message })
   }
   return { findings, checksRun, notChecked }
+}
+
+async function checkTrustInto(declared: readonly DeclaredPackage[], request: DependencyScanRequest, scan: DependencyScan): Promise<void> {
+  if (declared.length === 0) return
+  if (request.disabled?.has(CheckId.DependencyTrust)) {
+    scan.notChecked.push({ check: TRUST_CHECK, reason: TURNED_OFF_IN_SETTINGS })
+    return
+  }
+  if (!request.network) {
+    scan.notChecked.push({ check: TRUST_CHECK, reason: "offline mode: package registries were not queried" })
+    return
+  }
+  const { findings, problem } = await assessPackageTrust(declared, request.trustSources ?? LIVE_TRUST_SOURCES(request.now ?? new Date()))
+  // A stronger warning about a package replaces the routine note that it's new, so it reads as one thing.
+  const flagged = new Set(findings.map(placeOf))
+  const routineNotes = scan.findings.filter((finding) => finding.ruleId === NEW_DEPENDENCY.id && flagged.has(placeOf(finding)))
+  for (const note of routineNotes) scan.findings.splice(scan.findings.indexOf(note), 1)
+  scan.findings.push(...findings)
+  if (problem === undefined) scan.checksRun.push(TRUST_CHECK_RUN)
+  else scan.notChecked.push({ check: TRUST_CHECK, reason: problem })
+}
+
+function placeOf(finding: Risk): string {
+  return `${finding.location?.path ?? ""}:${finding.location?.line ?? ""}`
 }
 
 async function scanUnreadLockfilesInto(request: DependencyScanRequest, scan: DependencyScan): Promise<void> {
@@ -122,6 +162,15 @@ function newlyDeclared(path: string, before: string | undefined, after: string):
     .map(([name, requirement]) =>
       findingAt({ ...NEW_DEPENDENCY, title: `New dependency: ${codeSpan(name)}` }, path, lineMentioning(after, name), `${name} ${requirement}`),
     )
+}
+
+function newlyDeclaredPackages(path: string, before: string | undefined, after: string, privatePackages: readonly string[]): DeclaredPackage[] {
+  const format = manifestFormatFor(path)
+  if (format === undefined) return []
+  const previous = before === undefined ? new Map<string, string>() : format.parse(before)
+  return [...format.parse(after)]
+    .filter(([name, requirement]) => !previous.has(name) && isFromRegistry(requirement) && !isPrivatePackage(name, privatePackages))
+    .map(([name, requirement]) => ({ ecosystem: format.ecosystem, name, requirement, path, line: lineMentioning(after, name) }))
 }
 
 function newlyLocked(path: string, before: string | undefined, after: string): PackageVersion[] {

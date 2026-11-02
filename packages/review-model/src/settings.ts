@@ -6,6 +6,7 @@ export const CheckId = {
   Gitleaks: "gitleaks",
   OsvScanner: "osvScanner",
   OsvDatabase: "osvDatabase",
+  DependencyTrust: "dependencyTrust",
   Ruff: "ruff",
   Oxlint: "oxlint",
   Jscpd: "jscpd",
