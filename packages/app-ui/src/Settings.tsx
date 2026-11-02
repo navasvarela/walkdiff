@@ -176,11 +176,7 @@ function AiSection({ ai, view, onChange, onSave }: AiSectionProps): ReactElement
       </div>
 
       <KeyStatus compatible={compatible} keys={view.aiKeys} isLocal={destination?.isLocal ?? false} />
-      {!compatible && view.anthropicBaseUrl !== null && (
-        <p className="settings-warning" role="alert">
-          <strong>Your code and API key won't go to Anthropic.</strong> <code>ANTHROPIC_BASE_URL</code> in this app's environment sends them to <code>{view.anthropicBaseUrl}</code>. If you didn't mean that, unset it and restart the app.
-        </p>
-      )}
+      {!compatible && view.anthropicBaseUrl !== null && <RedirectedWarning address={view.anthropicBaseUrl} />}
 
       <label className="settings-check">
         <input type="checkbox" checked={ai.enabledByDefault} onChange={(event) => update({ ...ai, enabledByDefault: event.target.checked })} />
@@ -196,6 +192,14 @@ function AiSection({ ai, view, onChange, onSave }: AiSectionProps): ReactElement
         {result !== undefined && <span className={result.ok ? "settings-saved" : "problem"}>{result.message}</span>}
       </div>
     </section>
+  )
+}
+
+function RedirectedWarning({ address }: { readonly address: string }): ReactElement {
+  return (
+    <p className="settings-warning" role="alert">
+      <strong>Your code and API key won't go to Anthropic.</strong> <code>ANTHROPIC_BASE_URL</code> in this app's environment sends them to <code>{address}</code>. If you didn't mean that, unset it and restart the app.
+    </p>
   )
 }
 
