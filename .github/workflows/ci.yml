@@ -18,6 +18,13 @@ jobs:
           node-version: "24"
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      # The install only warns when a scanner fails, so people aren't blocked. CI should be.
+      - name: Check the pinned scanners installed
+        working-directory: packages/engine/node_modules/.walkdiff-scanners/bin
+        run: |
+          ./gitleaks version
+          ./osv-scanner --version
+          ./semgrep --version
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
