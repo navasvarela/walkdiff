@@ -66,6 +66,8 @@ API keys aren't saved by Walkdiff. Set them in the environment before starting t
 | OpenAI | `--ai-provider openai-compatible --ai-base-url https://api.openai.com/v1 --ai-model <name>` | `WALKDIFF_AI_API_KEY` |
 | Ollama, on your machine | `--ai-provider openai-compatible --ai-base-url http://localhost:11434/v1 --ai-model llama3.2` | Usually none |
 
+If `ANTHROPIC_BASE_URL` is set, requests and your API key go to that address instead of Anthropic. Settings warns you, and the terminal says where each review is sent. A rule limiting AI to `anthropic` in `.walkdiff.json` then refuses it.
+
 Any service with an OpenAI-style chat completions API should work, as long as its model supports structured output. Addresses must use https unless the model is on your machine. Costs are only estimated for Anthropic models.
 
 ## Team rules: `.walkdiff.json`

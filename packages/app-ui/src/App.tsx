@@ -114,9 +114,9 @@ function AddReviewForm({ onAdded }: AddReviewFormProps): ReactElement {
 
   useEffect(() => {
     loadCurrentSettings()
-      .then((settings) => {
+      .then(({ settings, anthropicBaseUrl }) => {
         setAi(settings.ai.enabledByDefault)
-        setDestination(aiDestination(settings.ai))
+        setDestination(aiDestination(settings.ai, anthropicBaseUrl ?? undefined))
       })
       .catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)))
   }, [])

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Shows where AI review really goes:** with `ANTHROPIC_BASE_URL` set, Settings, the review list and errors now name that address instead of saying Anthropic, and a repository rule limiting AI to `anthropic` no longer passes. Plain http is refused unless the address is on this machine.
+
 ## 0.3.0
 
 - **Redesigned brief:** a top bar on every page shows the logo, where you are and your progress, and the brief now has a clear starting card and a sidebar with the numbers and each check's result.

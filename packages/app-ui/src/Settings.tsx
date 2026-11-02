@@ -54,7 +54,7 @@ export function Settings(): ReactElement {
 
       <ChecksSection checks={view.checks} disabled={draft.disabledChecks} onChange={(disabledChecks) => change({ ...draft, disabledChecks })} />
       <AiSection ai={draft.ai} view={view} onChange={(ai) => change({ ...draft, ai })} onSave={save} />
-      <PrivacySection settings={draft} checks={view.checks} offline={view.offline} />
+      <PrivacySection settings={draft} checks={view.checks} offline={view.offline} anthropicBaseUrl={view.anthropicBaseUrl ?? undefined} />
 
       <div className="settings-actions">
         <button type="button" className="primary" onClick={() => void save()}>
@@ -122,7 +122,7 @@ function AiSection({ ai, view, onChange, onSave }: AiSectionProps): ReactElement
   const [result, setResult] = useState<AiConnectionResult>()
   const compatible = ai.provider === AiProviderKind.OpenAiCompatible
   const validation = aiSettingsSchema.safeParse(ai)
-  const destination = validation.success ? aiDestination(validation.data) : undefined
+  const destination = validation.success ? aiDestination(validation.data, view.anthropicBaseUrl ?? undefined) : undefined
   const update = (next: AiSettings): void => {
     setResult(undefined)
     onChange(next)
@@ -176,6 +176,7 @@ function AiSection({ ai, view, onChange, onSave }: AiSectionProps): ReactElement
       </div>
 
       <KeyStatus compatible={compatible} keys={view.aiKeys} isLocal={destination?.isLocal ?? false} />
+      {!compatible && view.anthropicBaseUrl !== null && <RedirectedWarning address={view.anthropicBaseUrl} />}
 
       <label className="settings-check">
         <input type="checkbox" checked={ai.enabledByDefault} onChange={(event) => update({ ...ai, enabledByDefault: event.target.checked })} />
@@ -191,6 +192,14 @@ function AiSection({ ai, view, onChange, onSave }: AiSectionProps): ReactElement
         {result !== undefined && <span className={result.ok ? "settings-saved" : "problem"}>{result.message}</span>}
       </div>
     </section>
+  )
+}
+
+function RedirectedWarning({ address }: { readonly address: string }): ReactElement {
+  return (
+    <p className="settings-warning" role="alert">
+      <strong>Your code and API key won't go to Anthropic.</strong> <code>ANTHROPIC_BASE_URL</code> in this app's environment sends them to <code>{address}</code>. If you didn't mean that, unset it and restart the app.
+    </p>
   )
 }
 
@@ -225,8 +234,8 @@ interface Destination {
   readonly when: string
 }
 
-function PrivacySection({ settings, checks, offline }: { readonly settings: AppSettings; readonly checks: readonly CheckStatus[]; readonly offline: boolean }): ReactElement {
-  const rows = destinationsFor(settings, checks, offline)
+function PrivacySection({ settings, checks, offline, anthropicBaseUrl }: { readonly settings: AppSettings; readonly checks: readonly CheckStatus[]; readonly offline: boolean; readonly anthropicBaseUrl: string | undefined }): ReactElement {
+  const rows = destinationsFor(settings, checks, offline, anthropicBaseUrl)
   return (
     <section className="settings-card" aria-labelledby="settings-privacy">
       <h2 id="settings-privacy">What leaves this machine</h2>
@@ -261,11 +270,11 @@ function aiStaysLocal(settings: AppSettings): boolean {
   return parsed.success && aiDestination(parsed.data).isLocal
 }
 
-function destinationsFor(settings: AppSettings, checks: readonly CheckStatus[], offline: boolean): Destination[] {
+function destinationsFor(settings: AppSettings, checks: readonly CheckStatus[], offline: boolean, anthropicBaseUrl: string | undefined): Destination[] {
   const active = (id: CheckId): boolean => !offline && !settings.disabledChecks.includes(id) && checks.find((check) => check.id === id)?.installed !== false
   const osv = active("osvDatabase") || active("osvScanner")
   const parsed = aiSettingsSchema.safeParse(settings.ai)
-  const destination = parsed.success ? aiDestination(parsed.data) : undefined
+  const destination = parsed.success ? aiDestination(parsed.data, anthropicBaseUrl) : undefined
   return [
     { where: "The PR's host", what: "Your token, if the host is trusted, to read the PR and its code", when: "Every review" },
     ...(osv ? [{ where: "OSV", what: "Names and versions of changed dependencies, including private package names", when: "When dependencies change" }] : []),

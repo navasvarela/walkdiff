@@ -1,5 +1,5 @@
-import { aiConnectionResultSchema, appSettingsSchema, reviewSummarySchema, settingsViewSchema } from "@walkdiff/review-model"
-import type { AddReviewRequest, AiConnectionResult, AttachCoverageRequest, AppSettings, ReviewSummary, SettingsView } from "@walkdiff/review-model"
+import { aiConnectionResultSchema, currentSettingsSchema, reviewSummarySchema, settingsViewSchema } from "@walkdiff/review-model"
+import type { AddReviewRequest, AiConnectionResult, AttachCoverageRequest, AppSettings, CurrentSettings, ReviewSummary, SettingsView } from "@walkdiff/review-model"
 
 const API_KEY_HEADER = "X-Walkdiff-Key"
 
@@ -49,8 +49,8 @@ export async function loadSettings(): Promise<SettingsView> {
   return settingsViewSchema.parse(await call("/api/settings", "GET"))
 }
 
-export async function loadCurrentSettings(): Promise<AppSettings> {
-  return appSettingsSchema.parse(await call("/api/settings/current", "GET"))
+export async function loadCurrentSettings(): Promise<CurrentSettings> {
+  return currentSettingsSchema.parse(await call("/api/settings/current", "GET"))
 }
 
 export async function saveSettings(settings: AppSettings): Promise<SettingsView> {

@@ -1,5 +1,6 @@
 import { join } from "node:path"
 import { analyzeChangedFiles, coverageFromArchives, coverageInPullRequest, createAiProvider, fetchCommits, readCoverage, readWalkdiffConfig, reviewWithAi } from "@walkdiff/engine"
+import type { AiProvider } from "@walkdiff/engine"
 import { displayName, gitHostFor, parsePullRequestUrl, repositoryPath } from "@walkdiff/providers"
 import type { HostTokens, PullRequestRef } from "@walkdiff/providers"
 import { AiReviewStatus, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, securitySummary } from "@walkdiff/review-model"
@@ -100,7 +101,7 @@ export async function analyzePullRequest(ref: PullRequestRef, options: AnalysisR
           base: pullRequest.mergeBaseSha,
           head: pullRequest.headSha,
           context: { pullRequest, files, risk },
-          provider: createAiProvider(options.ai, process.env),
+          provider: announced(createAiProvider(options.ai, process.env), deps),
           cacheDir: deps.cacheDir,
           maxInputTokens: options.ai.maxInputTokens,
         })
@@ -144,6 +145,12 @@ async function coverageFromCi(search: CoverageSearch, deps: AnalysisDependencies
     deps.log(`Could not read CI artifacts: ${error instanceof Error ? error.message : String(error)}`)
     return undefined
   }
+}
+
+// Printed on every run, as this is the one place code can leave for a service the person chose.
+function announced(provider: AiProvider, deps: AnalysisDependencies): AiProvider {
+  deps.log(`AI review sends the changed code to ${provider.destination.label}.`)
+  return provider
 }
 
 function describeAiReview(ai: AiReview): string {

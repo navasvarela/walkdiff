@@ -86,7 +86,7 @@ Each guarantee describes the latest release and has an automated test or setting
 | The PR's host | Your token if the host is trusted, and requests for the PR and its code. Your comments and decisions when you post a review | Always; posting only when you press the button | - |
 | [OSV](https://osv.dev) | Names and versions of dependencies changed in the PR, **including private package names** | By default | `--offline` |
 | Semgrep registry | A rule download; code isn't uploaded | During a review, unless turned off | `--offline`, or an empty rule list |
-| Your AI provider (Anthropic by default) | Changed code, and the PR's title and description | Only with `--ai` or the app's AI option | Leave it off, forbid it in `.walkdiff.json`, or use a local model |
+| Your AI provider (Anthropic by default, or the address in `ANTHROPIC_BASE_URL` if that's set) | Changed code, and the PR's title and description | Only with `--ai` or the app's AI option | Leave it off, forbid it in `.walkdiff.json`, or use a local model |
 
 You choose the AI provider, so check how it handles your data. For Anthropic, see [its privacy documentation](https://privacy.anthropic.com).
 
