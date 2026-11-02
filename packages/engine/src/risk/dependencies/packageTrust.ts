@@ -174,9 +174,14 @@ interface RegistryClient {
   readonly firstPublished: (body: unknown) => Date | undefined
 }
 
+// A scope's leading @ stays as it is and its slash is encoded, as the registry expects. Everything
+// else is encoded, because the name comes from the PR and must stay one path segment.
+function npmPathFor(name: string): string {
+  return name.startsWith("@") ? `@${encodeURIComponent(name.slice(1))}` : encodeURIComponent(name)
+}
+
 const REGISTRIES: Readonly<Record<Ecosystem, RegistryClient>> = {
-  // A scoped name keeps its @ and has its slash encoded, as the registry expects.
-  [Ecosystem.Npm]: { url: (name) => `https://registry.npmjs.org/${encodeURIComponent(name).replace("%40", "@")}`, firstPublished: (body) => new Date(npmSchema.parse(body).time.created) },
+  [Ecosystem.Npm]: { url: (name) => `https://registry.npmjs.org/${npmPathFor(name)}`, firstPublished: (body) => new Date(npmSchema.parse(body).time.created) },
   [Ecosystem.PyPI]: {
     url: (name) => `https://pypi.org/pypi/${encodeURIComponent(name)}/json`,
     firstPublished: (body) => {

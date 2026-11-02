@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import { findMaliciousPackages } from "./osv.ts"
-import { assessPackageTrust, isFromRegistry, isOneEditAway, isPrivatePackage, RegistryUnavailableError } from "./packageTrust.ts"
+import { assessPackageTrust, isFromRegistry, isOneEditAway, isPrivatePackage, lookUpOnRegistry, RegistryUnavailableError } from "./packageTrust.ts"
 import type { DeclaredPackage, RegistryEntry, TrustSources } from "./packageTrust.ts"
 import { Ecosystem, manifestFormatFor } from "./packages.ts"
 
@@ -136,6 +136,21 @@ describe("what the check skips or reads", () => {
   it("keeps local Cargo dependencies recognizable", () => {
     const parsed = manifestFormatFor("Cargo.toml")?.parse('[dependencies]\nserde = "1"\nmine = { path = "../mine" }\nshared = { workspace = true }\n')
     expect(parsed).toEqual(new Map([["serde", "1"], ["mine", "path:../mine"], ["shared", "workspace:"]]))
+  })
+})
+
+describe("lookUpOnRegistry", () => {
+  it.each([
+    ["@acme/core", "https://registry.npmjs.org/@acme%2Fcore"],
+    ["plain", "https://registry.npmjs.org/plain"],
+    ["@a@b/c", "https://registry.npmjs.org/@a%40b%2Fc"],
+    ["../../x", "https://registry.npmjs.org/..%2F..%2Fx"],
+  ])("keeps the npm name %s to one path segment", async (name, expected) => {
+    const asked = vi.fn<typeof fetch>(async () => new Response("{}", { status: 404 }))
+    vi.stubGlobal("fetch", asked)
+    expect(await lookUpOnRegistry(Ecosystem.Npm, name)).toEqual({ status: "missing" })
+    expect(asked.mock.calls.at(0)?.[0]).toBe(expected)
+    vi.unstubAllGlobals()
   })
 })
 

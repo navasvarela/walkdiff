@@ -57,17 +57,30 @@ const NEW_DEPENDENCY: RuleDescription = {
  * against the OSV vulnerability database.
  */
 export async function scanDependencies(request: DependencyScanRequest): Promise<DependencyScan> {
-  const relevant = request.diffs.filter(
-    (diff) => diff.status !== FileChangeStatus.Deleted && (manifestFormatFor(diff.path) ?? lockfileFormatFor(diff.path)) !== undefined,
-  )
-  const findings: Risk[] = []
-  const checksRun: CheckRun[] = []
-  const notChecked: SkippedCheck[] = []
-  await scanUnreadLockfilesInto(request, { findings, checksRun, notChecked })
-  if (relevant.length === 0) {
-    return { findings, checksRun, notChecked }
-  }
+  const scan: DependencyScan = { findings: [], checksRun: [], notChecked: [] }
+  await scanUnreadLockfilesInto(request, scan)
+  const changes = await readManifestChanges(request)
+  scan.findings.push(...changes.noted)
+  await checkTrustInto(changes.declared, request, scan)
+  await checkVulnerabilitiesInto(changes, request, scan)
+  return scan
+}
 
+interface NewVersion {
+  readonly version: PackageVersion
+  readonly lockfile: string
+  readonly text: string
+}
+
+interface ManifestChanges {
+  readonly noted: readonly Risk[]
+  readonly declared: readonly DeclaredPackage[]
+  readonly newVersions: readonly NewVersion[]
+}
+
+async function readManifestChanges(request: DependencyScanRequest): Promise<ManifestChanges> {
+  const relevant = request.diffs.filter((diff) => diff.status !== FileChangeStatus.Deleted && (manifestFormatFor(diff.path) ?? lockfileFormatFor(diff.path)) !== undefined)
+  if (relevant.length === 0) return { noted: [], declared: [], newVersions: [] }
   const blobs = await readBlobs(
     request.repoDir,
     relevant.flatMap((diff) => [
@@ -76,31 +89,31 @@ export async function scanDependencies(request: DependencyScanRequest): Promise<
     ]),
   )
   const privatePackages = request.privatePackages ?? []
+  const noted: Risk[] = []
   const declared: DeclaredPackage[] = []
-  const newVersions: { version: PackageVersion; lockfile: string; text: string }[] = []
+  const newVersions: NewVersion[] = []
   relevant.forEach((diff, index) => {
     const before = blobs.at(2 * index)?.toString("utf8")
     const after = blobs.at(2 * index + 1)?.toString("utf8")
     if (after === undefined) return
-    findings.push(...newlyDeclared(diff.path, before, after))
+    noted.push(...newlyDeclared(diff.path, before, after))
     declared.push(...newlyDeclaredPackages(diff.path, before, after, privatePackages))
     for (const version of newlyLocked(diff.path, before, after)) {
       if (!isPrivatePackage(version.name, privatePackages)) newVersions.push({ version, lockfile: diff.path, text: after })
     }
   })
+  return { noted, declared, newVersions }
+}
 
-  await checkTrustInto(declared, request, { findings, checksRun, notChecked })
-
-  if (newVersions.length === 0) {
-    return { findings, checksRun, notChecked }
-  }
+async function checkVulnerabilitiesInto({ declared, newVersions }: ManifestChanges, request: DependencyScanRequest, scan: DependencyScan): Promise<void> {
+  if (newVersions.length === 0) return
   if (request.disabled?.has(CheckId.OsvDatabase)) {
-    notChecked.push({ check: VULNERABILITY_CHECK, reason: TURNED_OFF_IN_SETTINGS })
-    return { findings, checksRun, notChecked }
+    scan.notChecked.push({ check: VULNERABILITY_CHECK, reason: TURNED_OFF_IN_SETTINGS })
+    return
   }
   if (!request.network) {
-    notChecked.push({ check: VULNERABILITY_CHECK, reason: "offline mode: the OSV database was not queried" })
-    return { findings, checksRun, notChecked }
+    scan.notChecked.push({ check: VULNERABILITY_CHECK, reason: "offline mode: the OSV database was not queried" })
+    return
   }
   try {
     const vulnerable = withoutAliasDuplicates(await findVulnerabilities(newVersions.map((entry) => entry.version)))
@@ -108,14 +121,13 @@ export async function scanDependencies(request: DependencyScanRequest): Promise<
       const source = newVersions.find((entry) => entry.version === found.package)
       // The trust check already says this about a package the PR declares, with what to do about it.
       const alreadyFlagged = isMaliciousAdvisory(found.vulnerability.id) && declared.some((entry) => entry.name === found.package.name)
-      if (source !== undefined && !alreadyFlagged) findings.push(vulnerabilityFinding(found, source.lockfile, source.text))
+      if (source !== undefined && !alreadyFlagged) scan.findings.push(vulnerabilityFinding(found, source.lockfile, source.text))
     }
-    checksRun.push(OSV_DATABASE_CHECK)
+    scan.checksRun.push(OSV_DATABASE_CHECK)
   } catch (error: unknown) {
     if (!(error instanceof OsvUnavailableError)) throw error
-    notChecked.push({ check: VULNERABILITY_CHECK, reason: error.message })
+    scan.notChecked.push({ check: VULNERABILITY_CHECK, reason: error.message })
   }
-  return { findings, checksRun, notChecked }
 }
 
 async function checkTrustInto(declared: readonly DeclaredPackage[], request: DependencyScanRequest, scan: DependencyScan): Promise<void> {
