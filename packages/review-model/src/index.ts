@@ -95,7 +95,10 @@ export { changedUnitsOf, codeSpan, isBehaviourChange, isSecurityFinding, namesOf
 export {
   AiProviderKind,
   aiConnectionResultSchema,
+  ANTHROPIC_BASE_URL_VARIABLE,
+  anthropicBaseUrlFrom,
   aiDestination,
+  currentSettingsSchema,
   aiSettingsSchema,
   appSettingsSchema,
   baseUrlProblem,
@@ -106,6 +109,7 @@ export {
   LOCAL_AI_DESTINATION,
   settingsViewSchema,
 } from "./settings.ts"
-export type { AiConnectionResult, AiDestination, AiSettings, AppSettings, CheckStatus, SettingsView } from "./settings.ts"
+export type { AiConnectionResult, AiDestination, AiSettings, AppSettings,
+  CurrentSettings, CheckStatus, SettingsView } from "./settings.ts"
 export { conversationSchema, replySchema, resolveThreadSchema, ReviewerState, ReviewEvent, reviewCommentSchema, submitResultSchema, submitReviewSchema } from "./conversation.ts"
 export type { Conversation, ReviewComment, ReviewThread, SubmitResult, SubmitReview, ThreadComment } from "./conversation.ts"

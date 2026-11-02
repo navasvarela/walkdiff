@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod"
 import { aiDestination, AiProviderKind } from "@walkdiff/review-model"
+import type { AiDestination } from "@walkdiff/review-model"
 import { rawAiOutputSchema } from "./output.ts"
 import { AiUnavailableError } from "./provider.ts"
 import type { AiCompletion, AiProvider } from "./provider.ts"
@@ -23,28 +24,35 @@ const SERVER_SIDE_FALLBACK_BETA = "server-side-fallback-2026-07-01"
  */
 export class AnthropicProvider implements AiProvider {
   readonly model: string
-  readonly destination = aiDestination({ provider: AiProviderKind.Anthropic, model: DEFAULT_ANTHROPIC_MODEL, baseUrl: null, maxInputTokens: 1, enabledByDefault: false })
+  readonly destination: AiDestination
+  readonly #baseUrl: string | undefined
   #client: Anthropic | undefined
 
-  constructor(model: string = DEFAULT_ANTHROPIC_MODEL, client?: Anthropic) {
+  constructor(model: string = DEFAULT_ANTHROPIC_MODEL, client?: Anthropic, baseUrl?: string) {
     this.model = model
     this.#client = client
+    this.#baseUrl = baseUrl
+    this.destination = aiDestination({ provider: AiProviderKind.Anthropic, model, baseUrl: null, maxInputTokens: 1, enabledByDefault: false }, baseUrl)
+  }
+
+  // Passed explicitly so the address that's reported is the one used, whatever the SDK would read.
+  #clientForRequests(): Anthropic {
+    this.#client ??= new Anthropic(this.#baseUrl === undefined ? {} : { baseURL: this.#baseUrl })
+    return this.#client
   }
 
   /** Lists models, which sends no code and costs nothing. */
   async checkConnection(): Promise<void> {
     try {
-      this.#client ??= new Anthropic()
-      await this.#client.models.list()
+      await this.#clientForRequests().models.list()
     } catch (error: unknown) {
-      throw unavailableFrom(error)
+      throw unavailableFrom(error, this.destination.label)
     }
   }
 
   async complete(system: string, prompt: string): Promise<AiCompletion> {
     try {
-      this.#client ??= new Anthropic()
-      const response = await this.#client.beta.messages.parse({
+      const response = await this.#clientForRequests().beta.messages.parse({
         model: this.model,
         max_tokens: MAX_OUTPUT_TOKENS,
         betas: [SERVER_SIDE_FALLBACK_BETA],
@@ -68,19 +76,19 @@ export class AnthropicProvider implements AiProvider {
         usage: { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens },
       }
     } catch (error: unknown) {
-      throw unavailableFrom(error)
+      throw unavailableFrom(error, this.destination.label)
     }
   }
 }
 
 // Most specific first: each SDK error class extends the ones below it.
-function unavailableFrom(error: unknown): unknown {
+function unavailableFrom(error: unknown, destination: string): unknown {
   if (error instanceof AiUnavailableError) return error
   if (error instanceof Anthropic.AuthenticationError) {
     return new AiUnavailableError("Anthropic rejected the credentials; set ANTHROPIC_API_KEY or run `ant auth login`")
   }
   if (error instanceof Anthropic.RateLimitError) return new AiUnavailableError("rate limited by the Anthropic API; try again shortly")
-  if (error instanceof Anthropic.APIConnectionError) return new AiUnavailableError(`could not reach the Anthropic API: ${error.message}`)
+  if (error instanceof Anthropic.APIConnectionError) return new AiUnavailableError(`could not reach ${destination}: ${error.message}`)
   if (error instanceof Anthropic.APIError) return new AiUnavailableError(`Anthropic API error ${error.status ?? ""}: ${error.message}`)
   if (error instanceof Anthropic.AnthropicError) return new AiUnavailableError(error.message)
   // The SDK reports a missing credential with a plain Error when it builds the request.

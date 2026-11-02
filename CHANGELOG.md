@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Shows where AI review really goes:** with `ANTHROPIC_BASE_URL` set, Settings, the review list and errors now name that address instead of saying Anthropic, and a repository rule limiting AI to `anthropic` no longer passes. Plain http is refused unless the address is on this machine.
 - **Semgrep installs again:** two automated dependency updates had made its locked packages impossible to install, so reviews reported it as not run. CI now fails if a scanner doesn't install, and changing a locked package now reinstalls it.
 - **Clearer PR comment:** it now has the Walkdiff logo, tables, code font for names, and findings that link straight into the PR's diff.
 - **No more "security level":** "Low" sounded like a verdict, but Walkdiff runs pattern and secret scans on added lines, not a security audit. Comments and reports now say what was found, such as "No security findings", and which checks looked.

@@ -225,6 +225,10 @@ Use "Save and test connection" on the Settings page, which sends no code. Check 
 
 The model didn't return structured output. Try a model that supports it, or a different provider.
 
+### `could not reach`, naming an address you don't recognize
+
+`ANTHROPIC_BASE_URL` is probably set in the terminal that started Walkdiff, sending requests to that address instead of Anthropic. If nothing is meant to be there, run `unset ANTHROPIC_BASE_URL` and start Walkdiff again.
+
 ### `only allows AI review with`
 
 The repository's `.walkdiff.json` limits where its code can go. Choose one of the providers it lists on the Settings page.

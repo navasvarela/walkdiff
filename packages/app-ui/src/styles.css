@@ -383,3 +383,10 @@ button:disabled {
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
+
+.settings-warning {
+  margin: 12px 0;
+  padding: 10px 14px;
+  border: 1px solid var(--medium-text, currentColor);
+  border-radius: 8px;
+}

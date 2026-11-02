@@ -6,7 +6,7 @@ import { join, resolve } from "node:path"
 import { gitHostFor, HostApiError, InvalidPullRequestUrlError, parsePullRequestUrl } from "@walkdiff/providers"
 import type { GitHost, PullRequestRef } from "@walkdiff/providers"
 import { AI_API_KEY_VARIABLE, AiUnavailableError, CoverageFileError, createAiProvider, describeChecks } from "@walkdiff/engine"
-import { addReviewRequestSchema, appSettingsSchema, attachCoverageRequestSchema, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
+import { addReviewRequestSchema, anthropicBaseUrlFrom, appSettingsSchema, attachCoverageRequestSchema, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
 import type { AiConnectionResult, SettingsView } from "@walkdiff/review-model"
 import { readHostTokens } from "../environment.ts"
 import { REPORT_FILE_POLICY_TAG, REPORT_PAGE_FILE, writeReport } from "../report.ts"
@@ -162,7 +162,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, pat
   }
   // Separate from the full view, which is slow because it asks every scanner for its version.
   if (pathname === "/api/settings/current" && method === "GET") {
-    sendJson(response, 200, context.store.getSettings())
+    sendJson(response, 200, { settings: context.store.getSettings(), anthropicBaseUrl: anthropicBaseUrlFrom(context.env) ?? null })
     return
   }
   if (pathname === "/api/settings/test-ai" && method === "POST") {
@@ -204,6 +204,7 @@ async function settingsView(context: AppContext): Promise<SettingsView> {
     settings: context.store.getSettings(),
     checks: await describeChecks(),
     aiKeys: { anthropic: nonEmpty(context.env.ANTHROPIC_API_KEY), openaiCompatible: nonEmpty(context.env[AI_API_KEY_VARIABLE]) },
+    anthropicBaseUrl: anthropicBaseUrlFrom(context.env) ?? null,
     offline: context.offline,
   }
 }
