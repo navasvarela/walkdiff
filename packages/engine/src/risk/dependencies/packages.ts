@@ -50,7 +50,12 @@ export const UNREAD_LOCKFILES: ReadonlySet<string> = new Set(["pnpm-lock.yaml", 
 // Binary, and not readable by osv-scanner either.
 export const UNSCANNABLE_LOCKFILES: ReadonlySet<string> = new Set(["bun.lockb"])
 
+// pip-tools projects keep their inputs in a folder, as requirements/base.in or requirements/dev.txt.
+const REQUIREMENTS_FOLDER_FILE = /(^|\/)requirements\/[^/]+\.(in|txt)$/
+const REQUIREMENTS_INPUT_FILE = /^requirements.*\.in$/
+
 export function manifestFormatFor(path: string): ManifestFormat | undefined {
+  if (REQUIREMENTS_FOLDER_FILE.test(path) || REQUIREMENTS_INPUT_FILE.test(basename(path))) return { ecosystem: Ecosystem.PyPI, matches: () => true, parse: parseRequirements }
   return MANIFESTS.find((format) => format.matches(basename(path)))
 }
 
@@ -81,11 +86,20 @@ function parseCargoToml(text: string): DeclaredDependencies {
   for (const section of sections) {
     for (const [name, value] of Object.entries(isRecord(section) ? section : {})) {
       // `serde = "1"`, or a table such as `serde = { version = "1", features = [...] }`.
-      const requirement = typeof value === "string" ? value : stringField(value, "version") ?? stringField(value, "git") ?? "*"
+      const requirement = typeof value === "string" ? value : stringField(value, "version") ?? cargoSource(value) ?? "*"
       declared.set(name, requirement)
     }
   }
   return declared
+}
+
+// The source of a dependency that doesn't come from crates.io, in the form the trust check recognizes.
+function cargoSource(value: unknown): string | undefined {
+  const git = stringField(value, "git")
+  if (git !== undefined) return git
+  const path = stringField(value, "path")
+  if (path !== undefined) return `path:${path}`
+  return field(value, "workspace") === true ? "workspace:" : undefined
 }
 
 function parsePyproject(text: string): DeclaredDependencies {
@@ -148,7 +162,7 @@ function pinnedRequirements(text: string): PackageVersion[] {
 }
 
 // PEP 503: names compare case-insensitively with runs of -, _ and . treated alike.
-function normalizePythonName(name: string): string {
+export function normalizePythonName(name: string): string {
   return name.toLowerCase().replace(/[-_.]+/g, "-")
 }
 

@@ -81,6 +81,7 @@ Put this file at the root of the repository being reviewed. Every setting is opt
   "ai": { "allowed": true },
   "scanners": { "semgrep": { "rules": ["p/default"] } },
   "coverage": { "paths": ["reports/**/*.txt"] },
+  "dependencies": { "private": ["@acme/*", "acme-*"] },
   "feedback": { "url": "https://forms.example.com/walkdiff" }
 }
 ```
@@ -93,6 +94,7 @@ Put this file at the root of the repository being reviewed. Every setting is opt
 | `ai.providers` | Limits where code can go: `"anthropic"`, `"local"` for a model on the reviewer's machine, or a host such as `"api.openai.com"` |
 | `scanners.semgrep.rules` | Sets Semgrep registry rule packs (`p/…` or `r/…`). Use an empty list to turn Semgrep off |
 | `coverage.paths` | Globs for coverage reports whose names Walkdiff doesn't recognize, in CI artifacts or the PR. |
+| `dependencies.private` | Names or globs for your own packages. They're never sent to OSV or package registries, or flagged as missing. |
 | `feedback.url` | Adds a feedback link to the report and the PR comment |
 
 **A PR can't change its own rules.** Walkdiff reads this file from the PR's merge base, so an edit takes effect only after it's merged. The edit itself is reported as a finding. AI review is blocked if either version of the file forbids it.
@@ -104,6 +106,7 @@ Put this file at the root of the repository being reviewed. Every setting is opt
 | The PR's host | Your token, if the host is trusted, to read the PR and its code | Always |
 | OSV | Names and versions of dependencies | Unless `--offline` |
 | GitHub and PyPI | Downloads of the pinned scanners, checked against their hashes; nothing of yours is sent | On `pnpm install`, when a version isn't there yet |
+| OSV, npm, PyPI and crates.io | Names of new direct dependencies, unless listed in `dependencies.private`; no versions of your code | When a PR adds a dependency, unless `--offline` or turned off in Settings |
 | Semgrep registry | A rule download; your code isn't uploaded | During a review, unless `--offline` |
 | Your AI provider | The changed code, and the PR's title and description, with known credential formats redacted and credential files left out | Only with `--ai` or the app's AI option. Nothing leaves your machine with a local model |
 

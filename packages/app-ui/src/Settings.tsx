@@ -277,7 +277,8 @@ function destinationsFor(settings: AppSettings, checks: readonly CheckStatus[], 
   const destination = parsed.success ? aiDestination(parsed.data, anthropicBaseUrl) : undefined
   return [
     { where: "The PR's host", what: "Your token, if the host is trusted, to read the PR and its code", when: "Every review" },
-    ...(osv ? [{ where: "OSV", what: "Names and versions of changed dependencies, including private package names", when: "When dependencies change" }] : []),
+    ...(osv ? [{ where: "OSV", what: "Names and versions of changed dependencies, including private package names unless listed in .walkdiff.json", when: "When dependencies change" }] : []),
+    ...(active("dependencyTrust") ? [{ where: "OSV, npm, PyPI and crates.io", what: "Names of new direct dependencies, unless listed as private in .walkdiff.json", when: "When a PR adds a dependency" }] : []),
     ...(active("semgrep") ? [{ where: "Semgrep registry", what: "A rule download; your code isn't uploaded", when: "Every review" }] : []),
     ...(destination !== undefined && !destination.isLocal
       ? [{ where: destination.label, what: "The changed code, and the PR's title and description, with known credential formats redacted", when: settings.ai.enabledByDefault ? "Reviews with AI ticked, which is the default" : "Only reviews with AI ticked" }]

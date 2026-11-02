@@ -229,6 +229,10 @@ The model didn't return structured output. Try a model that supports it, or a di
 
 `ANTHROPIC_BASE_URL` is probably set in the terminal that started Walkdiff, sending requests to that address instead of Anthropic. If nothing is meant to be there, run `unset ANTHROPIC_BASE_URL` and start Walkdiff again.
 
+### A package of yours is flagged as not on the registry
+
+Walkdiff checks new dependencies against public registries. List your own packages under `dependencies.private` in `.walkdiff.json`, such as `"@acme/*"`, and they're skipped and never sent out. Until then, these names do go to the registries. If the name isn't yours, it may be made up, and anyone could register it.
+
 ### `only allows AI review with`
 
 The repository's `.walkdiff.json` limits where its code can go. Choose one of the providers it lists on the Settings page.

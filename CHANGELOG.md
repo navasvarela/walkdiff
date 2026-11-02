@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Dependency trust check:** new direct dependencies are flagged if they're known malicious, aren't on npm, PyPI or crates.io, were first published in the last 30 days, or have a name one character from a popular package. List your own packages under `dependencies.private` in `.walkdiff.json` to keep them private.
+- **Malicious packages rank High:** known malicious versions found in lockfiles no longer show as Medium.
+- **`requirements/*.in` files are now read** as dependency lists, along with `requirements*.in`.
 - **Shows where AI review really goes:** with `ANTHROPIC_BASE_URL` set, Settings, the review list and errors now name that address instead of saying Anthropic, and a repository rule limiting AI to `anthropic` no longer passes. Plain http is refused unless the address is on this machine.
 
 ## 0.3.0

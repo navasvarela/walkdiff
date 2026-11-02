@@ -85,6 +85,7 @@ describe("assessRisk", () => {
     expect(risk?.notChecked.map((skipped) => skipped.check)).toEqual([
       "Semgrep code scan",
       "gitleaks secret scan",
+      "Dependency trust",
       "Known vulnerabilities in new dependency versions",
       "Ruff Python lint",
       "jscpd duplicate detection",

@@ -85,6 +85,7 @@ Each guarantee describes the latest release and has an automated test or setting
 | --- | --- | --- | --- |
 | The PR's host | Your token if the host is trusted, and requests for the PR and its code. Your comments and decisions when you post a review | Always; posting only when you press the button | - |
 | [OSV](https://osv.dev) | Names and versions of dependencies changed in the PR, **including private package names** | By default | `--offline` |
+| npm, PyPI and crates.io | Names of new direct dependencies, **including private package names** unless listed in `dependencies.private` | When a PR adds a dependency | `--offline`, Settings, or `dependencies.private` |
 | Semgrep registry | A rule download; code isn't uploaded | During a review, unless turned off | `--offline`, or an empty rule list |
 | Your AI provider (Anthropic by default, or the address in `ANTHROPIC_BASE_URL` if that's set) | Changed code, and the PR's title and description | Only with `--ai` or the app's AI option | Leave it off, forbid it in `.walkdiff.json`, or use a local model |
 
