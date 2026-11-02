@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { chmod, mkdir, mkdtemp, rename, rm, symlink, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { execFile } from "node:child_process"
 import { join, relative, resolve } from "node:path"
@@ -70,6 +70,7 @@ const DOWNLOAD_TIMEOUT_MS = 2 * 60 * 1000
 // Installing Semgrep's dependencies on a slow connection can take several minutes.
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000
 const EXECUTABLE_MODE = 0o755
+const LOCK_HASH_CHARS = 12
 
 export interface InstallDependencies {
   readonly download: (url: string) => Promise<Buffer>
@@ -155,7 +156,10 @@ async function installSemgrep(tools: string, deps: InstallDependencies): Promise
     deps.log("Semgrep doesn't run natively here. Install it yourself, for example in WSL, to use it.")
     return undefined
   }
-  const target = join(tools, `${SEMGREP_BINARY}-${SEMGREP_VERSION}`)
+  // Named for the lock file's contents too, so changing any locked package reinstalls, not only a
+  // new Semgrep version.
+  const requirements = await readFile(SEMGREP_REQUIREMENTS)
+  const target = join(tools, `${SEMGREP_BINARY}-${SEMGREP_VERSION}-${createHash("sha256").update(requirements).digest("hex").slice(0, LOCK_HASH_CHARS)}`)
   const executable = join(target, "bin", SEMGREP_BINARY)
   const marker = join(target, SEMGREP_COMPLETE_MARKER)
   if (existsSync(marker)) return executable

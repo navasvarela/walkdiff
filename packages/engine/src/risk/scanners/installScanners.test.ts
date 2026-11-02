@@ -81,7 +81,7 @@ describe("installScanners", () => {
     expect(pip).toContain("--require-hashes")
     expect(pip).toContain("--only-binary :all:")
     expect(pip).toContain(SEMGREP_REQUIREMENTS)
-    expect(await readlink(join(root, "bin", "semgrep"))).toBe(`../tools/semgrep-${SEMGREP_VERSION}/bin/semgrep`)
+    expect(await readlink(join(root, "bin", "semgrep"))).toMatch(new RegExp(`^\\.\\./tools/semgrep-${SEMGREP_VERSION}-[0-9a-f]{12}/bin/semgrep$`))
   })
 
   it("says what Semgrep needs when Python is missing", async () => {
