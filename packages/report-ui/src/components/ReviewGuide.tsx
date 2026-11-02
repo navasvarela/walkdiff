@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import type { ReactElement } from "react"
-import { AiReviewStatus, namesOfChecks, summarizeChecks, totalsOf, UnitChangeKind, UnitImpactStatus } from "@walkdiff/review-model"
-import type { ChangedUnit, CheckRun, ReviewModel, SkippedCheck } from "@walkdiff/review-model"
+import { AiReviewStatus, CheckOutcome, namesOfChecks, summarizeChecks, UnitChangeKind, UnitImpactStatus } from "@walkdiff/review-model"
+import type { ChangedUnit, CheckRun, ReviewModel, RiskAssessment, SkippedCheck } from "@walkdiff/review-model"
 import { aiNotesForStop, digestAiReview } from "../aiDigest.ts"
 import { isConnectedToApp } from "../appApi.ts"
 import { changeSummary, FINISH_HASH, GuideRouteKind, hashForStop, PATH_RULES, REVIEW_HASH } from "../reviewPlan.ts"
@@ -16,9 +16,9 @@ import { ReviewerSummary, StopThreads } from "./ConversationView.tsx"
 import { HunkView } from "./HunkView.tsx"
 import { ImpactPanel } from "./ImpactPanel.tsx"
 import { InlineCode } from "./InlineCode.tsx"
-import { homeUrl } from "./PullRequestHeader.tsx"
 import { ReviewControls } from "./ReviewControls.tsx"
 import { SubmitReviewForm } from "./SubmitReviewForm.tsx"
+import { TopBar, TopBarSection } from "./TopBar.tsx"
 import { RiskList } from "./RiskView.tsx"
 import { UnitBody } from "./UnitCard.tsx"
 
@@ -50,26 +50,22 @@ export function ReviewGuide({ review, route }: ReviewGuideProps): ReactElement {
   }, [route])
   useKeyboardShortcuts(route, plan, current === undefined ? undefined : () => setReviewed(stopItems(current), !isReviewed(stopItems(current), state)))
 
-  if (route.kind === GuideRouteKind.Brief) return <Brief review={review} plan={plan} state={state} />
   return (
-    <div className="guide-with-rail">
-      <ReviewRail review={review} plan={plan} state={state} currentIndex={route.kind === GuideRouteKind.Stop ? route.index : undefined} />
-      {route.kind === GuideRouteKind.Stop && current !== undefined ? (
-        <StopView review={review} stop={current} index={route.index} total={plan.stops.length} />
+    <>
+      <TopBar review={review} section={TopBarSection.Review} />
+      {route.kind === GuideRouteKind.Brief ? (
+        <Brief review={review} plan={plan} state={state} />
       ) : (
-        <Finish review={review} plan={plan} state={state} />
+        <div className="guide-with-rail">
+          <ReviewRail review={review} plan={plan} state={state} currentIndex={route.kind === GuideRouteKind.Stop ? route.index : undefined} />
+          {route.kind === GuideRouteKind.Stop && current !== undefined ? (
+            <StopView review={review} stop={current} index={route.index} total={plan.stops.length} />
+          ) : (
+            <Finish review={review} plan={plan} state={state} />
+          )}
+        </div>
       )}
-    </div>
-  )
-}
-
-function AllReviewsLink(): ReactElement | null {
-  const url = homeUrl()
-  if (url === undefined) return null
-  return (
-    <a className="home-link guide-home" href={url}>
-      ← All reviews
-    </a>
+    </>
   )
 }
 
@@ -83,72 +79,119 @@ function AllClear({ checks }: { readonly checks: readonly CheckRun[] }): ReactEl
 
 function Brief({ review, plan, state }: { readonly review: ReviewModel; readonly plan: ReviewPlan; readonly state: ReviewState }): ReactElement {
   const { changedAtOpen } = useReviewState()
-  const { pullRequest, files } = review
-  const additions = files.reduce((sum, file) => sum + file.diff.additions, 0)
-  const deletions = files.reduce((sum, file) => sum + file.diff.deletions, 0)
-  const path = pathProgress(plan, state)
-  const resumeAt = nextUnreviewedStop(plan, state)
   return (
     <main className="guide">
-      <AllReviewsLink />
-      <p className="guide-eyebrow">
-        <a href={pullRequest.url} target="_blank" rel="noreferrer">
-          #{pullRequest.number}
-        </a>{" "}
-        by {pullRequest.author} · {files.length} {files.length === 1 ? "file" : "files"} · <span className="added">+{additions}</span> <span className="removed">−{deletions}</span>
-      </p>
-      <h1 className="guide-title">{pullRequest.title}</h1>
+      <BriefHeading review={review} />
+      <div className="guide-columns">
+        <div className="guide-main">
+          <ReviewerSummary />
 
-      <ReviewerSummary />
-
-      {changedAtOpen.length > 0 && (
-        <p className="guide-updated">
-          <strong>This PR has changed since your last review.</strong> {changedAtOpen.length} {changedAtOpen.length === 1 ? "change you reviewed needs" : "changes you reviewed need"} another look, and {changedAtOpen.length === 1 ? "it comes" : "they come"} first. Everything else you reviewed keeps its tick.
-        </p>
-      )}
-
-      {plan.checks.length === 0 ? (
-        <AllClear checks={review.risk.checksRun} />
-      ) : (
-        <BriefChecks plan={plan} />
-      )}
-
-      <div className="guide-start">
-        <p className="guide-effort">
-          {path.reviewed === 0 ? (
-            <>
-              <strong>{plan.stops.length === 0 ? "No changes need close attention." : `${plan.stops.length} ${plan.stops.length === 1 ? "change needs" : "changes need"} your attention.`}</strong>{" "}
-              {plan.lowerPriorityTotal > 0 && `${plan.lowerPriorityTotal} are lower priority.`}
-            </>
-          ) : (
-            <strong>
-              You've reviewed {path.reviewed} of {path.total} on the path.
-            </strong>
+          {changedAtOpen.length > 0 && (
+            <p className="guide-updated">
+              <strong>This PR has changed since your last review.</strong> {changedAtOpen.length} {changedAtOpen.length === 1 ? "change you reviewed needs" : "changes you reviewed need"} another look.
+            </p>
           )}
-          {plan.sizeNote !== null && <span className="guide-note"> {plan.sizeNote}. Consider splitting it.</span>}
-        </p>
-        {plan.stops.length > 0 && (
-          <a className="guide-button guide-button-primary" href={resumeAt === undefined ? FINISH_HASH : hashForStop(resumeAt)}>
-            {resumeAt === undefined ? "See your review" : path.reviewed > 0 ? "Continue review" : "Start review"}
-          </a>
-        )}
+
+          <BriefStart plan={plan} state={state} />
+
+          {plan.checks.length === 0 ? <AllClear checks={review.risk.checksRun} /> : <BriefChecks plan={plan} />}
+
+          <OffPathWarning plan={plan} />
+          <NotCheckedWarning checks={review.risk.notChecked} />
+          <WhyThesePanel plan={plan} />
+        </div>
+        <BriefSidebar review={review} plan={plan} />
       </div>
-
-      {plan.stops.length === 0 && plan.lowerPriorityTotal > 0 && (
-        <p className="guide-note">Nothing stands out for a close look. See everything under All changes.</p>
-      )}
-
-      <OffPathWarning plan={plan} />
-      <WhyThesePanel plan={plan} />
-      <ChecksLine review={review} />
-      <AiLine review={review} />
-
-      <NotCheckedWarning checks={review.risk.notChecked} />
-
-      <footer className="guide-footer">
-        <a href={ALL_CHANGES_HASH}>All changes</a>
-      </footer>
     </main>
+  )
+}
+
+function BriefHeading({ review }: { readonly review: ReviewModel }): ReactElement {
+  const { pullRequest } = review
+  return (
+    <div className="guide-heading-block">
+      <h1 className="guide-title">{pullRequest.title}</h1>
+      <p className="guide-eyebrow">
+        <strong>{pullRequest.author}</strong> wants to merge <code>{pullRequest.headRef}</code> into <code>{pullRequest.baseRef}</code>
+      </p>
+    </div>
+  )
+}
+
+/** The one action on the page, with what it will take, so it reads as the way forward. */
+function BriefStart({ plan, state }: { readonly plan: ReviewPlan; readonly state: ReviewState }): ReactElement {
+  const path = pathProgress(plan, state)
+  const resumeAt = nextUnreviewedStop(plan, state)
+  const started = path.reviewed > 0
+  return (
+    <section className="guide-start" aria-label="Start the review">
+      <div className="guide-effort">
+        <p className="guide-effort-title">
+          {started ? `You've reviewed ${path.reviewed} of ${path.total} on the path` : plan.stops.length === 0 ? "No changes need close attention" : `${plan.stops.length} ${plan.stops.length === 1 ? "change needs" : "changes need"} your attention`}
+        </p>
+        <p className="guide-note">
+          {plan.lowerPriorityTotal > 0 && `${plan.lowerPriorityTotal} more ${plan.lowerPriorityTotal === 1 ? "is" : "are"} lower priority. `}
+          {plan.stops.length === 0 && plan.lowerPriorityTotal > 0 && "Nothing stands out, so see everything under All changes. "}
+          {plan.sizeNote !== null && `${plan.sizeNote}. Consider splitting it.`}
+        </p>
+        {started && <ProgressBar progress={path} label="Progress on the path" />}
+      </div>
+      {plan.stops.length > 0 && (
+        <a className="guide-button guide-button-primary" href={resumeAt === undefined ? FINISH_HASH : hashForStop(resumeAt)}>
+          {resumeAt === undefined ? "See your review" : started ? "Continue review" : "Start review"}
+        </a>
+      )}
+    </section>
+  )
+}
+
+function BriefSidebar({ review, plan }: { readonly review: ReviewModel; readonly plan: ReviewPlan }): ReactElement {
+  const { files, risk } = review
+  const additions = files.reduce((sum, file) => sum + file.diff.additions, 0)
+  const deletions = files.reduce((sum, file) => sum + file.diff.deletions, 0)
+  return (
+    <aside className="guide-sidebar" aria-label="This pull request at a glance">
+      <dl className="guide-stats">
+        <Stat label="To review" value={String(plan.stops.length)} />
+        <Stat label="Lower priority" value={String(plan.lowerPriorityTotal)} />
+        <Stat label="Files" value={String(files.length)} />
+        <div className="guide-stat">
+          <dt>Lines</dt>
+          <dd>
+            <span className="added">+{additions}</span> <span className="removed">−{deletions}</span>
+          </dd>
+        </div>
+      </dl>
+      <section className="guide-card">
+        <h2 className="guide-card-title">
+          Checks <a href={RISKS_HASH}>Details</a>
+        </h2>
+        <ChecksList risk={risk} />
+      </section>
+      <AiCard review={review} />
+    </aside>
+  )
+}
+
+function Stat({ label, value }: { readonly label: string; readonly value: string }): ReactElement {
+  return (
+    <div className="guide-stat">
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  )
+}
+
+function ChecksList({ risk }: { readonly risk: RiskAssessment }): ReactElement {
+  return (
+    <ul className="guide-check-summary">
+      {summarizeChecks(risk).map((row) => (
+        <li key={row.name} className={`check-${row.outcome}`}>
+          <span>{row.name}</span>
+          <span className="check-result">{row.outcome === CheckOutcome.Issues ? row.issues : row.outcome === CheckOutcome.Clean ? "✓" : "⚠"}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -182,7 +225,7 @@ function OffPathWarning({ plan }: { readonly plan: ReviewPlan }): ReactElement |
       <strong>
         {plan.findingsOffPath} {plan.findingsOffPath === 1 ? "finding isn't" : "findings aren't"} on the path,
       </strong>{" "}
-      usually because {plan.findingsOffPath === 1 ? "it's" : "they're"} in a test or skippable file. <a href={RISKS_HASH}>Read them under Risks</a>.
+      usually because {plan.findingsOffPath === 1 ? "it's" : "they're"} in a test or skippable file. <a href={RISKS_HASH}>Read {plan.findingsOffPath === 1 ? "it" : "them"} under Risks</a>.
     </p>
   )
 }
@@ -224,34 +267,26 @@ function WhyThesePanel({ plan }: { readonly plan: ReviewPlan }): ReactElement {
   )
 }
 
-function ChecksLine({ review }: { readonly review: ReviewModel }): ReactElement {
-  const totals = totalsOf(summarizeChecks(review.risk))
-  const ran = totals.clean + totals.withIssues
-  return (
-    <p className="guide-tools">
-      <strong>
-        {ran} {ran === 1 ? "check" : "checks"} ran:
-      </strong>{" "}
-      {totals.withIssues} found issues, {totals.clean} clean{totals.notRun > 0 && `, and ${totals.notRun} didn't run`}. <a href={RISKS_HASH}>See each check</a>
-    </p>
-  )
-}
-
-function AiLine({ review }: { readonly review: ReviewModel }): ReactElement | null {
+function AiCard({ review }: { readonly review: ReviewModel }): ReactElement | null {
   if (review.ai.status === AiReviewStatus.Unavailable) {
     return (
-      <p className="guide-tools">
-        <strong>AI review didn't run:</strong> {review.ai.reason}.
-      </p>
+      <section className="guide-card">
+        <h2 className="guide-card-title">AI review</h2>
+        <p className="guide-note">It didn't run: {review.ai.reason}.</p>
+      </section>
     )
   }
   const digest = digestAiReview(review.ai)
   if (digest === undefined) return null
-  const count = (total: number, one: string, many: string): string => `${total} ${total === 1 ? one : many}`
   return (
-    <p className="guide-tools">
-      <strong>AI review:</strong> {count(digest.mismatches.length, "difference", "differences")} from the description, {count(digest.questions.length, "question", "questions")} to answer. <a href={AI_REVIEW_HASH}>Read them</a>
-    </p>
+    <section className="guide-card">
+      <h2 className="guide-card-title">
+        AI review <a href={AI_REVIEW_HASH}>Read</a>
+      </h2>
+      <p className="guide-note">
+        {digest.mismatches.length} {digest.mismatches.length === 1 ? "difference" : "differences"} from the description, {digest.questions.length} {digest.questions.length === 1 ? "question" : "questions"} to answer.
+      </p>
+    </section>
   )
 }
 
@@ -298,7 +333,6 @@ function ReviewRail({ review, plan, state, currentIndex }: ReviewRailProps): Rea
   const done = path.total > 0 && path.reviewed === path.total
   return (
     <nav className="guide-rail" aria-label="Review path">
-      <AllReviewsLink />
       <a className="guide-rail-brief" href={REVIEW_HASH}>
         ← Brief
       </a>

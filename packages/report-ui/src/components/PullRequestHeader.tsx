@@ -22,15 +22,8 @@ export function PullRequestHeader({ pullRequest, files, risk, feedbackUrl }: Pul
     ...(skippable > 0 ? [`${skippable} skippable ${skippable === 1 ? "file" : "files"}`] : []),
   ]
 
-  const home = homeUrl()
-
   return (
     <header className="header">
-      {home !== undefined && (
-        <a className="home-link" href={home}>
-          ← All reviews
-        </a>
-      )}
       <h1>
         <span className={`level-badge level-${risk.securityLevel}`} title={SECURITY_SCAN_LIMITS}>
           {securitySummary(risk.findings)}
