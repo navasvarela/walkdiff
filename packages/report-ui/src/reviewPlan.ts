@@ -154,7 +154,9 @@ function isFlagged(stop: ReviewStop): boolean {
 
 function countFindingsOffPath(findings: readonly Risk[], stops: readonly ReviewStop[]): number {
   const visited = new Set(stops.flatMap((stop) => stop.findings))
-  return findings.filter((finding) => !CATEGORIES_NOT_IN_CHECKS.has(finding.category) && !visited.has(finding)).length
+  // A finding about the whole PR, such as no tests changed, has no place to visit, so the path
+  // isn't missing it. The brief's checks already show it.
+  return findings.filter((finding) => finding.location !== null && !CATEGORIES_NOT_IN_CHECKS.has(finding.category) && !visited.has(finding)).length
 }
 
 export function isTestPath(path: string): boolean {

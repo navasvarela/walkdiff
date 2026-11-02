@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Redesigned brief:** a top bar on every page shows the logo, where you are and your progress, and the brief now has a clear starting card and a sidebar with the numbers and each check's result.
+- **Fixed missing styles:** a stray edit had broken styling for later parts of the report, including the Checks table and AI review.
+- **No more false "isn't on the path" warning** for findings about the whole PR, such as no tests changed.
 - **Clearer PR comment:** it now has the Walkdiff logo, tables, code font for names, and findings that link straight into the PR's diff.
 - **No more "security level":** "Low" sounded like a verdict, but Walkdiff runs pattern and secret scans on added lines, not a security audit. Comments and reports now say what was found, such as "No security findings", and which checks looked.
 - **Easier to read Impact tab:** each change now starts collapsed under a headline saying what depends on it, most exposed first, with a warning colour when removed or renamed code is still in use.
