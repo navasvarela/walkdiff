@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Semgrep installs again:** two automated dependency updates had made its locked packages impossible to install, so reviews reported it as not run. CI now fails if a scanner doesn't install, and changing a locked package now reinstalls it.
 - **Clearer PR comment:** it now has the Walkdiff logo, tables, code font for names, and findings that link straight into the PR's diff.
 - **No more "security level":** "Low" sounded like a verdict, but Walkdiff runs pattern and secret scans on added lines, not a security audit. Comments and reports now say what was found, such as "No security findings", and which checks looked.
 - **Easier to read Impact tab:** each change now starts collapsed under a headline saying what depends on it, most exposed first, with a warning colour when removed or renamed code is still in use.
