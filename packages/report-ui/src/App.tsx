@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import type { ReactElement } from "react"
 import type { ReviewModel, UnitRef } from "@walkdiff/review-model"
 import { AiReviewView } from "./components/AiReviewView.tsx"
@@ -6,6 +6,7 @@ import { ConversationView } from "./components/ConversationView.tsx"
 import { FileList } from "./components/FileList.tsx"
 import { FileView } from "./components/FileView.tsx"
 import { ImpactView } from "./components/ImpactView.tsx"
+import { TopBar, TopBarSection } from "./components/TopBar.tsx"
 import { PullRequestHeader } from "./components/PullRequestHeader.tsx"
 import { ReviewGuide } from "./components/ReviewGuide.tsx"
 import { ReportTabs, tabButtonId, tabPanelId } from "./components/ReportTabs.tsx"
@@ -14,9 +15,8 @@ import { loadReview } from "./loadReview.ts"
 import type { ReviewLoad } from "./loadReview.ts"
 import { findingsInFile } from "./risks.ts"
 import { ConversationProvider, useConversation } from "./conversationState.tsx"
-import { guideRouteFromHash, REVIEW_HASH } from "./reviewPlan.ts"
-import { overallProgress, pathProgress, reviewPlanFor } from "./reviewProgress.ts"
-import { ReviewStateProvider, useReviewState } from "./reviewState.tsx"
+import { guideRouteFromHash } from "./reviewPlan.ts"
+import { ReviewStateProvider } from "./reviewState.tsx"
 import { ReportTab, summarizeTabs, tabFromHash } from "./tabs.ts"
 
 export function App(): ReactElement {
@@ -54,22 +54,6 @@ function Routed({ review }: ReportProps): ReactElement {
 
 interface ReportProps {
   readonly review: ReviewModel
-}
-
-/** Keeps the guided review in view from the full lists, as both are one review. */
-function ReviewBar({ review }: ReportProps): ReactElement {
-  const { state, changedAtOpen } = useReviewState()
-  const plan = useMemo(() => reviewPlanFor(review, changedAtOpen), [review, changedAtOpen])
-  const path = pathProgress(plan, state)
-  const overall = overallProgress(review.files, state)
-  return (
-    <p className="guide-back">
-      <a href={REVIEW_HASH}>← Back to the review</a>
-      <span>
-        {path.reviewed} of {path.total} on the path · {overall.reviewed} of {overall.total} overall
-      </span>
-    </p>
-  )
 }
 
 function Report({ review }: ReportProps): ReactElement {
@@ -119,7 +103,7 @@ function Report({ review }: ReportProps): ReactElement {
 
   return (
     <div className="layout">
-      <ReviewBar review={review} />
+      <TopBar review={review} section={TopBarSection.AllChanges} />
       <PullRequestHeader pullRequest={review.pullRequest} files={review.files} risk={review.risk} feedbackUrl={review.feedbackUrl} />
       <ReportTabs tabs={summarizeTabs(review, openThreads)} selected={tab} onSelect={showTab} />
       {/* Stays mounted while hidden, so expanded cards and the scroll position survive a tab switch. */}

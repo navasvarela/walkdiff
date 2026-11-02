@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 import { ModificationWeight, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, RiskCategory, RiskSeverity, SyntaxAnalysisStatus, UnitChangeKind, UnitImpactStatus, UnitKind } from "@walkdiff/review-model"
 import type { ChangedFile, ChangedUnit, ReviewModel, Risk, UnitKind as UnitKindType } from "@walkdiff/review-model"
@@ -75,6 +76,11 @@ describe("buildReviewPlan", () => {
   it("counts a finding the path can't reach, such as one in a test file", () => {
     const plan = buildReviewPlan(review([file("a.ts", [unit({ name: "a" })]), file("tests/a.test.ts")], [finding(RiskCategory.Secret, RiskSeverity.High, "key", "tests/a.test.ts", 1)]))
     expect(plan.findingsOffPath).toBe(1)
+  })
+
+  it("doesn't count a finding about the whole PR as one the path missed", () => {
+    const plan = buildReviewPlan(review([file("a.ts", [unit({ name: "a" })])], [finding(RiskCategory.Tests, RiskSeverity.Medium, "No tests added or changed", null)]))
+    expect(plan.findingsOffPath).toBe(0)
   })
 
   it("doesn't count size or code quality as findings the path missed", () => {
@@ -231,5 +237,13 @@ describe("guideRouteFromHash", () => {
     ["#risks", undefined],
   ])("reads %j", (hash, route) => {
     expect(guideRouteFromHash(hash)).toEqual(route)
+  })
+})
+
+describe("the stylesheet", () => {
+  // An unbalanced brace leaves no build error: every later rule silently nests inside the open one.
+  it("closes every rule", () => {
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8")
+    expect(css.split("{").length).toBe(css.split("}").length)
   })
 })
