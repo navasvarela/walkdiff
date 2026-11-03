@@ -7,7 +7,7 @@ import { gitHostFor, HostApiError, InvalidPullRequestUrlError, parsePullRequestU
 import type { GitHost, PullRequestRef } from "@walkdiff/providers"
 import { AI_API_KEY_VARIABLE, AiUnavailableError, CoverageFileError, createAiProvider, describeChecks } from "@walkdiff/engine"
 import { addReviewRequestSchema, anthropicBaseUrlFrom, appSettingsSchema, attachCoverageRequestSchema, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
-import type { AiConnectionResult, SettingsView } from "@walkdiff/review-model"
+import type { AiConnectionResult, SettingsView, CheckStatus } from "@walkdiff/review-model"
 import { readHostTokens } from "../environment.ts"
 import { REPORT_FILE_POLICY_TAG, REPORT_PAGE_FILE, writeReport } from "../report.ts"
 import { addressOf, BASE_POLICY, listen, LOOPBACK_HOST, REPORT_PAGE_POLICY, respond, SECURITY_HEADERS } from "../server.ts"
@@ -49,6 +49,7 @@ interface AppContext {
   readonly offline: boolean
   readonly hostFor: HostResolver
   readonly writeReport: ReportWriter
+  readonly describeChecks: () => Promise<CheckStatus[]>
 }
 
 export class AppPortInUseError extends Error {
@@ -73,6 +74,11 @@ export interface AppServerOptions {
   readonly hostFor?: HostResolver
   /** How to rewrite a report. Tests replace it, since the real one needs the built UI. */
   readonly writeReport?: ReportWriter
+  /**
+   * Lists the optional checks and whether each can run. Tests replace it: the real one starts every
+   * scanner, which under load can outlast a test's time limit.
+   */
+  readonly describeChecks?: () => Promise<CheckStatus[]>
 }
 
 /** Serves the review list, the reports and their API, on the loopback interface only. */
@@ -80,7 +86,7 @@ export async function startAppServer(store: ReviewStore, service: ReviewService,
   const { port, log, apiKey = newApiKey(), env = {}, offline = false } = options
   const hostFor = options.hostFor ?? ((ref: PullRequestRef): Promise<GitHost> => Promise.resolve(gitHostFor(ref, readHostTokens(env))))
   const allowedHosts = new Set<string>()
-  const context: AppContext = { store, service, apiKey, allowedHosts, env, offline, hostFor, writeReport: options.writeReport ?? writeReport }
+  const context: AppContext = { store, service, apiKey, allowedHosts, env, offline, hostFor, writeReport: options.writeReport ?? writeReport, describeChecks: options.describeChecks ?? (() => describeChecks()) }
   const server = createServer((request, response) => {
     handle(request, response, context).catch((error: unknown) => {
       // Details such as file paths go to the terminal, not to whatever made the request.
@@ -202,7 +208,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, pat
 async function settingsView(context: AppContext): Promise<SettingsView> {
   return {
     settings: context.store.getSettings(),
-    checks: await describeChecks(),
+    checks: await context.describeChecks(),
     aiKeys: { anthropic: nonEmpty(context.env.ANTHROPIC_API_KEY), openaiCompatible: nonEmpty(context.env[AI_API_KEY_VARIABLE]) },
     anthropicBaseUrl: anthropicBaseUrlFrom(context.env) ?? null,
     offline: context.offline,

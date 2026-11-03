@@ -4,7 +4,6 @@ import { AiProviderKind, aiDestination, aiSettingsSchema, DEFAULT_AI_MODEL } fro
 import type { AiConnectionResult, AiSettings, AppSettings, CheckId, CheckStatus, SettingsView } from "@walkdiff/review-model"
 import { loadSettings, saveSettings, testAiConnection } from "./api.ts"
 
-const HOME_HASH = "#"
 const LOCAL_MODEL_EXAMPLE = "http://localhost:11434/v1"
 
 export function Settings(): ReactElement {
@@ -46,9 +45,6 @@ export function Settings(): ReactElement {
 
   return (
     <main className="page settings">
-      <a className="back-link" href={HOME_HASH}>
-        ← Reviews
-      </a>
       <h1>Settings</h1>
       <p className="settings-lede">These are your own preferences, saved on this machine. A repository's <code>.walkdiff.json</code> can still forbid AI review or limit where its code goes.</p>
 
