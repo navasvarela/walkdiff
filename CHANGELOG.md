@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-- **npm package:** Walkdiff can be published to npm, so people will run `npx walkdiff app` instead of cloning the repository. Releases publish from GitHub Actions with provenance and no stored token.
+## 0.5.0
+
+- **Install from npm:** `npx walkdiff app`, or `npm install --global walkdiff`, instead of cloning the repository. Releases are published from GitHub Actions with provenance.
+- **The Action and GitLab template use the npm package,** pinned to their release, so they no longer clone and build Walkdiff on every run. The Action takes a `package` input to choose another version.
 - **`walkdiff setup`,** and scanners install on first use: they now live in your cache folder, `~/.cache/walkdiff/scanners`, rather than inside the code, and don't depend on npm install scripts. `--offline` skips installing them.
 ## 0.4.0
 

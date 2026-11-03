@@ -2,20 +2,18 @@
 
 ## Install
 
-You need Node.js 22.18 or newer, pnpm and git.
+You need Node.js 22.18 or newer, and git.
 
 ```bash
-git clone https://github.com/navasvarela/walkdiff.git
-cd walkdiff
-pnpm install
+npm install --global walkdiff
 ```
 
-Run every `pnpm walkdiff` command from this folder.
+Or skip installing, and put `npx` in front of each command, as in `npx walkdiff app`. The first review also installs the security scanners Walkdiff runs; `walkdiff setup` does it in advance.
 
 ## Your first report
 
 ```bash
-pnpm walkdiff review https://github.com/owner/repo/pull/123
+walkdiff review https://github.com/owner/repo/pull/123
 ```
 
 Walkdiff fetches the change, analyzes it and prints a local address to open. GitLab works the same way, with a merge request link. Press Ctrl+C when you are done.
@@ -40,19 +38,19 @@ Everything else is under **All changes**:
 Walkdiff needs a token that can read the repository. If you use the GitHub CLI:
 
 ```bash
-GH_TOKEN=$(gh auth token) pnpm walkdiff review https://github.com/owner/repo/pull/123
+GH_TOKEN=$(gh auth token) walkdiff review https://github.com/owner/repo/pull/123
 ```
 
 For GitLab, create a token with the `read_api` and `read_repository` scopes:
 
 ```bash
-GITLAB_TOKEN=<token> pnpm walkdiff review https://gitlab.com/group/project/-/merge_requests/123
+GITLAB_TOKEN=<token> walkdiff review https://gitlab.com/group/project/-/merge_requests/123
 ```
 
 ## Keep track of several reviews
 
 ```bash
-pnpm walkdiff app
+walkdiff app
 ```
 
 This opens a list at `http://127.0.0.1:4317/` in your browser. Use `--no-open` to leave your browser alone. Paste a link to add a review. If you're signed in with the GitHub CLI, the app uses that login for GitHub. For GitLab, set `GITLAB_TOKEN` before starting it.
@@ -76,7 +74,7 @@ Named `lcov.info`, `*.lcov`, `cobertura*.xml` or `coverage*.xml`, reports are fo
 A report from CI or the PR is produced by the PR's own code, so treat it as evidence, not proof. Changes whose lines didn't run rank higher.
 
 ```bash
-pnpm walkdiff review https://github.com/owner/repo/pull/123 --coverage coverage/lcov.info
+walkdiff review https://github.com/owner/repo/pull/123 --coverage coverage/lcov.info
 ```
 
 A report you attach or name has to come from the PR's latest commit, or the line numbers won't match. In CI, use the Action's `coverage-file` input or the GitLab template's `WALKDIFF_COVERAGE` variable.

@@ -13,5 +13,21 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      # Runs this repository's own copy; other repositories use navasvarela/walkdiff@main.
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24"
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm build:package
+      # A tarball, as npm publishes it: installing the folder itself would only link to it,
+      # without the dependencies.
+      - name: Pack the package
+        id: pack
+        run: echo "tarball=$RUNNER_TEMP/$(npm pack ./dist-package --pack-destination "$RUNNER_TEMP" | tail -1)" >> "$GITHUB_OUTPUT"
+      # Runs this PR's own action and package, so every PR here tests what a release would ship.
+      # Other repositories use navasvarela/walkdiff@<tag>, which installs that release from npm.
       - uses: ./
+        with:
+          package: ${{ steps.pack.outputs.tarball }}

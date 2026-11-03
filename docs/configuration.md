@@ -54,7 +54,7 @@ In the app, a GitHub CLI login is used for github.com and for hosts in the list.
 
 ## Settings in the app
 
-In `pnpm walkdiff app`, the Settings page lets you turn optional checks on or off, choose the AI provider and model, test the connection, and see what leaves your machine. Settings are saved in the app's database and only apply to the app. The command line and CI use the options above.
+In `walkdiff app`, the Settings page lets you turn optional checks on or off, choose the AI provider and model, test the connection, and see what leaves your machine. Settings are saved in the app's database and only apply to the app. The command line and CI use the options above.
 
 API keys aren't saved by Walkdiff. Set them in the environment before starting the app. A check you turn off appears in reports as a check that didn't run.
 
