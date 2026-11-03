@@ -3,6 +3,7 @@ import type { FormEvent, ReactElement } from "react"
 import { aiDestination, ReviewStatus, RiskSeverity } from "@walkdiff/review-model"
 import type { AiDestination, ReviewSummary } from "@walkdiff/review-model"
 import { addReview, attachCoverage, listReviews, loadCurrentSettings, refreshReview, removeReview } from "./api.ts"
+import logoUrl from "../../../docs/assets/walkdiff-logo.svg"
 import { Settings } from "./Settings.tsx"
 
 const DOCS_URL = "https://github.com/navasvarela/walkdiff/blob/main/docs/README.md"
@@ -25,6 +26,7 @@ const LEVEL_LABELS: Readonly<Record<RiskSeverity, string>> = {
 }
 
 const SETTINGS_HASH = "#settings"
+const HOME_HASH = "#"
 
 /** The page named by the URL, so the back button and links work. */
 export function App(): ReactElement {
@@ -34,7 +36,33 @@ export function App(): ReactElement {
     window.addEventListener("hashchange", followHash)
     return () => window.removeEventListener("hashchange", followHash)
   }, [])
-  return hash === SETTINGS_HASH ? <Settings /> : <ReviewList />
+  const onSettings = hash === SETTINGS_HASH
+  return (
+    <>
+      <TopBar onSettings={onSettings} />
+      {onSettings ? <Settings /> : <ReviewList />}
+    </>
+  )
+}
+
+/** Matches the report's bar, so moving between the list and a review feels like one app. */
+function TopBar({ onSettings }: { readonly onSettings: boolean }): ReactElement {
+  return (
+    <header className="topbar">
+      <a className="topbar-brand" href={HOME_HASH}>
+        <img src={logoUrl} alt="" width="22" height="22" />
+        Walkdiff
+      </a>
+      <nav className="topbar-nav" aria-label="Sections">
+        <a href={HOME_HASH} aria-current={onSettings ? undefined : "page"}>
+          Reviews
+        </a>
+        <a href={SETTINGS_HASH} aria-current={onSettings ? "page" : undefined}>
+          Settings
+        </a>
+      </nav>
+    </header>
+  )
 }
 
 function ReviewList(): ReactElement {
@@ -69,10 +97,7 @@ function ReviewList(): ReactElement {
 
   return (
     <main className="page">
-      <div className="page-title">
-        <h1>Reviews</h1>
-        <a href={SETTINGS_HASH}>Settings</a>
-      </div>
+      <h1>Reviews</h1>
       <AddReviewForm onAdded={reload} />
       {problem !== undefined && <p className="problem">{problem}</p>}
       {reviews === undefined ? null : reviews.length === 0 ? (

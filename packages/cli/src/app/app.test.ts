@@ -147,7 +147,7 @@ describe("the app server", () => {
     store = new ReviewStore(join(dir, "walkdiff.db"), () => new Date("2026-10-30T10:00:00.000Z"))
     await writeFile(join(dir, "index.html"), "<html><head></head><body>report page</body></html>")
     const service = new ReviewService(store, async () => ({ model: fakeModel("Cap retries"), reportDir: dir }), () => undefined)
-    server = await startAppServer(store, service, { port: 0, apiKey: KEY, log: () => undefined })
+    server = await startAppServer(store, service, { port: 0, apiKey: KEY, log: () => undefined, describeChecks: async () => [] })
     base = server.url
   })
 

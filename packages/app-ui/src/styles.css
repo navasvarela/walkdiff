@@ -198,19 +198,6 @@ button:disabled {
   color: var(--high-text);
 }
 
-.page-title {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.back-link {
-  display: inline-block;
-  margin-bottom: 12px;
-  font-size: 14px;
-}
-
 .settings-lede,
 .settings-hint {
   color: var(--text-muted);
@@ -389,4 +376,51 @@ button:disabled {
   padding: 10px 14px;
   border: 1px solid var(--medium-text, currentColor);
   border-radius: 8px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px 28px;
+  min-height: 48px;
+  padding: 6px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+  font-size: 13px;
+}
+
+.topbar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.topbar-brand img {
+  border-radius: 5px;
+}
+
+.topbar-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.topbar-nav a {
+  padding: 5px 10px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.topbar-nav a:hover {
+  color: var(--text);
+}
+
+.topbar-nav a[aria-current="page"] {
+  background: var(--border);
+  color: var(--text);
+  font-weight: 600;
 }

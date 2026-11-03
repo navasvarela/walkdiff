@@ -20,6 +20,10 @@ const LOCKFILE_NAMES: ReadonlySet<string> = new Set([
   "flake.lock",
 ])
 
+// pip-tools and uv write locked requirements with a hash per package; nobody writes those by hand.
+const REQUIREMENTS_FILE = /requirements[^/]*\.txt$/
+const LOCKED_REQUIREMENT_HASH = /^\s+--hash=sha256:[0-9a-f]{64}/m
+
 const VENDORED_DIRECTORIES: ReadonlySet<string> = new Set(["vendor", "third_party", "third-party", "node_modules"])
 
 interface PathRule {
@@ -55,6 +59,9 @@ export function classifyNoise(path: string, content: string | undefined): FileNo
   const name = basename(path)
   if (LOCKFILE_NAMES.has(name)) {
     return { kind: NoiseKind.Lockfile, reason: `${name} is a dependency lockfile` }
+  }
+  if (REQUIREMENTS_FILE.test(name) && content !== undefined && LOCKED_REQUIREMENT_HASH.test(content)) {
+    return { kind: NoiseKind.Lockfile, reason: `${name} is locked with a hash for every package` }
   }
   const vendoredDirectory = path.split("/").slice(0, -1).find((segment) => VENDORED_DIRECTORIES.has(segment))
   if (vendoredDirectory !== undefined) {

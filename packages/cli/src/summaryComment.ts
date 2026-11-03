@@ -77,7 +77,7 @@ function changesRow(model: ReviewModel): Row {
 
 function referencesRow(model: ReviewModel): Row[] {
   const untouched = model.files.flatMap(changedUnitsOf).reduce((sum, unit) => sum + untouchedReferences(unit).length, 0)
-  return untouched === 0 ? [] : [["**Used elsewhere**", `**${untouched}** ${plural(untouched, "place")} this PR did not touch use code it changed`]]
+  return untouched === 0 ? [] : [["**Used elsewhere**", `**${untouched}** ${plural(untouched, "place")} this PR did not touch ${plural(untouched, "uses", "use")} code it changed`]]
 }
 
 function checksRow(risk: RiskAssessment): Row {

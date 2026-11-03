@@ -28,3 +28,15 @@ describe("classifyNoise", () => {
     expect(classifyNoise("src/vendor", undefined)).toBeNull()
   })
 })
+
+describe("hash-locked requirements", () => {
+  const HASH = "a".repeat(64)
+  it.each([
+    ["requirements.txt", `requests==2.32.0 \\\n    --hash=sha256:${HASH}\n`, "lockfile"],
+    ["scanner-pins/semgrep-requirements.txt", `semgrep==1.0 \\\n    --hash=sha256:${HASH}\n`, "lockfile"],
+    ["requirements.txt", "requests==2.32.0\n", null],
+    ["notes.txt", `x \\\n    --hash=sha256:${HASH}\n`, null],
+  ])("classifies %s", (path, content, kind) => {
+    expect(classifyNoise(path, content)?.kind ?? null).toBe(kind)
+  })
+})

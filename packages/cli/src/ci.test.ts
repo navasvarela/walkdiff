@@ -88,7 +88,7 @@ describe("renderSummaryComment", () => {
     expect(body).toContain("isn't a security audit")
     expect(body).not.toContain("security level")
     expect(body).toContain("| **Changes** | **1** code unit to review |")
-    expect(body).toContain("| **Used elsewhere** | **1** place this PR did not touch use code it changed |")
+    expect(body).toContain("| **Used elsewhere** | **1** place this PR did not touch uses code it changed |")
     expect(body).toMatch(/\| 🟠 Medium \| unsafe code \| \[`a\.rs:\d+`\]\(\S+\) and 1 more \|/)
     expect(body).toContain("[Open the full report](https://example.com/report)")
     expect(body).toContain("⚠️ **1 did not run**")
