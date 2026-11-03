@@ -9,6 +9,7 @@ import { runCodeScanners } from "./runCodeScanners.ts"
 import { scannerExecutable } from "./scannerProcess.ts"
 import type { ProcessResult, ScannerProcessRunner } from "./scannerProcess.ts"
 import { parseSemgrepOutput, semgrepArgs } from "./semgrep.ts"
+import { parseZizmorOutput, zizmorArgs } from "./zizmor.ts"
 
 function modifiedFile(path: string, content: string, addedLineNumbers: readonly number[]): ScannedFile {
   const lines = content.split("\n")
@@ -134,6 +135,79 @@ describe("runCodeScanners", () => {
     const { run, seen } = fakeScanners({})
     expect(await runCodeScanners(request([file], run))).toEqual({ findings: [], checksRun: [], notChecked: [] })
     expect(seen.size).toBe(0)
+  })
+})
+
+describe("zizmor", () => {
+  const WORKFLOW = ".github/workflows/ci.yml"
+  const zizmorResult = (path: string, row: number, severity = "High"): object => ({
+    ident: "template-injection",
+    desc: "code injection via template expansion",
+    url: "https://docs.zizmor.sh/audits/#template-injection",
+    determinations: { confidence: "High", severity, persona: "Regular" },
+    locations: [
+      { symbolic: { key: { Local: { verbatim_path: path } }, kind: "Related" }, concrete: { location: { start_point: { row: 0, column: 0 }, end_point: { row: 0, column: 1 } } } },
+      { symbolic: { key: { Local: { verbatim_path: path } }, kind: "Primary" }, concrete: { location: { start_point: { row, column: 0 }, end_point: { row, column: 5 } } } },
+    ],
+    ignored: false,
+  })
+
+  it("runs only on a PR that changes a workflow", async () => {
+    const seen: string[] = []
+    const run: ScannerProcessRunner = async (binary) => {
+      seen.push(binary)
+      return undefined
+    }
+    await runCodeScanners(request([modifiedFile("a.py", "x", [1])], run))
+    expect(seen).not.toContain("zizmor")
+    await runCodeScanners(request([modifiedFile(WORKFLOW, "x", [1])], run))
+    expect(seen).toContain("zizmor")
+  })
+
+  it("keeps findings on added lines, and counts lines from 1 as the report does", async () => {
+    const run: ScannerProcessRunner = async (binary) => (binary === "zizmor" ? { exitCode: 0, stdout: JSON.stringify([zizmorResult(`./${WORKFLOW}`, 1), zizmorResult(`./${WORKFLOW}`, 0)]), stderr: "" } : undefined)
+    const { findings, checksRun } = await runCodeScanners(request([modifiedFile(WORKFLOW, "a\nb\n", [2])], run))
+    expect(findings).toMatchObject([{ ruleId: "zizmor.template-injection", category: "codeScan", severity: "high", title: "template injection", location: { path: WORKFLOW, line: 2 } }])
+    expect(checksRun.map((check) => check.name)).toContain("zizmor")
+  })
+
+  it("can't be silenced by the PR: no ignores, its own config, and PR config files aren't copied", async () => {
+    const args = zizmorArgs("/work/config.yml")
+    expect(args).toEqual(expect.arrayContaining(["--no-ignores", "--offline", "--config", "/work/config.yml", "--no-exit-codes"]))
+    let copied: readonly string[] = []
+    const run: ScannerProcessRunner = async (binary, _args, cwd) => {
+      if (binary === "zizmor") copied = (await readdir(cwd, { recursive: true })).map(String)
+      return undefined
+    }
+    await runCodeScanners(request([modifiedFile(WORKFLOW, "x", [1]), modifiedFile("zizmor.yml", "rules: {}", [1]), modifiedFile(".github/zizmor.yml", "rules: {}", [1]), modifiedFile(".gitignore", ".github", [1])], run))
+    expect(copied.some((name) => name.endsWith("zizmor.yml"))).toBe(false)
+    expect(copied).not.toContain(".gitignore")
+  })
+
+  it.each([
+    [{ exitCode: 1, stdout: "", stderr: "fatal: bad workflow" }, "it failed: fatal: bad workflow"],
+    [{ exitCode: 0, stdout: "not json", stderr: "" }, "its output could not be read"],
+    [undefined, "brew install zizmor"],
+  ])("says why it didn't run: %j", async (result, reason) => {
+    const run: ScannerProcessRunner = async (binary) => (binary === "zizmor" ? result : undefined)
+    const { notChecked } = await runCodeScanners(request([modifiedFile(WORKFLOW, "x", [1])], run))
+    expect(notChecked.find((skipped) => skipped.check.startsWith("zizmor"))?.reason).toContain(reason)
+  })
+
+  it("respects the setting that turns it off", async () => {
+    const run: ScannerProcessRunner = async () => undefined
+    const { notChecked } = await runCodeScanners({ ...request([modifiedFile(WORKFLOW, "x", [1])], run), disabled: new Set(["zizmor"]) })
+    expect(notChecked.find((skipped) => skipped.check.startsWith("zizmor"))?.reason).toBe("turned off in your settings")
+  })
+
+  it("rates a tag instead of a pinned commit below code injection", () => {
+    const finding = { ...zizmorResult("a.yml", 0, "High"), ident: "unpinned-uses" }
+    expect(parseZizmorOutput(JSON.stringify([finding]), "/root").at(0)?.severity).toBe("medium")
+  })
+
+  it("reads severities, treating an unknown one as medium", () => {
+    const severity = (value: string): string | undefined => parseZizmorOutput(JSON.stringify([zizmorResult("a.yml", 0, value)]), "/root").at(0)?.severity
+    expect([severity("High"), severity("Medium"), severity("Low"), severity("Informational"), severity("New")]).toEqual(["high", "medium", "low", "low", "medium"])
   })
 })
 

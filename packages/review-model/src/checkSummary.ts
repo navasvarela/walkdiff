@@ -26,6 +26,7 @@ const CHECK_BY_RULE_PREFIX: ReadonlyMap<string, string> = new Map([
   ["quality.", "Function metrics"],
   ["breaking.", "Breaking changes"],
   ["trust.", "Dependency trust"],
+  ["zizmor.", "zizmor"],
 ])
 
 /**
