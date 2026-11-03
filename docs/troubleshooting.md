@@ -13,7 +13,7 @@ You ran `pnpm walkdiff` outside the Walkdiff folder. Change to the folder where 
 The app is probably already running, so open `http://127.0.0.1:4317/`. To run another copy, choose a different port:
 
 ```bash
-pnpm walkdiff app --port 4318
+walkdiff app --port 4318
 ```
 
 ### `The report UI has not been built`
@@ -52,7 +52,7 @@ For a private repository, this usually means the token is missing or can't read 
 3. For GitLab, check that the token has the `read_api` and `read_repository` scopes.
 4. For a GitHub organization that uses SSO, authorize the token for that organization.
 
-In the app, a token set in the terminal only applies if it was set before `pnpm walkdiff app` started. Restart the app after changing it.
+In the app, a token set in the terminal only applies if it was set before `walkdiff app` started. Restart the app after changing it.
 
 ### `Walkdiff sent no token, because … is not a trusted host`
 
@@ -151,7 +151,7 @@ Hosts only accept comments on lines in the diff. A comment on something with no 
 
 ### There's no way to post from my report
 
-Posting only works in the app, opened with `pnpm walkdiff app`. A report opened from a file or CI can't post, so copy your comments from the finish screen.
+Posting only works in the app, opened with `walkdiff app`. A report opened from a file or CI can't post, so copy your comments from the finish screen.
 
 ## Test evidence
 
@@ -187,7 +187,7 @@ On Windows, or if you'd rather use your own copies, install them yourself. Walkd
 which semgrep gitleaks osv-scanner
 ```
 
-When you start `pnpm walkdiff app`, its log lists the scanners it found.
+When you start `walkdiff app`, its log lists the scanners it found.
 
 ### A scanner is listed as failed
 

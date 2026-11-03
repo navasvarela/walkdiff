@@ -32,6 +32,9 @@ inputs:
   retention-days:
     description: Days to keep the report artifact
     default: "14"
+  package:
+    description: Which Walkdiff to install, as an npm package spec. Leave it as is to get the version this action was released with.
+    default: "walkdiff@0.5.0"
 
 outputs:
   report-url:
@@ -46,16 +49,15 @@ runs:
   steps:
     - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
       with:
-        # Node 25 and later no longer ship corepack.
         node-version: "24"
 
+    # Install scripts are skipped: Walkdiff needs none, and installs its scanners itself, checking
+    # each against a pinned hash. The package carries npm provenance linking it to its release.
     - name: Install Walkdiff
       shell: bash
-      working-directory: ${{ github.action_path }}
-      run: |
-        corepack enable
-        pnpm install --frozen-lockfile
-        pnpm build:ui
+      env:
+        WALKDIFF_PACKAGE: ${{ inputs.package }}
+      run: npm install --global --ignore-scripts --no-audit --no-fund "$WALKDIFF_PACKAGE"
 
     - name: Analyze the pull request
       shell: bash
@@ -74,7 +76,7 @@ runs:
         if [ "$WALKDIFF_AI" = "true" ] && [ -n "$WALKDIFF_AI_MODEL" ]; then args+=(--ai-model "$WALKDIFF_AI_MODEL"); fi
         if [ "$WALKDIFF_AI" = "true" ] && [ -n "$WALKDIFF_AI_BASE_URL" ]; then args+=(--ai-base-url "$WALKDIFF_AI_BASE_URL"); fi
         if [ -n "$WALKDIFF_COVERAGE" ]; then args+=(--coverage "$WALKDIFF_COVERAGE"); fi
-        node "$GITHUB_ACTION_PATH/packages/cli/src/main.ts" "${args[@]}"
+        walkdiff "${args[@]}"
         cp "$RUNNER_TEMP/walkdiff/index.html" "$RUNNER_TEMP/walkdiff/walkdiff-report.html"
 
     - name: Upload the report
@@ -93,4 +95,4 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
         REPORT_URL: ${{ steps.upload.outputs.artifact-url }}
-      run: node "$GITHUB_ACTION_PATH/packages/cli/src/main.ts" comment --report "$RUNNER_TEMP/walkdiff" --report-url "$REPORT_URL"
+      run: walkdiff comment --report "$RUNNER_TEMP/walkdiff" --report-url "$REPORT_URL"
