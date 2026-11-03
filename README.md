@@ -109,7 +109,8 @@ sent. A repository can forbid AI review entirely with `"ai": { "allowed": false 
 ## Security scanners
 
 `pnpm install` also installs pinned versions of [Semgrep](https://semgrep.dev),
-[gitleaks](https://github.com/gitleaks/gitleaks) and [osv-scanner](https://github.com/google/osv-scanner),
+[gitleaks](https://github.com/gitleaks/gitleaks), [osv-scanner](https://github.com/google/osv-scanner),
+[Ruff](https://docs.astral.sh/ruff/) and [zizmor](https://docs.zizmor.sh/),
 checked against hashes in this repository, on macOS and Linux. Semgrep needs Python 3.10 or later. If one
 can't be installed, the install still finishes, and the Risks tab lists it under "Not checked". Copies on
 your `PATH` are used only when Walkdiff has none of its own.

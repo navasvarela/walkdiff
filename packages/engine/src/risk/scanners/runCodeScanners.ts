@@ -10,6 +10,7 @@ import { notRun, toRisks, TURNED_OFF_IN_SETTINGS, writeScanFiles } from "./scanW
 import type { ScanOutcome } from "./scanWorkspace.ts"
 import { firstErrorLine } from "./scannerProcess.ts"
 import type { ScannerProcessRunner } from "./scannerProcess.ts"
+import { parseZizmorOutput, ZIZMOR_BINARY, ZIZMOR_CONFIG_FILE, zizmorArgs } from "./zizmor.ts"
 import { parseSemgrepOutput, SEMGREP_BINARY, semgrepArgs } from "./semgrep.ts"
 
 export interface CodeScanRequest {
@@ -32,6 +33,9 @@ export interface CodeScanResult {
 const SEMGREP_CHECK = "Semgrep code scan"
 const GITLEAKS_CHECK = "gitleaks secret scan"
 const SEMGREP_INSTALL = "not installed. Walkdiff installs it on `pnpm install` if Python 3.10 or later is available, or use `brew install semgrep`"
+const ZIZMOR_CHECK = "zizmor GitHub Actions scan"
+const ZIZMOR_INSTALL = "not installed. Run `pnpm install` in Walkdiff, or use `brew install zizmor`"
+const WORKFLOW_FILE = /(^|\/)(\.github\/workflows\/[^/]+\.ya?ml|action\.ya?ml)$/
 const GITLEAKS_INSTALL = "not installed. Run `pnpm install` in Walkdiff, or use `brew install gitleaks`"
 const SEMGREP_SUCCESS_EXIT_CODE = 0
 const GITLEAKS_REPORT_FILE = "gitleaks-report.json"
@@ -39,10 +43,11 @@ const SCAN_ROOT_DIR = "files"
 
 /**
  * Files in a PR that would change how a scanner treats that same PR: a `.gitleaks.toml` with
- * an allowlist silences gitleaks entirely, and a `.semgrepignore` hides whole directories.
+ * an allowlist silences gitleaks entirely, and a `.semgrepignore` or `.gitignore` hides whole
+ * directories.
  * They are never copied into the scan folder.
  */
-const SCANNER_CONTROL_FILES: ReadonlySet<string> = new Set([".gitleaks.toml", ".gitleaksignore", ".gitleaks.baseline", ".semgrepignore", ".semgrep.yml", ".semgrep.yaml", ".semgrepconfig.yml"])
+const SCANNER_CONTROL_FILES: ReadonlySet<string> = new Set([".gitleaks.toml", ".gitleaksignore", ".gitleaks.baseline", ".semgrepignore", ".semgrep.yml", ".semgrep.yaml", ".semgrepconfig.yml", "zizmor.yml", ".gitignore"])
 // Semgrep's built-in ignore list skips tests and more when no ignore file exists; an empty
 // one means every copied file is scanned.
 const EMPTY_IGNORE_FILE = ".semgrepignore"
@@ -63,7 +68,7 @@ export async function runCodeScanners(request: CodeScanRequest): Promise<CodeSca
     await mkdir(root, { recursive: true })
     await copyFiles(root, candidates)
     await writeFile(join(root, EMPTY_IGNORE_FILE), "")
-    const outcomes = await Promise.all([runSemgrep(request, root), runGitleaks(request, root, workspace)])
+    const outcomes = await Promise.all([runSemgrep(request, root), runGitleaks(request, root, workspace), runZizmor(request, root, workspace)])
     return {
       findings: toRisks(outcomes.flatMap((outcome) => outcome.findings), candidates),
       checksRun: outcomes.flatMap((outcome) => outcome.checksRun),
@@ -95,6 +100,22 @@ async function runSemgrep(request: CodeScanRequest, root: string): Promise<ScanO
     return { findings: parseSemgrepOutput(result.stdout), checksRun: [{ name: "Semgrep", detail: `rules: ${request.semgrepRules.join(", ")}` }], notChecked: [] }
   } catch (error: unknown) {
     return notRun(SEMGREP_CHECK, `its output could not be read: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+async function runZizmor(request: CodeScanRequest, root: string, workspace: string): Promise<ScanOutcome> {
+  // A PR with no GitHub workflows has nothing for it to check, which is every GitLab project.
+  if (!request.files.some((file) => WORKFLOW_FILE.test(file.diff.path) && file.after !== undefined)) return { findings: [], checksRun: [], notChecked: [] }
+  if (request.disabled?.has(CheckId.Zizmor)) return notRun(ZIZMOR_CHECK, TURNED_OFF_IN_SETTINGS)
+  const configPath = join(workspace, ZIZMOR_CONFIG_FILE)
+  await writeFile(configPath, "rules: {}\n")
+  const result = await request.run(ZIZMOR_BINARY, zizmorArgs(configPath), root)
+  if (result === undefined) return notRun(ZIZMOR_CHECK, ZIZMOR_INSTALL)
+  if (result.exitCode !== 0) return notRun(ZIZMOR_CHECK, `it failed: ${firstErrorLine(result)}`)
+  try {
+    return { findings: parseZizmorOutput(result.stdout, root), checksRun: [{ name: "zizmor", detail: "GitHub Actions workflows" }], notChecked: [] }
+  } catch (error: unknown) {
+    return notRun(ZIZMOR_CHECK, `its output could not be read: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 

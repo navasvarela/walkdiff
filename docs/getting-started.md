@@ -83,7 +83,7 @@ A report you attach or name has to come from the PR's latest commit, or the line
 
 ## Security scanners
 
-`pnpm install` also installs Semgrep, gitleaks and osv-scanner, at pinned versions and just for Walkdiff, on macOS and Linux. Semgrep needs Python 3.10 or later. If one can't be installed, the install still finishes, and reports list it as not run.
+`pnpm install` also installs Semgrep, gitleaks, osv-scanner, Ruff and zizmor, at pinned versions and just for Walkdiff, on macOS and Linux. Semgrep needs Python 3.10 or later. If one can't be installed, the install still finishes, and reports list it as not run.
 
 On other systems, install them yourself and Walkdiff finds them on your `PATH`.
 
