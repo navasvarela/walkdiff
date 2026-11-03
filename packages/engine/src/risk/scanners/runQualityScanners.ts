@@ -52,7 +52,7 @@ interface ScannerIdentity {
   readonly install: string
 }
 
-const RUFF: ScannerIdentity = { id: CheckId.Ruff, check: "Ruff Python lint", name: "Ruff", detail: "likely bugs and bad practice in Python", install: "not installed; install with `brew install ruff`" }
+const RUFF: ScannerIdentity = { id: CheckId.Ruff, check: "Ruff Python lint", name: "Ruff", detail: "likely bugs and bad practice in Python", install: "not installed. Run `pnpm install` in Walkdiff, or use `brew install ruff`" }
 const OXLINT: ScannerIdentity = { id: CheckId.Oxlint, check: "oxlint TypeScript lint", name: "oxlint", detail: "likely bugs in TypeScript and JavaScript", install: "missing from this install; run `pnpm install` in the Walkdiff folder" }
 const JSCPD: ScannerIdentity = { id: CheckId.Jscpd, check: "jscpd duplicate detection", name: "jscpd", detail: "new code copied from elsewhere in the repository", install: "missing from this install; run `pnpm install` in the Walkdiff folder" }
 

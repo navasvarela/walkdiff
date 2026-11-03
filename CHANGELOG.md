@@ -3,6 +3,8 @@
 ## Unreleased
 
 - **Licence check:** list the licences your team accepts under `dependencies.allowedLicenses` in `.walkdiff.json`, and new dependencies under any other licence, or with none declared, are flagged. It's off until you set a list.
+- **Ruff now installs with Walkdiff,** so Python PRs stop listing it as not run.
+- **zizmor checks GitHub Actions workflows** a PR changes, for problems such as injection and over-broad permissions. It only reads the workflow, and a PR can't silence it. There's no equivalent for GitLab CI yet.
 - **Dependency trust check:** new direct dependencies are flagged if they're known malicious, aren't on npm, PyPI or crates.io, were first published in the last 30 days, or have a name one character from a popular package. List your own packages under `dependencies.private` in `.walkdiff.json` to keep them private.
 - **Malicious packages rank High:** known malicious versions found in lockfiles no longer show as Medium.
 - **`requirements/*.in` files are now read** as dependency lists, along with `requirements*.in`.

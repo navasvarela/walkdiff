@@ -11,6 +11,8 @@ type ArchiveKind = (typeof ArchiveKind)[keyof typeof ArchiveKind]
 interface PinnedAsset {
   readonly file: string
   readonly sha256: string
+  /** Where the binary sits in the archive, when that isn't at its top level under its own name. */
+  readonly member?: string
 }
 
 /** A scanner published as one binary per platform. */
@@ -51,6 +53,30 @@ export const BINARY_PINS: readonly BinaryPin[] = [
       "darwin-x64": { file: "osv-scanner_darwin_amd64", sha256: "e82c5df7ab0a42dff29a1cd0660711447b56b4c0483ff66ad8634df10fd81a45" },
       "linux-arm64": { file: "osv-scanner_linux_arm64", sha256: "4061ef4c021ed3c47f203b818f337e351336cc5cd67c0274fc36bd1dfc728dd7" },
       "linux-x64": { file: "osv-scanner_linux_amd64", sha256: "160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b" },
+    },
+  },
+  {
+    binary: "ruff",
+    version: "0.17.3",
+    baseUrl: "https://github.com/astral-sh/ruff/releases/download/0.17.3",
+    archive: ArchiveKind.TarGz,
+    assets: {
+      "darwin-arm64": { file: "ruff-aarch64-apple-darwin.tar.gz", sha256: "118f7121aa838785672bf612487f755a89108bb5f44e0f3df96c5967a72614f9", member: "ruff-aarch64-apple-darwin/ruff" },
+      "darwin-x64": { file: "ruff-x86_64-apple-darwin.tar.gz", sha256: "17f95b1bee24d70de62ffe5beec7f71bb541c7e3d147a1c3d84f7cd6525f6fdf", member: "ruff-x86_64-apple-darwin/ruff" },
+      "linux-arm64": { file: "ruff-aarch64-unknown-linux-gnu.tar.gz", sha256: "3f4639152c0e42bb5938e6c23d53d527a38f3133e000102934518f90529fa299", member: "ruff-aarch64-unknown-linux-gnu/ruff" },
+      "linux-x64": { file: "ruff-x86_64-unknown-linux-gnu.tar.gz", sha256: "2b0890f5a55900af741f133918c2656919bbf18c2ab7741b4ca8403a90e647a9", member: "ruff-x86_64-unknown-linux-gnu/ruff" },
+    },
+  },
+  {
+    binary: "zizmor",
+    version: "1.31.1",
+    baseUrl: "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1",
+    archive: ArchiveKind.TarGz,
+    assets: {
+      "darwin-arm64": { file: "zizmor-aarch64-apple-darwin.tar.gz", sha256: "ad5aa633cd56215b11e6c51d51f90c7e6b22904a75047d1215abbd422f61d698" },
+      "darwin-x64": { file: "zizmor-x86_64-apple-darwin.tar.gz", sha256: "72ae63bb85b67229c06242f04195cb43927e9fab5f43803c6434dc701a517d61" },
+      "linux-arm64": { file: "zizmor-aarch64-unknown-linux-gnu.tar.gz", sha256: "37eebbd5762a44f262d94875431b14a6d2402991e90a685113ea97b8b41be833" },
+      "linux-x64": { file: "zizmor-x86_64-unknown-linux-gnu.tar.gz", sha256: "d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99" },
     },
   },
 ]
@@ -131,8 +157,10 @@ async function installBinary(pin: BinaryPin, tools: string, deps: InstallDepende
     if (pin.archive === ArchiveKind.TarGz) {
       const archive = join(building, asset.file)
       await writeFile(archive, bytes)
-      await deps.run("tar", ["-xzf", archive, "-C", building, pin.binary])
+      const member = asset.member ?? pin.binary
+      await deps.run("tar", ["-xzf", archive, "-C", building, member])
       await rm(archive)
+      if (member !== pin.binary) await moveToTop(building, member, pin.binary)
     } else {
       await writeFile(join(building, pin.binary), bytes)
     }
@@ -143,6 +171,13 @@ async function installBinary(pin: BinaryPin, tools: string, deps: InstallDepende
     throw error
   }
   return executable
+}
+
+async function moveToTop(folder: string, member: string, binary: string): Promise<void> {
+  const unpacked = join(folder, `${binary}.unpacked`)
+  await rename(join(folder, member), unpacked)
+  await rm(join(folder, member.split("/").at(0) ?? member), { recursive: true, force: true })
+  await rename(unpacked, join(folder, binary))
 }
 
 /**

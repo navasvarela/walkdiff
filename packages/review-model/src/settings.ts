@@ -7,6 +7,7 @@ export const CheckId = {
   OsvScanner: "osvScanner",
   OsvDatabase: "osvDatabase",
   DependencyTrust: "dependencyTrust",
+  Zizmor: "zizmor",
   Ruff: "ruff",
   Oxlint: "oxlint",
   Jscpd: "jscpd",

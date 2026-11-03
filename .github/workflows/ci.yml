@@ -25,6 +25,8 @@ jobs:
           ./gitleaks version
           ./osv-scanner --version
           ./semgrep --version
+          ./ruff --version
+          ./zizmor --version
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
