@@ -40,13 +40,19 @@ export const walkdiffConfigSchema = z.object({
   /** Globs for coverage reports with names Walkdiff doesn't recognize, in CI artifacts or the PR. */
   coverage: z.object({ paths: z.array(z.string().min(1)).default([]) }).default({ paths: [] }),
   /** Your own packages, as names or globs such as "@acme/*", never looked up on public services. */
-  dependencies: z.object({ private: z.array(z.string().min(1)).default([]) }).default({ private: [] }),
+  dependencies: z
+    .object({
+      private: z.array(z.string().min(1)).default([]),
+      /** SPDX identifiers such as "MIT"; null leaves licences unchecked, as which to accept is a team's call. */
+      allowedLicenses: z.array(z.string().min(1)).nullable().default(null),
+    })
+    .default({ private: [], allowedLicenses: null }),
   /** Where pilot users send feedback; shown in the report and the PR comment. */
   feedback: z.object({ url: z.url({ protocol: /^https?$/ }).nullable().default(null) }).default({ url: null }),
 })
 export type WalkdiffConfig = z.infer<typeof walkdiffConfigSchema>
 
-export const DEFAULT_WALKDIFF_CONFIG: WalkdiffConfig = { riskPaths: [], ignore: [], ai: { allowed: true, providers: null }, scanners: { semgrep: { rules: DEFAULT_SEMGREP_RULES } }, quality: { enabled: true }, coverage: { paths: [] }, dependencies: { private: [] }, feedback: { url: null } }
+export const DEFAULT_WALKDIFF_CONFIG: WalkdiffConfig = { riskPaths: [], ignore: [], ai: { allowed: true, providers: null }, scanners: { semgrep: { rules: DEFAULT_SEMGREP_RULES } }, quality: { enabled: true }, coverage: { paths: [] }, dependencies: { private: [], allowedLicenses: null }, feedback: { url: null } }
 
 export class WalkdiffConfigError extends Error {
   override readonly name = "WalkdiffConfigError"

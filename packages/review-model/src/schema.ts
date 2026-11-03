@@ -338,6 +338,8 @@ export const RiskCategory = {
   BrokenReference: "brokenReference",
   /** Could break other code or a deployment: a public API, a migration or a config key. */
   BreakingChange: "breakingChange",
+  /** A new dependency's licence isn't on the team's allowlist; a policy question, not a security one. */
+  License: "license",
 } as const
 export type RiskCategory = (typeof RiskCategory)[keyof typeof RiskCategory]
 
