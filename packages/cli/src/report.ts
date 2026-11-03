@@ -1,12 +1,13 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
+import { firstExisting } from "@walkdiff/engine"
 import type { ReviewModel } from "@walkdiff/review-model"
 
 export const REVIEW_MODEL_FILE = "review.json"
 export const REPORT_PAGE_FILE = "index.html"
 
-// The CLI runs from source, so the UI build sits at a fixed place in the workspace.
-const REPORT_UI_DIST = resolve(import.meta.dirname, "../../report-ui/dist")
+// Next to the bundle in the npm package, and in the workspace when running from source.
+const REPORT_UI_DIST = firstExisting([resolve(import.meta.dirname, "report-ui"), resolve(import.meta.dirname, "../../report-ui/dist")])
 const SCRIPT_TAG = /<script type="module" crossorigin src="\.\/([^"]+)"><\/script>/
 const STYLESHEET_TAG = /<link rel="stylesheet" crossorigin href="\.\/([^"]+)">/
 const HEAD_END = "</head>"

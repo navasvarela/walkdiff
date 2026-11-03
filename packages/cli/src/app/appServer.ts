@@ -5,7 +5,7 @@ import type { IncomingMessage, Server, ServerResponse } from "node:http"
 import { join, resolve } from "node:path"
 import { gitHostFor, HostApiError, InvalidPullRequestUrlError, parsePullRequestUrl } from "@walkdiff/providers"
 import type { GitHost, PullRequestRef } from "@walkdiff/providers"
-import { AI_API_KEY_VARIABLE, AiUnavailableError, CoverageFileError, createAiProvider, describeChecks } from "@walkdiff/engine"
+import { AI_API_KEY_VARIABLE, AiUnavailableError, CoverageFileError, createAiProvider, describeChecks, firstExisting } from "@walkdiff/engine"
 import { addReviewRequestSchema, anthropicBaseUrlFrom, appSettingsSchema, attachCoverageRequestSchema, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
 import type { AiConnectionResult, SettingsView, CheckStatus } from "@walkdiff/review-model"
 import { readHostTokens } from "../environment.ts"
@@ -28,7 +28,7 @@ const MAX_COVERAGE_UPLOAD_BYTES = 128 * 1024 * 1024
 const API_KEY_BYTES = 32
 
 // The UI's build sits at a fixed place in the workspace, as the CLI runs from source.
-const APP_UI_DIST = resolve(import.meta.dirname, "../../../app-ui/dist")
+const APP_UI_DIST = firstExisting([resolve(import.meta.dirname, "app-ui"), resolve(import.meta.dirname, "../../../app-ui/dist")])
 
 // Pages show text and code from PRs, and the API behind them can act with the user's token.
 const APP_PAGE_POLICY = `${BASE_POLICY}; script-src 'self'; style-src 'self'`

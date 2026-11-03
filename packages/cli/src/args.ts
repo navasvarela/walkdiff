@@ -6,6 +6,7 @@ export const USAGE = `Usage:
   walkdiff review [pull-request-url] [options]
   walkdiff comment --report <dir> --report-url <url>
   walkdiff app [options]
+  walkdiff setup
 
 review analyzes a GitHub pull request or GitLab merge request and serves a local report.
 In GitHub Actions or a GitLab merge request pipeline the URL comes from the environment.
@@ -13,6 +14,9 @@ In GitHub Actions or a GitLab merge request pipeline the URL comes from the envi
 comment posts or updates a summary on the pull request, linking to the report.
 
 app runs a local page where you add pull requests and keep track of several reviews.
+
+setup installs the pinned security scanners Walkdiff runs, checking each against its hash. review
+and app do this on their first run anyway, unless --offline.
 
 Options:
   --out <dir>        Write the report here instead of the cache directory
@@ -85,6 +89,7 @@ export interface AppOptions {
 
 export type Command =
   | { readonly kind: "help" }
+  | { readonly kind: "setup" }
   | { readonly kind: "app"; readonly options: AppOptions }
   | { readonly kind: "review"; readonly options: ReviewOptions }
   | { readonly kind: "comment"; readonly options: CommentOptions }
@@ -121,6 +126,10 @@ export function parseCommand(argv: readonly string[]): Command {
   const [command, url, ...extra] = positionals
   if (values.help || command === undefined) {
     return { kind: "help" }
+  }
+  if (command === "setup") {
+    if (url !== undefined) throw new UsageError(`Unexpected arguments: ${[url, ...extra].join(" ")}`)
+    return { kind: "setup" }
   }
   if (command === "comment") {
     return { kind: "comment", options: parseCommentOptions(values.report, values["report-url"]) }

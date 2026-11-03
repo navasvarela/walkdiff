@@ -19,3 +19,6 @@ export { AI_API_KEY_VARIABLE, OpenAiCompatibleProvider } from "./ai/openAiCompat
 export { createAiProvider } from "./ai/createAiProvider.ts"
 export { AiUnavailableError } from "./ai/provider.ts"
 export { describeChecks } from "./risk/scanners/checkCatalog.ts"
+export { firstExisting } from "./locate.ts"
+export { installScannersHere } from "./risk/scanners/installScanners.ts"
+export { MANAGED_SCANNERS_ROOT } from "./risk/scanners/scannerProcess.ts"

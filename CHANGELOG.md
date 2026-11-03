@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **npm package:** Walkdiff can be published to npm, so people will run `npx walkdiff app` instead of cloning the repository. Releases publish from GitHub Actions with provenance and no stored token.
+- **`walkdiff setup`,** and scanners install on first use: they now live in your cache folder, `~/.cache/walkdiff/scanners`, rather than inside the code, and don't depend on npm install scripts. `--offline` skips installing them.
 ## 0.4.0
 
 - **Fairer "Large change":** requirements files locked with hashes now count as lockfiles, so generated lines no longer inflate the size.

@@ -201,6 +201,11 @@ describe("parseCommand", () => {
     expect(() => parseCommand(["comment", "--report", "r"])).toThrow(UsageError)
     expect(() => parseCommand(["comment", "--report", "r", "--report-url", "javascript:alert(1)"])).toThrow(UsageError)
   })
+
+  it("accepts setup on its own", () => {
+    expect(parseCommand(["setup"])).toEqual({ kind: "setup" })
+    expect(() => parseCommand(["setup", "extra"])).toThrow(UsageError)
+  })
 })
 
 /** Runs the real provider and fetch against a local stand-in for each host's API. */

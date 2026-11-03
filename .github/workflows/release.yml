@@ -1,0 +1,45 @@
+name: Release
+
+# Publishes the npm package when a version tag is pushed. npm's trusted publishing checks this
+# workflow's identity through OIDC, so no npm token is stored in the repository, and the package
+# carries provenance linking it to this commit. Set it up once on npmjs.com; see docs/releasing.md.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # A GitHub environment, so publishing can require an approval and npm can trust only this job.
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      # Trusted publishing needs npm 11.5.1 or later; this pins one rather than trusting whatever ships.
+      - run: npm install --global npm@11.21.1
+      - run: corepack enable
+      # Scanners aren't needed to build or test, and install scripts have no place in a release job.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build:package
+      - name: Check the tag matches the version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="v$(node -p "require('./dist-package/package.json').version")"
+          if [ "$version" != "$TAG" ]; then echo "Tag $TAG doesn't match package version $version"; exit 1; fi
+      - run: npm publish --provenance --access public
+        working-directory: dist-package

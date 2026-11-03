@@ -171,11 +171,13 @@ The report probably came from a different commit than the PR's latest. Generate 
 
 ### A scanner is listed under "Not checked" as not installed
 
-Run this in the Walkdiff folder, read what it says about the scanner, then start Walkdiff again:
+Run this, read what it says about the scanner, then start Walkdiff again:
 
 ```bash
-pnpm install
+walkdiff setup
 ```
+
+From a clone of the repository, that's `pnpm walkdiff setup`.
 
 Usually Semgrep is the one missing, because it needs Python 3.10 or later with the `venv` module. On Debian and Ubuntu, that's the `python3-venv` package. A network that blocks GitHub or PyPI also stops the install.
 
