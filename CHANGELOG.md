@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.0
+
 - **Fairer "Large change":** requirements files locked with hashes now count as lockfiles, so generated lines no longer inflate the size.
 - **App top bar:** the review list and Settings now have the logo and the same bar as reports.
 - **Wording:** the PR comment now says "1 place … uses" rather than "use".

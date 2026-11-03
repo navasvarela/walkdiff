@@ -1,7 +1,7 @@
 # Adds a Walkdiff report to each merge request. In your .gitlab-ci.yml:
 #
 #   include:
-#     - remote: https://raw.githubusercontent.com/navasvarela/walkdiff/v0.3.0/ci/gitlab-ci.yml
+#     - remote: https://raw.githubusercontent.com/navasvarela/walkdiff/v0.4.0/ci/gitlab-ci.yml
 #
 # Set GITLAB_TOKEN as a masked CI/CD variable: a project access token with the `api` scope
 # (CI_JOB_TOKEN cannot read merge request details or post notes). For AI review, also set
@@ -17,7 +17,7 @@ walkdiff:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   variables:
-    WALKDIFF_REF: v0.3.0
+    WALKDIFF_REF: v0.4.0
     WALKDIFF_AI: "false"
     WALKDIFF_AI_PROVIDER: "anthropic"
     WALKDIFF_AI_MODEL: ""
