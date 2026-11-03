@@ -26,6 +26,8 @@ export interface DependencyScanRequest {
   readonly disabled?: ReadonlySet<CheckId>
   /** Team-owned package names, never sent to a public service. From the merge base's config. */
   readonly privatePackages?: readonly string[]
+  /** SPDX identifiers the team accepts; undefined leaves licences unchecked. From the merge base's config. */
+  readonly allowedLicenses?: readonly string[] | undefined
   /** Replaces the live services in tests. */
   readonly trustSources?: TrustSources
   readonly now?: Date
@@ -41,6 +43,7 @@ const OSV_DATABASE_CHECK: CheckRun = { name: "OSV database", detail: "package ve
 
 const VULNERABILITY_CHECK = "Known vulnerabilities in new dependency versions"
 const TRUST_CHECK = "Dependency trust"
+const LICENSE_CHECK_RUN: CheckRun = { name: "Licences", detail: "new direct dependencies against your allowlist" }
 const TRUST_CHECK_RUN: CheckRun = { name: TRUST_CHECK, detail: "new direct dependencies: known malicious, not on the registry, very new or a lookalike name" }
 
 const NEW_DEPENDENCY: RuleDescription = {
@@ -140,13 +143,13 @@ async function checkTrustInto(declared: readonly DeclaredPackage[], request: Dep
     scan.notChecked.push({ check: TRUST_CHECK, reason: "offline mode: package registries were not queried" })
     return
   }
-  const { findings, problem } = await assessPackageTrust(declared, request.trustSources ?? LIVE_TRUST_SOURCES(request.now ?? new Date()))
+  const { findings, problem } = await assessPackageTrust(declared, request.trustSources ?? LIVE_TRUST_SOURCES(request.now ?? new Date()), { allowedLicenses: request.allowedLicenses })
   // A stronger warning about a package replaces the routine note that it's new, so it reads as one thing.
   const flagged = new Set(findings.map(placeOf))
   const routineNotes = scan.findings.filter((finding) => finding.ruleId === NEW_DEPENDENCY.id && flagged.has(placeOf(finding)))
   for (const note of routineNotes) scan.findings.splice(scan.findings.indexOf(note), 1)
   scan.findings.push(...findings)
-  if (problem === undefined) scan.checksRun.push(TRUST_CHECK_RUN)
+  if (problem === undefined) scan.checksRun.push(TRUST_CHECK_RUN, ...(request.allowedLicenses === undefined ? [] : [LICENSE_CHECK_RUN]))
   else scan.notChecked.push({ check: TRUST_CHECK, reason: problem })
 }
 

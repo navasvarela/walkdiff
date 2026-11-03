@@ -104,7 +104,7 @@ describe("scanSensitivePaths", () => {
   })
 
   it("applies team rules from the config before built-in ones", () => {
-    const config = { riskPaths: [{ pattern: "src/ledger/**", severity: "high" as const, reason: "Moves customer funds" }], ignore: [], ai: { allowed: true, providers: null }, scanners: { semgrep: { rules: [] } }, quality: { enabled: true }, coverage: { paths: [] }, dependencies: { private: [] }, feedback: { url: null } }
+    const config = { riskPaths: [{ pattern: "src/ledger/**", severity: "high" as const, reason: "Moves customer funds" }], ignore: [], ai: { allowed: true, providers: null }, scanners: { semgrep: { rules: [] } }, quality: { enabled: true }, coverage: { paths: [] }, dependencies: { private: [], allowedLicenses: null }, feedback: { url: null } }
     const [finding] = scanSensitivePaths([addedFile("src/ledger/post.ts", "x")], config)
     expect(finding).toMatchObject({ severity: "high", title: "Sensitive area (team rule)", detail: "Moves customer funds" })
   })

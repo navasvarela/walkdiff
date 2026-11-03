@@ -18,6 +18,7 @@ export const CATEGORY_LABELS: Readonly<Record<RiskCategory, string>> = {
   [RiskCategory.Tests]: "Tests",
   [RiskCategory.Size]: "Size",
   [RiskCategory.BrokenReference]: "Broken reference",
+  [RiskCategory.License]: "Licence",
   [RiskCategory.BreakingChange]: "Breaking change",
 }
 

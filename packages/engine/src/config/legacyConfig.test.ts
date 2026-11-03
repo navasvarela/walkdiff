@@ -49,7 +49,7 @@ describe("the config file from before the rename", () => {
   })
 
   it("can't be excluded by an ignore rule", () => {
-    const config = { riskPaths: [], ignore: ["*.json"], ai: { allowed: true, providers: null }, scanners: { semgrep: { rules: [] } }, quality: { enabled: true }, coverage: { paths: [] }, dependencies: { private: [] }, feedback: { url: null } }
+    const config = { riskPaths: [], ignore: ["*.json"], ai: { allowed: true, providers: null }, scanners: { semgrep: { rules: [] } }, quality: { enabled: true }, coverage: { paths: [] }, dependencies: { private: [], allowedLicenses: null }, feedback: { url: null } }
     expect(isIgnored(config, ".lens.json")).toBe(false)
     expect(isIgnored(config, ".walkdiff.json")).toBe(false)
     expect(isIgnored(config, "other.json")).toBe(true)
