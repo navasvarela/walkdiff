@@ -15,7 +15,7 @@ import { Ecosystem, UNSCANNABLE_LOCKFILES } from "./packages.ts"
 export const OSV_SCANNER_BINARY = "osv-scanner"
 
 const VULNERABILITY_CHECK = "Known vulnerabilities in new dependency versions"
-const INSTALL_HINT = "not read without osv-scanner. Run `pnpm install` in Walkdiff, or use `brew install osv-scanner`"
+const INSTALL_HINT = "not read without osv-scanner. Run `walkdiff setup`, or use `brew install osv-scanner`"
 // osv-scanner exits 0 with nothing found and 1 with vulnerabilities; both are good runs.
 const OSV_SCANNER_OK_EXIT_CODES: ReadonlySet<number> = new Set([0, 1])
 const OSV_SCANNER_CHECK: CheckRun = { name: "osv-scanner", detail: "pnpm, yarn and bun lockfiles" }

@@ -10,6 +10,7 @@
   },
   "scripts": {
     "postinstall": "node packages/engine/scripts/installScanners.ts",
+    "build:package": "pnpm -s build:ui && node scripts/buildPackage.ts",
     "walkdiff": "pnpm -s build:ui > /dev/null && node packages/cli/src/main.ts",
     "build:ui": "pnpm --filter @walkdiff/report-ui --filter @walkdiff/app-ui build",
     "typecheck": "tsc -p tsconfig.json && tsc -p packages/report-ui/tsconfig.json && tsc -p packages/app-ui/tsconfig.json",
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@types/node": "^26.6.6",
     "oxlint": "1.90.0",
+    "rolldown": "1.2.16",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   }

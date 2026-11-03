@@ -32,11 +32,11 @@ export interface CodeScanResult {
 
 const SEMGREP_CHECK = "Semgrep code scan"
 const GITLEAKS_CHECK = "gitleaks secret scan"
-const SEMGREP_INSTALL = "not installed. Walkdiff installs it on `pnpm install` if Python 3.10 or later is available, or use `brew install semgrep`"
+const SEMGREP_INSTALL = "not installed. Run `walkdiff setup` with Python 3.10 or later available, or use `brew install semgrep`"
 const ZIZMOR_CHECK = "zizmor GitHub Actions scan"
-const ZIZMOR_INSTALL = "not installed. Run `pnpm install` in Walkdiff, or use `brew install zizmor`"
+const ZIZMOR_INSTALL = "not installed. Run `walkdiff setup`, or use `brew install zizmor`"
 const WORKFLOW_FILE = /(^|\/)(\.github\/workflows\/[^/]+\.ya?ml|action\.ya?ml)$/
-const GITLEAKS_INSTALL = "not installed. Run `pnpm install` in Walkdiff, or use `brew install gitleaks`"
+const GITLEAKS_INSTALL = "not installed. Run `walkdiff setup`, or use `brew install gitleaks`"
 const SEMGREP_SUCCESS_EXIT_CODE = 0
 const GITLEAKS_REPORT_FILE = "gitleaks-report.json"
 const SCAN_ROOT_DIR = "files"

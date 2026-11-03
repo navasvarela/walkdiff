@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { installScannersHere, MANAGED_SCANNERS_ROOT } from "@walkdiff/engine"
 import { runApp } from "./appCommand.ts"
 import { parseCommand, USAGE, UsageError } from "./args.ts"
 import { defaultCacheDir, protectLocalData, readHostTokens } from "./environment.ts"
@@ -19,7 +20,12 @@ async function main(argv: readonly string[]): Promise<void> {
     case "help":
       console.log(USAGE)
       return
+    case "setup":
+      await installScannersHere((message) => console.error(message))
+      console.error(`Scanners are ready in ${MANAGED_SCANNERS_ROOT}.`)
+      return
     case "review":
+      if (command.options.network) await installScannersHere((message) => console.error(message))
       await runReview(command.options, {
         tokens: readHostTokens(process.env),
         cacheDir: command.options.cacheDir ?? defaultCacheDir(process.env),
@@ -29,6 +35,7 @@ async function main(argv: readonly string[]): Promise<void> {
       })
       return
     case "app":
+      if (command.options.network) await installScannersHere((message) => console.error(message))
       await runApp(command.options, { env: process.env, now: () => new Date(), log: (message) => console.error(message) })
       return
     case "comment":

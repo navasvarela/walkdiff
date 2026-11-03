@@ -3,6 +3,7 @@ import { chmod, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 
 import { existsSync } from "node:fs"
 import { execFile } from "node:child_process"
 import { join, relative, resolve } from "node:path"
+import { firstExisting } from "../../locate.ts"
 import { MANAGED_SCANNERS_ROOT } from "./scannerProcess.ts"
 
 const ArchiveKind = { TarGz: "tarGz", RawBinary: "rawBinary" } as const
@@ -85,7 +86,7 @@ export const BINARY_PINS: readonly BinaryPin[] = [
 // it depends on. Regenerate that file with:
 //   uv pip compile --universal --generate-hashes --python-version 3.10 --only-binary :all: --no-header
 export const SEMGREP_VERSION = "1.183.0"
-export const SEMGREP_REQUIREMENTS = resolve(import.meta.dirname, "../../../scanner-pins/semgrep-requirements.txt")
+export const SEMGREP_REQUIREMENTS = firstExisting([resolve(import.meta.dirname, "scanner-pins/semgrep-requirements.txt"), resolve(import.meta.dirname, "../../../scanner-pins/semgrep-requirements.txt")])
 const SEMGREP_BINARY = "semgrep"
 const SEMGREP_COMPLETE_MARKER = ".complete"
 const SEMGREP_UNSUPPORTED_PLATFORMS: ReadonlySet<string> = new Set(["win32"])
@@ -108,9 +109,9 @@ export interface InstallDependencies {
 }
 
 /**
- * Puts pinned scanners where `scannerExecutable` looks first, so they come with Walkdiff like its
- * npm dependencies do. This runs on `pnpm install`, so nothing is fetched during a review, and
- * reinstalling is instant once a version is there. A scanner that can't be installed is only
+ * Puts pinned scanners where `scannerExecutable` looks first. It runs before a review or the app
+ * starts, and from `walkdiff setup`, never as an npm install script: many teams turn those off,
+ * and a security tool shouldn't depend on them. Reinstalling is instant once a version is there. A scanner that can't be installed is only
  * logged: a report already says which checks didn't run, and that shouldn't break the install.
  */
 export async function installScanners(root: string, deps: InstallDependencies): Promise<void> {
@@ -229,7 +230,7 @@ function run(command: string, args: readonly string[]): Promise<void> {
   })
 }
 
-/** Installs for this machine, into the folder scanners are run from. */
-export function installScannersHere(): Promise<void> {
-  return installScanners(MANAGED_SCANNERS_ROOT, { download, run, log: console.log, platform: `${process.platform}-${process.arch}`, pins: BINARY_PINS })
+/** Installs for this machine, into the folder scanners are run from. Quick when they're all there. */
+export function installScannersHere(log: (message: string) => void = console.log): Promise<void> {
+  return installScanners(MANAGED_SCANNERS_ROOT, { download, run, log, platform: `${process.platform}-${process.arch}`, pins: BINARY_PINS })
 }
