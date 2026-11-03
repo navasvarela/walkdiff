@@ -81,7 +81,7 @@ Put this file at the root of the repository being reviewed. Every setting is opt
   "ai": { "allowed": true },
   "scanners": { "semgrep": { "rules": ["p/default"] } },
   "coverage": { "paths": ["reports/**/*.txt"] },
-  "dependencies": { "private": ["@acme/*", "acme-*"] },
+  "dependencies": { "private": ["@acme/*", "acme-*"], "allowedLicenses": ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC"] },
   "feedback": { "url": "https://forms.example.com/walkdiff" }
 }
 ```
@@ -95,6 +95,7 @@ Put this file at the root of the repository being reviewed. Every setting is opt
 | `scanners.semgrep.rules` | Sets Semgrep registry rule packs (`p/…` or `r/…`). Use an empty list to turn Semgrep off |
 | `coverage.paths` | Globs for coverage reports whose names Walkdiff doesn't recognize, in CI artifacts or the PR. |
 | `dependencies.private` | Names or globs for your own packages. They're never sent to OSV or package registries, or flagged as missing. |
+| `dependencies.allowedLicenses` | SPDX identifiers your team accepts. New dependencies under any other licence, or with none declared, are flagged. Leave it out to skip the check. |
 | `feedback.url` | Adds a feedback link to the report and the PR comment |
 
 **A PR can't change its own rules.** Walkdiff reads this file from the PR's merge base, so an edit takes effect only after it's merged. The edit itself is reported as a finding. AI review is blocked if either version of the file forbids it.

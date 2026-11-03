@@ -363,6 +363,8 @@ function checkMessage(finding: Risk, count: number): string {
       return `Code scan: ${finding.title}${where}${times}. Check whether it applies here.`
     case RiskCategory.Tests:
       return `${finding.title}. Ask whether this needs tests.`
+    case RiskCategory.License:
+      return `${finding.title}${where}. Check it's acceptable before merging.`
     case RiskCategory.BrokenReference:
       return `${finding.title}${where}. Check that nothing still depends on it.`
     case RiskCategory.BreakingChange:

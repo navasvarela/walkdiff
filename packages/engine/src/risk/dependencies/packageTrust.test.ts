@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest"
 import { findMaliciousPackages } from "./osv.ts"
+import { isLicenseAllowed, pypiLicense } from "./licenses.ts"
 import { assessPackageTrust, isFromRegistry, isOneEditAway, isPrivatePackage, lookUpOnRegistry, RegistryUnavailableError } from "./packageTrust.ts"
 import type { DeclaredPackage, RegistryEntry, TrustSources } from "./packageTrust.ts"
 import { Ecosystem, manifestFormatFor } from "./packages.ts"
 
 const NOW = new Date("2026-11-02T00:00:00Z")
-const OLD: RegistryEntry = { status: "published", firstPublished: new Date("2020-01-01T00:00:00Z") }
+const OLD: RegistryEntry = { status: "published", firstPublished: new Date("2020-01-01T00:00:00Z"), license: "MIT" }
 
 const declared = (name: string, ecosystem: Ecosystem = Ecosystem.Npm): DeclaredPackage => ({ ecosystem, name, requirement: "^1.0.0", path: "package.json", line: 3 })
 
@@ -40,12 +41,12 @@ describe("assessPackageTrust", () => {
     ["2026-11-01T00:00:00Z", "first published yesterday"],
     ["2026-10-04T00:00:00Z", "first published 29 days ago"],
   ])("flags a package first published on %s", async (date, phrase) => {
-    const { findings } = await assessPackageTrust([declared("fresh-package")], sources({ lookUp: async () => ({ status: "published", firstPublished: new Date(date) }) }))
+    const { findings } = await assessPackageTrust([declared("fresh-package")], sources({ lookUp: async () => ({ status: "published", firstPublished: new Date(date), license: "MIT" }) }))
     expect(findings.at(0)?.title).toContain(phrase)
   })
 
   it("stops flagging a package at 30 days", async () => {
-    expect(await ids([declared("fresh-package")], sources({ lookUp: async () => ({ status: "published", firstPublished: new Date("2026-10-03T00:00:00Z") }) }))).toEqual([])
+    expect(await ids([declared("fresh-package")], sources({ lookUp: async () => ({ status: "published", firstPublished: new Date("2026-10-03T00:00:00Z"), license: "MIT" }) }))).toEqual([])
   })
 
   it.each([
@@ -86,6 +87,62 @@ describe("assessPackageTrust", () => {
     const result = await assessPackageTrust(packages, sources({ lookUp: async () => { asked++; return OLD } }))
     expect(asked).toBe(100)
     expect(result.problem).toContain("100 of 105")
+  })
+})
+
+describe("licence check", () => {
+  const ALLOWED = ["MIT", "Apache-2.0"]
+  const withLicense = (license: string | undefined): TrustSources => sources({ lookUp: async () => ({ ...OLD, license }) })
+
+  it("is off until a team lists what it allows", async () => {
+    expect(await ids([declared("gpl-thing")], withLicense("GPL-3.0-only"))).toEqual([])
+  })
+
+  it("flags a licence that isn't allowed, as a policy finding rather than a security one", async () => {
+    const { findings } = await assessPackageTrust([declared("gpl-thing")], withLicense("GPL-3.0-only"), { allowedLicenses: ALLOWED })
+    expect(findings).toMatchObject([{ ruleId: "license.not-allowed", category: "license", severity: "medium", title: "`gpl-thing` is licensed `GPL-3.0-only`, which isn't on your allowlist" }])
+  })
+
+  it("flags a package with no declared licence", async () => {
+    expect(await ids([declared("mystery")], withLicense(undefined), )).toEqual([])
+    const { findings } = await assessPackageTrust([declared("mystery")], withLicense(undefined), { allowedLicenses: ALLOWED })
+    expect(findings).toMatchObject([{ ruleId: "license.undeclared", severity: "low" }])
+  })
+
+  it("checks popular packages too, but doesn't call them new", async () => {
+    const { findings } = await assessPackageTrust([declared("express")], sources({ lookUp: async () => ({ status: "published", firstPublished: NOW, license: "BUSL-1.1" }) }), { allowedLicenses: ALLOWED })
+    expect(findings.map((finding) => finding.ruleId)).toEqual(["license.not-allowed"])
+  })
+})
+
+describe("isLicenseAllowed", () => {
+  it.each([
+    ["MIT", true],
+    ["mit", true],
+    ["GPL-3.0-only", false],
+    ["MIT OR GPL-3.0-only", true],
+    ["GPL-3.0-only OR LGPL-2.1-only", false],
+    ["MIT AND Apache-2.0", true],
+    ["MIT AND GPL-3.0-only", false],
+    ["(MIT OR GPL-2.0-only) AND Apache-2.0", true],
+    ["(MIT AND GPL-2.0-only) OR Apache-2.0", true],
+    ["(GPL-2.0-only) OR (BSD-3-Clause)", false],
+    ["Apache-2.0 WITH LLVM-exception", true],
+    ["", false],
+  ])("%s allowed by MIT and Apache-2.0: %s", (expression, expected) => {
+    expect(isLicenseAllowed(expression, ["MIT", "Apache-2.0"])).toBe(expected)
+  })
+})
+
+describe("pypiLicense", () => {
+  it.each([
+    ["MIT OR Apache-2.0", "whatever", [], "MIT OR Apache-2.0"],
+    [null, "BSD-3-Clause", [], "BSD-3-Clause"],
+    [null, "Permission is hereby granted...\nlong text", ["License :: OSI Approved :: MIT License"], "MIT"],
+    [null, "", ["License :: OSI Approved :: BSD License"], "BSD License"],
+    [null, null, [], undefined],
+  ] as const)("reads %s / %s", (expression, field, classifiers, expected) => {
+    expect(pypiLicense(expression, field, classifiers)).toBe(expected)
   })
 })
 

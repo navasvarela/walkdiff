@@ -5,6 +5,7 @@ import { z } from "zod"
 import { findingAt } from "../scannedFile.ts"
 import type { RuleDescription } from "../scannedFile.ts"
 import { findMaliciousPackages, OsvUnavailableError } from "./osv.ts"
+import { isLicenseAllowed, pypiLicense } from "./licenses.ts"
 import { Ecosystem, normalizePythonName } from "./packages.ts"
 import { POPULAR_PACKAGES } from "./popularPackages.ts"
 
@@ -19,12 +20,19 @@ export interface DeclaredPackage {
 export const RegistryStatus = { Published: "published", Missing: "missing" } as const
 export type RegistryStatus = (typeof RegistryStatus)[keyof typeof RegistryStatus]
 
-export type RegistryEntry = { readonly status: typeof RegistryStatus.Published; readonly firstPublished: Date } | { readonly status: typeof RegistryStatus.Missing }
+export type RegistryEntry =
+  | { readonly status: typeof RegistryStatus.Published; readonly firstPublished: Date; readonly license: string | undefined }
+  | { readonly status: typeof RegistryStatus.Missing }
 
 export interface TrustSources {
   readonly lookUp: (ecosystem: Ecosystem, name: string) => Promise<RegistryEntry>
   readonly maliciousNames: (packages: readonly DeclaredPackage[]) => Promise<ReadonlyMap<string, string>>
   readonly now: Date
+}
+
+export interface TrustOptions {
+  /** SPDX identifiers a team accepts; undefined leaves licences unchecked. */
+  readonly allowedLicenses: readonly string[] | undefined
 }
 
 export interface TrustResult {
@@ -69,9 +77,10 @@ export function isPrivatePackage(name: string, privatePatterns: readonly string[
  * don't exist, and attackers register those names. Lockfile-only changes aren't checked: a package
  * nobody chose directly is rarely the one a person or model got wrong.
  */
-export async function assessPackageTrust(packages: readonly DeclaredPackage[], sources: TrustSources): Promise<TrustResult> {
+export async function assessPackageTrust(packages: readonly DeclaredPackage[], sources: TrustSources, options: TrustOptions = { allowedLicenses: undefined }): Promise<TrustResult> {
   const findings = packages.flatMap(lookalikeFinding)
-  const looked = packages.filter((entry) => !POPULAR_PACKAGES[entry.ecosystem].has(entry.name))
+  // A popular package needs no trust lookup, but still needs its licence read when a team checks them.
+  const looked = options.allowedLicenses === undefined ? packages.filter((entry) => !POPULAR_PACKAGES[entry.ecosystem].has(entry.name)) : packages
   const toLookUp = looked.slice(0, MAX_LOOKUPS)
   const problems: string[] = []
   if (looked.length > toLookUp.length) problems.push(`only the first ${MAX_LOOKUPS} of ${looked.length} new packages were looked up`)
@@ -89,7 +98,7 @@ export async function assessPackageTrust(packages: readonly DeclaredPackage[], s
 
   const results = await inBatches(toLookUp, CONCURRENT_LOOKUPS, async (entry) => {
     try {
-      return registryFindings(entry, await sources.lookUp(entry.ecosystem, entry.name), sources.now)
+      return registryFindings(entry, await sources.lookUp(entry.ecosystem, entry.name), sources.now, options.allowedLicenses)
     } catch (error: unknown) {
       if (!(error instanceof RegistryUnavailableError)) throw error
       problems.push(error.message)
@@ -107,10 +116,26 @@ async function inBatches<T, R>(items: readonly T[], size: number, work: (item: T
   return results
 }
 
-function registryFindings(entry: DeclaredPackage, found: RegistryEntry, now: Date): Risk[] {
+function registryFindings(entry: DeclaredPackage, found: RegistryEntry, now: Date, allowedLicenses: readonly string[] | undefined): Risk[] {
   if (found.status === RegistryStatus.Missing) return [missingFinding(entry)]
   const days = Math.floor((now.getTime() - found.firstPublished.getTime()) / MS_PER_DAY)
-  return days < NEW_PACKAGE_DAYS ? [newPackageFinding(entry, days)] : []
+  const isPopular = POPULAR_PACKAGES[entry.ecosystem].has(entry.name)
+  return [...(days < NEW_PACKAGE_DAYS && !isPopular ? [newPackageFinding(entry, days)] : []), ...licenseFindings(entry, found.license, allowedLicenses)]
+}
+
+function licenseFindings(entry: DeclaredPackage, license: string | undefined, allowed: readonly string[] | undefined): Risk[] {
+  if (allowed === undefined) return []
+  const where = REGISTRY_NAMES[entry.ecosystem]
+  if (license === undefined) {
+    return [policyFinding(entry, "license.undeclared", RiskSeverity.Low, `${codeSpan(entry.name)} doesn't declare a licence on ${where}`, "Without a licence, you may have no right to use it. Check the project's repository.")]
+  }
+  if (isLicenseAllowed(license, allowed)) return []
+  return [policyFinding(entry, "license.not-allowed", RiskSeverity.Medium, `${codeSpan(entry.name)} is licensed ${codeSpan(license)}, which isn't on your allowlist`, `Allowed: ${allowed.join(", ")}. Registries report what a project declares, which can be wrong, so check before deciding.`)]
+}
+
+function policyFinding(entry: DeclaredPackage, id: string, severity: RiskSeverity, title: string, detail: string): Risk {
+  const rule: RuleDescription = { id, category: RiskCategory.License, severity, title, detail }
+  return findingAt(rule, entry.path, entry.line, `${entry.name} ${entry.requirement}`)
 }
 
 function trustFinding(entry: DeclaredPackage, id: string, severity: RiskSeverity, title: string, detail: string): Risk {
@@ -165,13 +190,35 @@ export class RegistryUnavailableError extends Error {
   override readonly name = "RegistryUnavailableError"
 }
 
-const npmSchema = z.object({ time: z.object({ created: z.iso.datetime({ offset: true }) }).loose() }).loose()
-const pypiSchema = z.object({ releases: z.record(z.string(), z.array(z.object({ upload_time_iso_8601: z.string() }).loose())) }).loose()
-const cratesSchema = z.object({ crate: z.object({ created_at: z.string() }).loose() }).loose()
+const npmLicenseSchema = z.union([z.string(), z.object({ type: z.string() }).loose()]).optional()
+const npmSchema = z
+  .object({
+    time: z.object({ created: z.iso.datetime({ offset: true }) }).loose(),
+    "dist-tags": z.object({ latest: z.string() }).loose().optional(),
+    versions: z.record(z.string(), z.object({ license: npmLicenseSchema }).loose()).optional(),
+    license: npmLicenseSchema,
+  })
+  .loose()
+const pypiSchema = z
+  .object({
+    info: z.object({ license: z.string().nullish(), license_expression: z.string().nullish(), classifiers: z.array(z.string()).default([]) }).loose(),
+    releases: z.record(z.string(), z.array(z.object({ upload_time_iso_8601: z.string() }).loose())),
+  })
+  .loose()
+const cratesSchema = z.object({ crate: z.object({ created_at: z.string() }).loose(), versions: z.array(z.object({ license: z.string().nullish() }).loose()).default([]) }).loose()
+
+interface PublishedFacts {
+  readonly firstPublished: Date | undefined
+  readonly license: string | undefined
+}
 
 interface RegistryClient {
   readonly url: (name: string) => string
-  readonly firstPublished: (body: unknown) => Date | undefined
+  readonly read: (body: unknown) => PublishedFacts
+}
+
+function npmLicenseText(license: z.infer<typeof npmLicenseSchema>): string | undefined {
+  return typeof license === "string" ? license : license?.type
 }
 
 // A scope's leading @ stays as it is and its slash is encoded, as the registry expects. Everything
@@ -181,15 +228,30 @@ function npmPathFor(name: string): string {
 }
 
 const REGISTRIES: Readonly<Record<Ecosystem, RegistryClient>> = {
-  [Ecosystem.Npm]: { url: (name) => `https://registry.npmjs.org/${npmPathFor(name)}`, firstPublished: (body) => new Date(npmSchema.parse(body).time.created) },
-  [Ecosystem.PyPI]: {
-    url: (name) => `https://pypi.org/pypi/${encodeURIComponent(name)}/json`,
-    firstPublished: (body) => {
-      const times = Object.values(pypiSchema.parse(body).releases).flat().map((file) => new Date(file.upload_time_iso_8601).getTime())
-      return times.length === 0 ? undefined : new Date(Math.min(...times))
+  [Ecosystem.Npm]: {
+    url: (name) => `https://registry.npmjs.org/${npmPathFor(name)}`,
+    read: (body) => {
+      const parsed = npmSchema.parse(body)
+      const latest = parsed["dist-tags"]?.latest
+      const latestLicense = latest === undefined ? undefined : parsed.versions?.[latest]?.license
+      return { firstPublished: new Date(parsed.time.created), license: npmLicenseText(latestLicense) ?? npmLicenseText(parsed.license) }
     },
   },
-  [Ecosystem.Crates]: { url: (name) => `https://crates.io/api/v1/crates/${encodeURIComponent(name)}`, firstPublished: (body) => new Date(cratesSchema.parse(body).crate.created_at) },
+  [Ecosystem.PyPI]: {
+    url: (name) => `https://pypi.org/pypi/${encodeURIComponent(name)}/json`,
+    read: (body) => {
+      const { info, releases } = pypiSchema.parse(body)
+      const times = Object.values(releases).flat().map((file) => new Date(file.upload_time_iso_8601).getTime())
+      return { firstPublished: times.length === 0 ? undefined : new Date(Math.min(...times)), license: pypiLicense(info.license_expression, info.license, info.classifiers) }
+    },
+  },
+  [Ecosystem.Crates]: {
+    url: (name) => `https://crates.io/api/v1/crates/${encodeURIComponent(name)}`,
+    read: (body) => {
+      const parsed = cratesSchema.parse(body)
+      return { firstPublished: new Date(parsed.crate.created_at), license: parsed.versions.at(0)?.license ?? undefined }
+    },
+  },
 }
 
 // A name reserved with no releases can't be installed, which to a reviewer is the same as missing.
@@ -204,8 +266,8 @@ export async function lookUpOnRegistry(ecosystem: Ecosystem, name: string): Prom
   if (response.status === 404) return { status: RegistryStatus.Missing }
   if (!response.ok) throw new RegistryUnavailableError(`${REGISTRY_NAMES[ecosystem]} responded ${response.status}`)
   try {
-    const firstPublished = client.firstPublished(await response.json())
-    return firstPublished === undefined ? { status: RegistryStatus.Missing } : { status: RegistryStatus.Published, firstPublished }
+    const { firstPublished, license } = client.read(await response.json())
+    return firstPublished === undefined ? { status: RegistryStatus.Missing } : { status: RegistryStatus.Published, firstPublished, license }
   } catch (error: unknown) {
     throw new RegistryUnavailableError(`${REGISTRY_NAMES[ecosystem]} sent an unexpected answer: ${error instanceof Error ? error.message : String(error)}`)
   }
