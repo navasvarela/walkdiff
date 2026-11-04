@@ -1,7 +1,7 @@
 # Adds a Walkdiff report to each merge request. In your .gitlab-ci.yml:
 #
 #   include:
-#     - remote: https://raw.githubusercontent.com/navasvarela/walkdiff/v0.4.0/ci/gitlab-ci.yml
+#     - remote: https://raw.githubusercontent.com/navasvarela/walkdiff/v0.5.0/ci/gitlab-ci.yml
 #
 # Set GITLAB_TOKEN as a masked CI/CD variable: a project access token with the `api` scope
 # (CI_JOB_TOKEN cannot read merge request details or post notes). For AI review, also set
@@ -10,14 +10,14 @@
 
 walkdiff:
   stage: test
-  # Node 25 and later no longer ship corepack.
   image: node:24
   # An analysis problem should never block a merge during the pilot.
   allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   variables:
-    WALKDIFF_REF: v0.4.0
+    # The npm package spec to install. Pinned to the version this template was released with.
+    WALKDIFF_PACKAGE: "walkdiff@0.5.0"
     WALKDIFF_AI: "false"
     WALKDIFF_AI_PROVIDER: "anthropic"
     WALKDIFF_AI_MODEL: ""
@@ -29,19 +29,16 @@ walkdiff:
   script:
     # Semgrep runs in its own Python environment, and the Node image leaves out what creates one.
     - apt-get update -qq && apt-get install -y -qq python3-venv > /dev/null
-    - git clone --quiet --depth 1 --branch "$WALKDIFF_REF" https://github.com/navasvarela/walkdiff.git /tmp/walkdiff
-    - cd /tmp/walkdiff
-    - corepack enable
-    - pnpm install --frozen-lockfile
-    - pnpm build:ui
+    # Install scripts are skipped: Walkdiff needs none, and installs its scanners itself.
+    - npm install --global --ignore-scripts --no-audit --no-fund "$WALKDIFF_PACKAGE"
     - |
       set -- review --no-serve --out "$CI_PROJECT_DIR/walkdiff-report"
       if [ "$WALKDIFF_AI" = "true" ]; then set -- "$@" --ai --ai-provider "$WALKDIFF_AI_PROVIDER"; fi
       if [ "$WALKDIFF_AI" = "true" ] && [ -n "$WALKDIFF_AI_MODEL" ]; then set -- "$@" --ai-model "$WALKDIFF_AI_MODEL"; fi
       if [ "$WALKDIFF_AI" = "true" ] && [ -n "$WALKDIFF_AI_BASE_URL" ]; then set -- "$@" --ai-base-url "$WALKDIFF_AI_BASE_URL"; fi
       if [ -n "$WALKDIFF_COVERAGE" ]; then set -- "$@" --coverage "$CI_PROJECT_DIR/$WALKDIFF_COVERAGE"; fi
-      node packages/cli/src/main.ts "$@"
-    - node packages/cli/src/main.ts comment --report "$CI_PROJECT_DIR/walkdiff-report" --report-url "$CI_JOB_URL/artifacts/file/walkdiff-report/index.html"
+      walkdiff "$@"
+    - walkdiff comment --report "$CI_PROJECT_DIR/walkdiff-report" --report-url "$CI_JOB_URL/artifacts/file/walkdiff-report/index.html"
   artifacts:
     expose_as: Walkdiff report
     paths:

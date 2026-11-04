@@ -5,7 +5,7 @@
 A review companion for GitHub pull requests and GitLab merge requests. `walkdiff review <url>` fetches the
 change, analyzes it, and serves a local report. (Working name; the project name is still an open decision.)
 
-Status: early release, [v0.4.0](CHANGELOG.md). To run it on your team's PRs, see the [pilot guide](docs/pilot.md).
+Status: early release, [v0.5.0](CHANGELOG.md). To run it on your team's PRs, see the [pilot guide](docs/pilot.md).
 
 **Documentation:** [getting started](docs/getting-started.md), [configuration](docs/configuration.md), [troubleshooting](docs/troubleshooting.md), [security policy](SECURITY.md).
 
@@ -53,13 +53,15 @@ level"; a unit both moved and edited shows as removed plus added; no syntax high
 
 ## Usage
 
-Requires Node.js 22.18 or newer (it runs the TypeScript sources directly), pnpm and git.
+Requires Node.js 22.18 or newer and git.
 
 ```sh
-pnpm install
-pnpm walkdiff review https://github.com/owner/repo/pull/123
-pnpm walkdiff review https://gitlab.com/group/project/-/merge_requests/45 --no-serve --out ./report
+npx walkdiff review https://github.com/owner/repo/pull/123
+npx walkdiff review https://gitlab.com/group/project/-/merge_requests/45 --no-serve --out ./report
 ```
+
+Or install it once with `npm install --global walkdiff`, then run `walkdiff`. To work on Walkdiff itself,
+clone this repository, run `pnpm install`, and use `pnpm walkdiff` in place of `walkdiff`.
 
 Set `GITHUB_TOKEN` (or `GH_TOKEN`) and `GITLAB_TOKEN` for private repositories and higher API rate limits.
 GitHub Enterprise and self-managed GitLab work by URL; tokens go to them only once they're [trusted](docs/configuration.md#tokens-and-trusted-hosts). Run `pnpm walkdiff --help` for all options.
@@ -67,7 +69,7 @@ GitHub Enterprise and self-managed GitLab work by URL; tokens go to them only on
 ## Keep track of several reviews
 
 ```sh
-pnpm walkdiff app
+npx walkdiff app
 ```
 
 This runs a local page at `http://127.0.0.1:4317/`. Paste a pull request or merge request link to add it; analyses run one at a time, and the list shows each review's status and counts, and flags medium or high severity security findings. Refresh re-runs a review after new commits. The list is kept in SQLite under `~/.local/share/walkdiff`, so it survives restarts. If `GITHUB_TOKEN` is not set, the app asks the GitHub CLI for its login on that PR's host.
@@ -81,13 +83,13 @@ Private repositories and merge requests work once a token is in the environment.
 **GitLab**: create a personal or project access token with the `read_api` and `read_repository` scopes (`api` if you will also post comments with `walkdiff comment`):
 
 ```sh
-GITLAB_TOKEN=<token> pnpm walkdiff review https://gitlab.com/group/project/-/merge_requests/123
+GITLAB_TOKEN=<token> walkdiff review https://gitlab.com/group/project/-/merge_requests/123
 ```
 
 **GitHub**: use a token that can read the repository. With the GitHub CLI:
 
 ```sh
-GH_TOKEN=$(gh auth token) pnpm walkdiff review https://github.com/owner/repo/pull/123
+GH_TOKEN=$(gh auth token) walkdiff review https://github.com/owner/repo/pull/123
 ```
 
 `GITHUB_TOKEN` works too. Self-managed GitLab and GitHub Enterprise are recognized from the URL and use the same variables, once listed in `WALKDIFF_TRUSTED_GITLAB_HOSTS` or `WALKDIFF_TRUSTED_GITHUB_HOSTS`. Without a token, a private repository usually answers 404, and walkdiff says which variable to set.
@@ -96,7 +98,7 @@ Tokens and code stay on your machine, apart from the host itself, package names 
 
 ## In CI
 
-The GitHub Action (`navasvarela/walkdiff@v0.4.0`) and the GitLab template (`ci/gitlab-ci.yml`) generate the report for each PR, keep it as a job artifact, and post one summary comment that is updated on each push. The [pilot guide](docs/pilot.md) has the setup. Locally, `walkdiff review` also works without a URL inside a CI job, and `walkdiff comment --report <dir> --report-url <url>` posts the summary.
+The GitHub Action (`navasvarela/walkdiff@v0.5.0`) and the GitLab template (`ci/gitlab-ci.yml`) generate the report for each PR, keep it as a job artifact, and post one summary comment that is updated on each push. The [pilot guide](docs/pilot.md) has the setup. Locally, `walkdiff review` also works without a URL inside a CI job, and `walkdiff comment --report <dir> --report-url <url>` posts the summary.
 
 ## AI review
 
