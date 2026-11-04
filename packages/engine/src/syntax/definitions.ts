@@ -33,7 +33,8 @@ export interface Definition {
   /** By the language's own rules and its container's; a library may still not expose its file. */
   readonly isPublic: boolean
   readonly snapshot: UnitSnapshot
-  readonly codeTokenCount: number
+  /** Code tokens in order, without comments, to tell how alike two versions are when their fingerprints differ. */
+  readonly codeTokens: readonly string[]
   readonly fingerprints: Fingerprints
   /** Parameters, calls and control flow; undefined for anything but functions and methods. */
   readonly shape: UnitShape | undefined
@@ -205,7 +206,7 @@ function toDefinition(spec: LanguageSpec, raw: RawDefinition, lines: readonly st
       text: outline(lines, startLine - 1, endLine - 1, raw.children),
       elidesNestedUnits: raw.children.length > 0,
     },
-    codeTokenCount: code.length,
+    codeTokens: code.map((token) => token.text),
     shape: raw.header.kind === UnitKind.Function || raw.header.kind === UnitKind.Method ? extractShape(spec.shape, raw.node) : undefined,
     fingerprints: {
       code: hashCode(code),

@@ -107,7 +107,13 @@ Walkdiff groups lockfiles, vendored code and generated files. A file counts as g
 
 ### A function shows as removed and added
 
-Walkdiff shows a function as removed and added when it was both moved and edited in the same PR. Moves without edits are folded away.
+Walkdiff recognises a function that was moved and edited if it kept its name and most of its code. It's shown where it arrived, as "Moved from … and edited", with the old and new code side by side. Moves without edits are folded away.
+
+It still shows as removed and added when:
+
+- it was renamed as well as moved and edited
+- most of it was rewritten
+- it's very short: a one-line function looks like too many others to tell it was moved
 
 ### Impact shows a caller that isn't really a caller
 

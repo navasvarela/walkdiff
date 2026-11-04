@@ -187,8 +187,10 @@ function searchedNameFor(unit: ComparedUnit): string | undefined {
       return unit.name
     case UnitChangeKind.Renamed:
       return unit.change.previousName
-    case UnitChangeKind.Added:
+    // Callers of an edited move find the new code under the same name.
     case UnitChangeKind.MovedIn:
+      return unit.change.edited ? unit.name : undefined
+    case UnitChangeKind.Added:
     case UnitChangeKind.MovedOut:
       return undefined
   }

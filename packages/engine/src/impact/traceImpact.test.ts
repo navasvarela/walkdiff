@@ -8,6 +8,8 @@ import { analyzeChangedFiles } from "../analyzeChangedFiles.ts"
 import { runGit } from "../git.ts"
 import { containerTypeName, simpleTypeName } from "./traceImpact.ts"
 
+const CONVERT_BODY = "    if rate <= 0:\n        raise ValueError(\"rate must be positive\")\n    value = amount * rate\n    return round(value, 2)\n"
+
 const COMMITTER_ENV = {
   GIT_AUTHOR_NAME: "Test",
   GIT_AUTHOR_EMAIL: "test@example.com",
@@ -71,6 +73,8 @@ describe("traceImpact", () => {
     await write("web/format.ts", "export function oldName(x: number) {\n  return x * 2\n}\n")
     await write("web/caller.ts", 'import { oldName } from "./format"\nexport const twice = (x: number) => oldName(x)\n')
     await write("web/stale.ts", 'import { oldName } from "./format"\nexport function legacy() {\n  return oldName(1)\n}\n')
+    await write("py/money.py", `def convert(amount, rate):\n${CONVERT_BODY}\n\ndef keep_money():\n    pass\n`)
+    await write("py/shop.py", "from money import convert\n\ndef checkout(total):\n    return convert(total, 1.2)\n")
     const base = await commit()
 
     await write(
@@ -87,6 +91,8 @@ describe("traceImpact", () => {
     await write("py/utils.py", "def keep():\n    pass\n")
     await write("web/format.ts", "export function newName(x: number) {\n  return x * 2\n}\n")
     await write("web/caller.ts", 'import { newName } from "./format"\nexport const twice = (x: number) => newName(x * 1)\n')
+    await write("py/money.py", "def keep_money():\n    pass\n")
+    await write("py/fx.py", `def convert(amount, rate):\n${CONVERT_BODY.replace("round(value, 2)", "round(value, 4)")}`)
     const head = await commit()
 
     files = (await analyzeChangedFiles(repoDir, base, head, { network: false, runScanner: async () => undefined })).files
@@ -112,6 +118,12 @@ describe("traceImpact", () => {
     const renamed = unit("web/format.ts", "newName")
     expect(renamed?.impact).toMatchObject({ status: "traced", searchedName: "oldName" })
     expect(referencesOf("web/format.ts", "newName")).toEqual(["web/stale.ts:1 - likely", "web/stale.ts:3 legacy likely"])
+  })
+
+  it("traces callers of a function moved and edited, where it arrived", () => {
+    expect(unit("py/fx.py", "convert")).toMatchObject({ change: { kind: "movedIn", edited: true }, impact: { status: "traced", searchedName: "convert" } })
+    expect(referencesOf("py/fx.py", "convert")).toEqual(["py/shop.py:1 - likely", "py/shop.py:4 checkout likely"])
+    expect(unit("py/money.py", "convert")?.impact).toBeNull()
   })
 
   it("does not trace changes that cannot affect callers", () => {

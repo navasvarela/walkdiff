@@ -150,10 +150,14 @@ export const unitChangeSchema = z.discriminatedUnion("kind", [
     before: unitSnapshotSchema,
     after: unitSnapshotSchema,
   }),
-  /** The unit arrived unchanged from another file or container; `from` says where it was. */
-  z.object({ kind: z.literal(UnitChangeKind.MovedIn), from: unitLocationSchema, before: unitSnapshotSchema, after: unitSnapshotSchema }),
-  /** The unit left this file or container unchanged; `to` says where it went. */
-  z.object({ kind: z.literal(UnitChangeKind.MovedOut), to: unitLocationSchema, before: unitSnapshotSchema }),
+  /**
+   * The unit arrived from another file or container; `from` says where it was. `edited` says its
+   * code changed on the way, beyond formatting and comments. Older reports have no `edited`:
+   * they only found unedited moves.
+   */
+  z.object({ kind: z.literal(UnitChangeKind.MovedIn), from: unitLocationSchema, edited: z.boolean().default(false), before: unitSnapshotSchema, after: unitSnapshotSchema }),
+  /** The unit left this file or container; `to` says where it went, and `edited` matches the arriving side. */
+  z.object({ kind: z.literal(UnitChangeKind.MovedOut), to: unitLocationSchema, edited: z.boolean().default(false), before: unitSnapshotSchema }),
 ])
 export type UnitChange = z.infer<typeof unitChangeSchema>
 

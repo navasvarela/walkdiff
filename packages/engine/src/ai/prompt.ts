@@ -1,5 +1,5 @@
 import { changedUnitsOf, CitationSide as Side, DiffLineKind, FileContentKind, isBehaviourChange, UnitChangeKind, UnitImpactStatus, untouchedReferences } from "@walkdiff/review-model"
-import type { ChangedFile, ChangedUnit, CitationSide, FileDiff, PullRequest, RiskAssessment, UnitRef, UnitSnapshot } from "@walkdiff/review-model"
+import type { ChangedFile, ChangedUnit, CitationSide, FileDiff, PullRequest, RiskAssessment, UnitChange, UnitRef, UnitSnapshot } from "@walkdiff/review-model"
 
 import { isSecretFile, redactSecretsInText } from "../risk/secrets.ts"
 
@@ -127,14 +127,22 @@ function renderUnit(id: string, path: string, unit: ChangedUnit): Rendered {
     ranges.push({ path, side, startLine: snapshot.startLine, endLine: snapshot.endLine })
   }
   const { change } = unit
-  if ("before" in change && change.kind !== UnitChangeKind.MovedIn) show("before", Side.Before, change.before)
+  // An unedited move's before is its after, so showing both would only spend the budget.
+  const beforeAddsNothing = change.kind === UnitChangeKind.MovedIn && !change.edited
+  if ("before" in change && !beforeAddsNothing) show("before", Side.Before, change.before)
   if ("after" in change) show("after", Side.After, change.after)
   parts.push("</unit>")
   return { text: parts.join("\n"), ranges }
 }
 
+function changeAttribute(change: UnitChange): string {
+  if (change.kind === UnitChangeKind.Modified) return `modified (${change.weight})`
+  if (change.kind === UnitChangeKind.MovedIn && change.edited) return `${change.kind} (edited)`
+  return change.kind
+}
+
 function unitHeader(id: string, path: string, unit: ChangedUnit, summarized: boolean): string {
-  const change = unit.change.kind === UnitChangeKind.Modified ? `modified (${unit.change.weight})` : unit.change.kind
+  const change = changeAttribute(unit.change)
   const impact = unit.impact?.status === UnitImpactStatus.Traced ? ` callers="${unit.impact.totalReferences}"` : ""
   const close = summarized ? ` summarized="input budget reached"/>` : ">"
   return `<unit id="${id}" path="${attribute(path)}" name="${attribute(unit.qualifiedName)}" kind="${unit.kind}" change="${change}"${impact}${close}`

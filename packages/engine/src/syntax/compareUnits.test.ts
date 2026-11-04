@@ -108,6 +108,84 @@ describe("compareUnits", () => {
     expect(result.get("new.rs")?.at(0)?.change).toMatchObject({ from: { path: "old.rs", qualifiedName: "total" } })
   })
 
+  describe("moves with edits", () => {
+    const PRICE = `fn total(items: &[Item]) -> u64 {\n${LONG_BODY}}\n`
+    const PRICE_WITH_FIX = "fn total(items: &[Item]) -> u64 {\n    let total = items.iter().map(|item| item.price * item.quantity).sum::<u64>();\n    total + shipping(total, region())\n}\n"
+
+    it("detects a function moved to another file and edited on the way", async () => {
+      const result = await compare(rustSpec, [
+        { path: "old.rs", before: `use x;\n\n${PRICE}`, after: "use x;\n" },
+        { path: "new.rs", before: undefined, after: PRICE_WITH_FIX },
+      ])
+      expect(summarize(result.get("old.rs"))).toEqual(["function total: movedOut"])
+      expect(summarize(result.get("new.rs"))).toEqual(["function total: movedIn"])
+      const arrived = result.get("new.rs")?.at(0)
+      expect(arrived?.change).toMatchObject({ edited: true, from: { path: "old.rs", qualifiedName: "total" } })
+      expect(arrived?.facts).toMatchObject({ callsAdded: ["region"] })
+      expect(result.get("old.rs")?.at(0)?.change).toMatchObject({ edited: true, to: { path: "new.rs" } })
+    })
+
+    it("marks a move with only formatting changes as unedited", async () => {
+      const result = await compare(rustSpec, [
+        { path: "old.rs", before: PRICE, after: "" },
+        { path: "new.rs", before: undefined, after: PRICE.replace("    total + shipping(total)", "    total +\n        shipping(total)") },
+      ])
+      expect(result.get("new.rs")?.at(0)?.change).toMatchObject({ kind: "movedIn", edited: false })
+    })
+
+    it.each([
+      { language: "TypeScript", spec: typescriptSpec, path: "ts", before: "function toRisks(findings: readonly Finding[], files: readonly File[]): Risk[] {\n  return findings.filter((finding) => files.some((file) => file.path === finding.path)).map(toRisk)\n}\n", visible: "export function" },
+      { language: "Rust", spec: rustSpec, path: "rs", before: PRICE, visible: "pub(crate) fn" },
+    ])("treats a $language function exported on its way to a new module as unedited", async ({ spec, path, before, visible }) => {
+      const result = await compare(spec, [
+        { path: `old.${path}`, before, after: "" },
+        { path: `new.${path}`, before: undefined, after: before.replace(/^function|^fn/, visible) },
+      ])
+      expect(result.get(`new.${path}`)?.at(0)?.change).toMatchObject({ kind: "movedIn", edited: false })
+    })
+
+    it("detects a method moved between classes of one file and edited", async () => {
+      const body = "        rows = self.store.fetch(query, limit=limit)\n        return [self.decode(row) for row in rows if row is not None]\n"
+      const result = await compare(pythonSpec, [
+        {
+          path: "a.py",
+          before: `class Reader:\n    def open(self):\n        return 1\n\n    def load(self, query, limit):\n${body}\n\nclass Writer:\n    def open(self):\n        return 2\n`,
+          after: `class Reader:\n    def open(self):\n        return 1\n\n\nclass Writer:\n    def open(self):\n        return 2\n\n    def load(self, query, limit):\n${body.replace("limit=limit", "limit=limit, strict=True")}`,
+        },
+      ])
+      expect(summarize(result.get("a.py"))).toEqual(["method Reader.load: movedOut", "method Writer.load: movedIn"])
+    })
+
+    it("keeps unrelated functions that share a name apart", async () => {
+      const result = await compare(typescriptSpec, [
+        { path: "csv.ts", before: "export function parse(text: string): string[][] {\n  return text.split(\"\\n\").map((line) => line.split(\",\"))\n}\n", after: "" },
+        { path: "url.ts", before: undefined, after: "export function parse(input: string): URL | undefined {\n  try {\n    return new URL(input)\n  } catch {\n    return undefined\n  }\n}\n" },
+      ])
+      expect(summarize(result.get("csv.ts"))).toEqual(["function parse: removed"])
+      expect(summarize(result.get("url.ts"))).toEqual(["function parse: added"])
+    })
+
+    it("pairs each arrival with the most alike of several same-named functions", async () => {
+      const result = await compare(rustSpec, [
+        { path: "a.rs", before: "fn total(values: &[u64]) -> u64 {\n    values.iter().copied().filter(|value| *value > 0).sum::<u64>() + 0\n}\n", after: "" },
+        { path: "b.rs", before: PRICE, after: "" },
+        { path: "c.rs", before: undefined, after: PRICE_WITH_FIX },
+      ])
+      expect(result.get("c.rs")?.at(0)?.change).toMatchObject({ kind: "movedIn", edited: true, from: { path: "b.rs" } })
+      expect(summarize(result.get("a.rs"))).toEqual(["function total: removed"])
+    })
+
+    it("still reports a rewrite under the same name elsewhere as removed and added", async () => {
+      const rewrite = "fn total(items: &[Item]) -> u64 {\n    let mut sum = 0;\n    for item in items {\n        if item.active { sum += item.price; }\n    }\n    sum\n}\n"
+      const result = await compare(rustSpec, [
+        { path: "old.rs", before: PRICE, after: "" },
+        { path: "new.rs", before: undefined, after: rewrite },
+      ])
+      expect(summarize(result.get("old.rs"))).toEqual(["function total: removed"])
+      expect(summarize(result.get("new.rs"))).toEqual(["function total: added"])
+    })
+  })
+
   it("does not call tiny identical bodies a move", async () => {
     const result = await compare(rustSpec, [
       { path: "a.rs", before: "fn f() {}\n", after: "" },
