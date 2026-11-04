@@ -2,8 +2,10 @@
 
 ## Unreleased
 
-- **Moved and edited code is recognised:** a function moved to another file or class and edited on the way now shows as "Moved from … and edited", with its old and new code side by side, instead of as removed in one place and added in another. Its callers are traced, and it counts as a change to review.
+## 0.6.0
+
 - **Comment on exact lines:** click a line number in the code to comment on that line, or shift-click to pick several. It works on changed and unchanged lines, before or after the change. Comments post to those lines on GitHub, and on GitLab to the last line of a range, naming the rest. Lines outside the diff can't take a comment, as hosts don't accept them there.
+- **Moved and edited code is recognised:** a function moved to another file or class and edited on the way now shows as "Moved from … and edited", with its old and new code side by side, instead of as removed in one place and added in another. Its callers are traced, and it counts as a change to review.
 
 ## 0.5.0
 
