@@ -1,5 +1,5 @@
 import { changedUnitsOf, DiffLineKind, FileContentKind, FileChangeStatus, isBehaviourChange, RiskCategory, RiskSeverity, UnitChangeKind, UnitImpactStatus, UnitKind, untouchedReferences } from "@walkdiff/review-model"
-import type { ChangedFile, ChangedUnit, ReviewModel, Risk, TestCoverage } from "@walkdiff/review-model"
+import type { ChangedFile, ChangedUnit, ReviewModel, Risk, TestCoverage, UnitChange } from "@walkdiff/review-model"
 
 /*
  * Turns a review into a guided path. The rules are plain points rather than a model, so every
@@ -256,7 +256,7 @@ function scoreUnit(unit: ChangedUnit, findings: readonly Risk[], inFile: readonl
   }
   // These count but aren't given as reasons: nearly every stop has them, so they say nothing.
   // The stop shows its tests separately.
-  if (unit.change.kind === UnitChangeKind.Modified && !isData) {
+  if (isEditOfExistingCode(unit.change) && !isData) {
     points += POINTS_FOR_CHANGED_EXISTING_CODE
     if (relatedTests.length === 0) points += POINTS_FOR_NO_RELATED_TESTS
   }
@@ -377,6 +377,10 @@ function checkMessage(finding: Risk, count: number): string {
 
 function places(count: number): string {
   return count === 1 ? "1 place" : `${count} places`
+}
+
+function isEditOfExistingCode(change: UnitChange): boolean {
+  return change.kind === UnitChangeKind.Modified || (change.kind === UnitChangeKind.MovedIn && change.edited)
 }
 
 function capitalize(text: string): string {

@@ -20,7 +20,7 @@ export function changeLabel(change: UnitChange): ChangeLabel {
     case UnitChangeKind.Renamed:
       return { text: `Renamed from ${change.previousName}`, tone: Tone.Quiet }
     case UnitChangeKind.MovedIn:
-      return { text: `Moved from ${change.from.path}`, tone: Tone.Quiet }
+      return change.edited ? { text: `Moved from ${change.from.path} and edited`, tone: Tone.Modified } : { text: `Moved from ${change.from.path}`, tone: Tone.Quiet }
     case UnitChangeKind.MovedOut:
       return { text: `Moved to ${change.to.path}`, tone: Tone.Quiet }
   }

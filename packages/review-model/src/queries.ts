@@ -5,7 +5,10 @@ export function changedUnitsOf(file: ChangedFile): readonly ChangedUnit[] {
   return file.syntax.status === SyntaxAnalysisStatus.Analyzed ? file.syntax.units : []
 }
 
-/** False for formatting, comments, renames and moves, which leave behaviour as it was. */
+/**
+ * False for formatting, comments, renames and unedited moves, which leave behaviour as it was.
+ * An edited move counts once, where the unit arrived: the side it left has nothing new to read.
+ */
 export function isBehaviourChange(change: UnitChange): boolean {
   switch (change.kind) {
     case UnitChangeKind.Added:
@@ -13,8 +16,9 @@ export function isBehaviourChange(change: UnitChange): boolean {
       return true
     case UnitChangeKind.Modified:
       return change.weight === ModificationWeight.Semantic
-    case UnitChangeKind.Renamed:
     case UnitChangeKind.MovedIn:
+      return change.edited
+    case UnitChangeKind.Renamed:
     case UnitChangeKind.MovedOut:
       return false
   }

@@ -109,6 +109,16 @@ describe("buildReviewPlan", () => {
     expect(titles(model)).toEqual(["real"])
   })
 
+  it("stops at an edited move where it arrived, and leaves an unedited one off", () => {
+    const moved = (name: string, edited: boolean): ChangedUnit => ({
+      ...unit({ name }),
+      change: { kind: UnitChangeKind.MovedIn, from: { path: "old.ts", qualifiedName: name }, edited, before: SNAPSHOT, after: SNAPSHOT },
+    })
+    const departed = (name: string): ChangedUnit => ({ ...unit({ name }), change: { kind: UnitChangeKind.MovedOut, to: { path: "new.ts", qualifiedName: name }, edited: true, before: SNAPSHOT } })
+    const model = review([file("old.ts", [departed("edited")]), file("new.ts", [moved("edited", true), moved("unedited", false)])])
+    expect(buildReviewPlan(model).stops.map((stop) => `${stop.file.diff.path} ${stop.title}`)).toEqual(["new.ts edited"])
+  })
+
   it("explains each stop without repeating what is true of every stop", () => {
     const plan = buildReviewPlan(review([file("a.ts", [unit({ name: "run", callers: 2 })])]))
     expect(plan.stops.at(0)?.reasons).toEqual(["2 places this PR didn't change depend on it"])

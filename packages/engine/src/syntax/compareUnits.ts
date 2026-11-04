@@ -3,12 +3,33 @@ import type { ComparedUnit, UnitLocation } from "@walkdiff/review-model"
 import { MODULE_SCOPE_NAME } from "./definitions.ts"
 import type { Definition, FileUnits, ModuleScope } from "./definitions.ts"
 import { factsBetween } from "./shape.ts"
+import { tokenSimilarity } from "./similarity.ts"
 
 /**
  * Below this many code tokens, identical bodies are too common to call a move:
  * every `fn new() -> Self { Self::default() }` would match every other.
  */
 const MIN_MOVED_UNIT_TOKENS = 20
+
+/**
+ * How alike, by `tokenSimilarity`, a unit and a same-named one elsewhere must be to call
+ * them one unit moved and edited. Measured on the cases in compareUnits.test.ts: a moved
+ * function with one call changed scores about 0.93, while unrelated functions sharing a name
+ * scored 0.24 to 0.45, and a rewrite of the same function 0.36. Lower, and different code
+ * that shares a name would be shown as one edit; higher, and a moved function with a real
+ * fix in it would be shown as removed and added again.
+ */
+const MIN_EDITED_MOVE_SIMILARITY = 0.6
+
+/**
+ * Keywords that make a definition visible to other modules. Moving a function into a module
+ * of its own usually means exporting it, so a move whose only change is one of these, before
+ * the name, is shown as unedited: the new `export` isn't something to review.
+ */
+const VISIBILITY_KEYWORDS: ReadonlySet<string> = new Set(["export", "pub"])
+// Rust narrows `pub` with a group: `pub(crate)`, `pub(super)`, `pub(in path)`.
+const RUST_VISIBILITY_GROUP_OPEN = "("
+const RUST_VISIBILITY_GROUP_CLOSE = ")"
 
 export interface FileVersions {
   readonly path: string
@@ -30,11 +51,14 @@ interface Located {
  *    is reported once, not once per method).
  * 3. Across candidates, an added/removed pair with the same body under a new name in
  *    the same container is a rename; the same body anywhere else is a move.
- * 4. Remaining candidates are reported as added or removed.
+ * 4. Of the rest, a pair of the same kind and name whose bodies are alike is a move with
+ *    edits. The most alike pairs are taken first, so three similar `parse`s can't steal
+ *    each other's match.
+ * 5. Remaining candidates are reported as added or removed.
  */
 export function compareUnits(files: readonly FileVersions[]): Map<string, ComparedUnit[]> {
   const unitsByPath = new Map<string, ComparedUnit[]>(files.map((file) => [file.path, []]))
-  const report = (path: string, unit: ComparedUnit): void => {
+  const report: Report = (path, unit) => {
     unitsByPath.get(path)?.push(unit)
   }
   const added: Located[] = []
@@ -58,14 +82,10 @@ export function compareUnits(files: readonly FileVersions[]): Map<string, Compar
     })
   }
   for (const [from, to] of takeMatches(removed, added, isMove)) {
-    report(from.path, {
-      ...describe(from.definition),
-      change: { kind: UnitChangeKind.MovedOut, to: locationOf(to), before: from.definition.snapshot },
-    })
-    report(to.path, {
-      ...describe(to.definition),
-      change: { kind: UnitChangeKind.MovedIn, from: locationOf(from), before: from.definition.snapshot, after: to.definition.snapshot },
-    })
+    reportMove(report, from, to, MoveEdits.None)
+  }
+  for (const [from, to] of takeMostAlike(removed, added)) {
+    reportMove(report, from, to, differsOnlyInVisibility(from.definition, to.definition) ? MoveEdits.None : MoveEdits.Code)
   }
   for (const { path, definition } of added) {
     report(path, { ...describe(definition), change: { kind: UnitChangeKind.Added, after: definition.snapshot } })
@@ -78,6 +98,26 @@ export function compareUnits(files: readonly FileVersions[]): Map<string, Compar
     units.sort(byPositionInFile)
   }
   return unitsByPath
+}
+
+const MoveEdits = { None: "none", Code: "code" } as const
+type MoveEdits = (typeof MoveEdits)[keyof typeof MoveEdits]
+
+type Report = (path: string, unit: ComparedUnit) => void
+
+function reportMove(report: Report, from: Located, to: Located, edits: MoveEdits): void {
+  const edited = edits === MoveEdits.Code
+  const before = from.definition
+  const after = to.definition
+  report(from.path, {
+    ...describe(before),
+    change: { kind: UnitChangeKind.MovedOut, to: locationOf(to), edited, before: before.snapshot },
+  })
+  report(to.path, {
+    ...describe(after),
+    facts: edited && before.shape !== undefined && after.shape !== undefined ? factsBetween(before.shape, after.shape) : null,
+    change: { kind: UnitChangeKind.MovedIn, from: locationOf(from), edited, before: before.snapshot, after: after.snapshot },
+  })
 }
 
 interface Pairing {
@@ -162,9 +202,76 @@ function isRename(from: Located, to: Located): boolean {
 function isMove(from: Located, to: Located): boolean {
   return (
     from.definition.kind === to.definition.kind &&
-    from.definition.codeTokenCount >= MIN_MOVED_UNIT_TOKENS &&
+    from.definition.codeTokens.length >= MIN_MOVED_UNIT_TOKENS &&
     from.definition.fingerprints.code === to.definition.fingerprints.code
   )
+}
+
+function isEditedMoveCandidate(from: Located, to: Located): boolean {
+  return (
+    from.definition.kind === to.definition.kind &&
+    from.definition.name === to.definition.name &&
+    from.definition.codeTokens.length >= MIN_MOVED_UNIT_TOKENS &&
+    to.definition.codeTokens.length >= MIN_MOVED_UNIT_TOKENS
+  )
+}
+
+function differsOnlyInVisibility(before: Definition, after: Definition): boolean {
+  const left = withoutVisibility(before.codeTokens, before.name)
+  const right = withoutVisibility(after.codeTokens, after.name)
+  return left.length === right.length && left.every((token, index) => token === right[index])
+}
+
+/** The tokens with visibility keywords before the definition's name left out. */
+function withoutVisibility(tokens: readonly string[], name: string): readonly string[] {
+  const nameAt = tokens.indexOf(name)
+  if (nameAt === -1) return tokens
+  const head: string[] = []
+  for (let index = 0; index < nameAt; index++) {
+    const token = tokens[index] ?? ""
+    if (!VISIBILITY_KEYWORDS.has(token)) {
+      head.push(token)
+      continue
+    }
+    if (tokens[index + 1] === RUST_VISIBILITY_GROUP_OPEN) {
+      const close = tokens.indexOf(RUST_VISIBILITY_GROUP_CLOSE, index + 1)
+      if (close !== -1 && close < nameAt) index = close
+    }
+  }
+  return [...head, ...tokens.slice(nameAt)]
+}
+
+interface ScoredPair {
+  readonly from: Located
+  readonly to: Located
+  readonly similarity: number
+}
+
+/** Pairs edited moves best match first, removing each matched pair from both arrays. */
+function takeMostAlike(froms: Located[], tos: Located[]): [Located, Located][] {
+  const scored: ScoredPair[] = froms.flatMap((from) =>
+    tos
+      .filter((to) => isEditedMoveCandidate(from, to))
+      .map((to) => ({ from, to, similarity: tokenSimilarity(from.definition.codeTokens, to.definition.codeTokens) }))
+      .filter((pair) => pair.similarity >= MIN_EDITED_MOVE_SIMILARITY),
+  )
+  scored.sort((a, b) => b.similarity - a.similarity)
+  const taken = new Set<Located>()
+  const pairs: [Located, Located][] = []
+  for (const { from, to } of scored) {
+    if (taken.has(from) || taken.has(to)) continue
+    taken.add(from)
+    taken.add(to)
+    pairs.push([from, to])
+  }
+  removeAll(froms, taken)
+  removeAll(tos, taken)
+  return pairs
+}
+
+function removeAll(items: Located[], taken: ReadonlySet<Located>): void {
+  const kept = items.filter((item) => !taken.has(item))
+  items.splice(0, items.length, ...kept)
 }
 
 /** Pairs elements of `froms` and `tos` one to one, removing each matched pair from both arrays. */

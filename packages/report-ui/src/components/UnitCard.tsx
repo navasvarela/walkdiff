@@ -105,7 +105,7 @@ export function UnitBody({ path, unit }: UnitBodyProps): ReactElement {
     case UnitChangeKind.MovedOut:
       return (
         <p className="unit-note">
-          Now <code>{change.to.qualifiedName}</code> in <code>{change.to.path}</code>, unchanged apart from formatting and comments.
+          Now <code>{change.to.qualifiedName}</code> in <code>{change.to.path}</code>, {change.edited ? "with edits you can read there." : "unchanged apart from formatting and comments."}
         </p>
       )
     case UnitChangeKind.Modified:
