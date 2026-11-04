@@ -3,7 +3,7 @@ import type { Conversation, ReviewComment, SubmitResult, SubmitReview, DiffLineR
 import { z } from "zod"
 import { COVERAGE_ARCHIVE_NAME, MAX_COVERAGE_ARCHIVE_BYTES, MAX_COVERAGE_ARCHIVES } from "./gitHost.ts"
 import type { GitHost, GitHttpAuth, PullRequestSnapshot, CiArchive } from "./gitHost.ts"
-import { downloadFile, getJson, writeJson } from "./http.ts"
+import { downloadFile, getJson, writeIgnoringReply } from "./http.ts"
 import type { WriteMethod } from "./http.ts"
 import { COMMENTS_PER_PAGE, upsertMarkedComment } from "./markedComment.ts"
 import type { MarkedComment } from "./markedComment.ts"
@@ -74,7 +74,25 @@ export class DiffNotReadyError extends Error {
 }
 
 const pipelinesSchema = z.array(z.object({ id: z.number() }))
-const pipelineJobsSchema = z.array(z.object({ id: z.number(), name: z.string(), artifacts_file: z.object({ size: z.number() }).nullish() }))
+const pipelineJobsSchema = z.array(
+  z.object({
+    id: z.number(),
+    name: z.string(),
+    artifacts_file: z.object({ size: z.number() }).nullish(),
+    artifacts: z.array(z.object({ file_type: z.string() })).nullish(),
+  }),
+)
+type PipelineJob = z.infer<typeof pipelineJobsSchema>[number]
+
+/**
+ * The artifact type GitLab gives a job's `reports: coverage_report`. GitLab teams usually publish
+ * coverage this way from a job named `test`, so the job's name alone would miss it.
+ */
+const COVERAGE_REPORT_ARTIFACT_TYPE = "cobertura"
+
+function declaresCoverageReport(job: PipelineJob): boolean {
+  return job.artifacts?.some((artifact) => artifact.file_type === COVERAGE_REPORT_ARTIFACT_TYPE) === true
+}
 
 export class GitLabHost implements GitHost {
   readonly #ref: GitLabMergeRequestRef
@@ -218,8 +236,11 @@ export class GitLabHost implements GitHost {
     const [pipeline] = await read(`${projectApi}/pipelines?sha=${encodeURIComponent(headSha)}&per_page=1`, pipelinesSchema)
     if (pipeline === undefined) return []
     const jobs = await read(`${projectApi}/pipelines/${pipeline.id}/jobs?per_page=100`, pipelineJobsSchema)
-    const wanted = jobs
-      .filter((job) => job.artifacts_file != null && job.artifacts_file.size <= MAX_COVERAGE_ARCHIVE_BYTES && COVERAGE_ARCHIVE_NAME.test(job.name))
+    // Jobs that declare a coverage report come first: they're the surest to hold one.
+    const declared = jobs.filter(declaresCoverageReport)
+    const named = jobs.filter((job) => !declaresCoverageReport(job) && COVERAGE_ARCHIVE_NAME.test(job.name))
+    const wanted = [...declared, ...named]
+      .filter((job) => job.artifacts_file != null && job.artifacts_file.size <= MAX_COVERAGE_ARCHIVE_BYTES)
       .slice(0, MAX_COVERAGE_ARCHIVES)
     const downloaded = await Promise.all(
       wanted.map(async (job) => ({
@@ -236,7 +257,7 @@ export class GitLabHost implements GitHost {
   }
 
   async #write(method: WriteMethod, url: string, body: unknown): Promise<void> {
-    await writeJson({ method, url, body, headers: this.#headers(), schema: z.unknown(), authHint: this.#authHint })
+    await writeIgnoringReply({ method, url, body, headers: this.#headers(), authHint: this.#authHint })
   }
 
   #headers(): Record<string, string> {

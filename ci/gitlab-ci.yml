@@ -3,8 +3,10 @@
 #   include:
 #     - remote: https://raw.githubusercontent.com/navasvarela/walkdiff/v0.6.0/ci/gitlab-ci.yml
 #
-# Set GITLAB_TOKEN as a masked CI/CD variable: a project access token with the `api` scope
-# (CI_JOB_TOKEN cannot read merge request details or post notes). For AI review, also set
+# Set GITLAB_TOKEN as a masked, unprotected CI/CD variable with the `api` scope: a project access
+# token, or on gitlab.com Free, where those aren't available, a personal access token (CI_JOB_TOKEN
+# cannot read merge request details or post notes). For coverage, give this job `needs:` on your
+# test job and set WALKDIFF_COVERAGE to its report. For AI review, also set
 # ANTHROPIC_API_KEY and WALKDIFF_AI to "true". For another provider, set WALKDIFF_AI_PROVIDER to
 # openai-compatible, plus WALKDIFF_AI_MODEL, WALKDIFF_AI_BASE_URL and WALKDIFF_AI_API_KEY.
 

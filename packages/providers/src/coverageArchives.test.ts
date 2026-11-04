@@ -85,6 +85,23 @@ describe("fetchCoverageArchives", () => {
     expect((await gitlab().fetchCoverageArchives(HEAD)).map((archive) => archive.name)).toEqual(["coverage"])
   })
 
+  it("downloads GitLab artifacts from a job that declares a coverage report, whatever its name, first", async () => {
+    stub((url) => {
+      if (url.includes("/pipelines?")) return json([{ id: 5 }])
+      if (url.includes("/pipelines/5/jobs")) {
+        return json([
+          { id: 1, name: "coverage-merge", artifacts_file: { size: 5 }, artifacts: [{ file_type: "archive" }] },
+          { id: 2, name: "test", artifacts_file: { size: 5 }, artifacts: [{ file_type: "archive" }, { file_type: "cobertura" }] },
+          { id: 3, name: "lint", artifacts_file: { size: 5 }, artifacts: [{ file_type: "archive" }, { file_type: "junit" }] },
+          // GitLab keeps a report declared without `paths` outside the archive, which is all its API serves.
+          { id: 4, name: "unit", artifacts_file: null, artifacts: [{ file_type: "cobertura" }] },
+        ])
+      }
+      return new Response("zip-bytes", { status: 200 })
+    })
+    expect((await gitlab().fetchCoverageArchives(HEAD)).map((archive) => archive.name)).toEqual(["test", "coverage-merge"])
+  })
+
   it("finds nothing when GitLab has no pipeline for the commit", async () => {
     stub(() => json([]))
     expect(await gitlab().fetchCoverageArchives(HEAD)).toEqual([])
