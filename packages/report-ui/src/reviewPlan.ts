@@ -29,14 +29,22 @@ const POINTS_FOR_CHANGED_EXISTING_CODE = 15
 const POINTS_FOR_MORE_LOGIC = 8
 const POINTS_FOR_SENSITIVE_FILE = 15
 const POINTS_FOR_NO_RELATED_TESTS = 5
-const POINTS_FOR_UNTESTED_LINES = 15
-const POINTS_FOR_PARTLY_TESTED_LINES = 8
-// Below untested lines: a report can leave a file out because it covers only part of a monorepo.
-const POINTS_FOR_FILE_NOT_IN_COVERAGE = 12
-const POINTS_FOR_LARGE_NEW_CODE = 10
-const LARGE_NEW_CODE_LINES = 25
 /** A change below this has nothing specific to draw attention to. */
 const POINTS_TO_BE_ON_THE_PATH = 20
+// Evidence that none of a change ran in tests is reason enough on its own to look at it: a bug
+// there has nothing to catch it. Below this, an untested new function with no callers yet fell
+// off the path, though it's the code a reviewer most needs to read.
+const POINTS_FOR_UNTESTED_LINES = POINTS_TO_BE_ON_THE_PATH + 5
+const POINTS_FOR_PARTLY_TESTED_LINES = 8
+// At or above this share of a change's lines not running, it counts as untested. V8 coverage,
+// which c8 and Jest report, marks a function's declaration line as run whenever its module
+// loads, so a function no test calls shows one line run, not none.
+const MOSTLY_UNTESTED_SHARE = 0.5
+// Below untested lines: a report can also leave a file out because it covers only part of a
+// monorepo. Still enough for the path, since a new file no test loads is the likelier reason.
+const POINTS_FOR_FILE_NOT_IN_COVERAGE = POINTS_TO_BE_ON_THE_PATH
+const POINTS_FOR_LARGE_NEW_CODE = 10
+const LARGE_NEW_CODE_LINES = 25
 // Past about fifteen stops a path stops feeling like a path. The rest stay one click away.
 const MAX_STOPS = 15
 // A PR of only new, uncalled code scores low everywhere, but a reviewer still needs a start.
@@ -273,8 +281,8 @@ function scoreUnit(unit: ChangedUnit, findings: readonly Risk[], inFile: readonl
   if (coverage?.kind === StopCoverageKind.FileNotInReport) add(POINTS_FOR_FILE_NOT_IN_COVERAGE, "Its file isn't in the coverage report, so no test may have loaded it")
   else if (coverage !== null && coverage.uncoveredLines.length > 0) {
     const total = coverage.coveredLines.length + coverage.uncoveredLines.length
-    if (coverage.coveredLines.length === 0) add(POINTS_FOR_UNTESTED_LINES, `None of its ${total} changed ${total === 1 ? "line" : "lines"} ran in tests`)
-    else add(POINTS_FOR_PARTLY_TESTED_LINES, `${coverage.uncoveredLines.length} of its ${total} changed lines didn't run in tests`)
+    const reason = coverage.coveredLines.length === 0 ? `None of its ${total} changed ${total === 1 ? "line" : "lines"} ran in tests` : `${coverage.uncoveredLines.length} of its ${total} changed lines didn't run in tests`
+    add(coverage.uncoveredLines.length / total >= MOSTLY_UNTESTED_SHARE ? POINTS_FOR_UNTESTED_LINES : POINTS_FOR_PARTLY_TESTED_LINES, reason)
   }
 
   const facts = unit.facts
