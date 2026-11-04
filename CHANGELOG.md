@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Untested code stays on the review path:** a change where coverage shows half or more of its lines didn't run, or whose file no test loaded, is now enough on its own to be a stop. Before, a new function no test called, with no callers yet, could be left off the path. Coverage tools mark a function's first line as run whenever its file loads, so such a function shows one line run, not none.
+
 - **Coverage from GitLab test jobs:** the app now finds coverage in any GitLab job that declares `artifacts:reports:coverage_report`, such as a job named `test`, not only in jobs with "cov" in their name.
 - **New files tests never loaded:** when a coverage report covers other files in the same language but leaves out a changed file, the review path says no test may have loaded it, instead of saying nothing. Tools such as c8 and Jest only list files the tests load.
 - **GitLab setup advice:** the pilot guide and template explain that gitlab.com Free has no project access tokens, that the token variable must be unprotected, and how to hand coverage to the Walkdiff job.
