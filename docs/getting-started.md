@@ -66,7 +66,7 @@ Your token needs write access: `pull-requests: write` on GitHub, or the `api` sc
 Walkdiff shows whether each change's lines ran in tests when it has a coverage report for the PR's latest commit, in LCOV or Cobertura format. You don't have to set anything up per PR. It looks in this order:
 
 1. **A report you attach.** In the app, choose **Attach coverage** on a review. Pick several files if your repository has one per package. The report updates at once, with no restart and no new analysis, and applies only to that PR. It's dropped when the PR gets new commits.
-2. **CI artifacts.** Walkdiff checks the runs for the PR's latest commit: GitHub Actions artifacts or GitLab job artifacts whose name contains `cov`, `lcov` or `cobertura`. A GitHub fine-grained token needs **Actions: read**.
+2. **CI artifacts.** Walkdiff checks the runs for the PR's latest commit: GitHub Actions artifacts whose name contains `cov`, `lcov` or `cobertura`, or on GitLab, jobs that declare `artifacts:reports:coverage_report` or have such a name. GitLab's API only serves a job's `artifacts:paths`, so keep the report there too. A GitHub fine-grained token needs **Actions: read**.
 3. **A report the PR adds or updates**, such as one CI commits to a folder. Reports that the PR didn't change are ignored, because they describe an older commit.
 
 Named `lcov.info`, `*.lcov`, `cobertura*.xml` or `coverage*.xml`, reports are found on their own. For other names, add globs to `coverage.paths` in `.walkdiff.json`. On the command line, `--coverage` names a file directly.

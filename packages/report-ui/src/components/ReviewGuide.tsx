@@ -6,7 +6,7 @@ import { aiNotesForStop, digestAiReview } from "../aiDigest.ts"
 import { lineCommentsIn } from "../lineComments.ts"
 import type { LineComment } from "../lineComments.ts"
 import { isConnectedToApp } from "../appApi.ts"
-import { changeSummary, FINISH_HASH, GuideRouteKind, hashForStop, PATH_RULES, REVIEW_HASH } from "../reviewPlan.ts"
+import { changeSummary, FINISH_HASH, GuideRouteKind, hashForStop, PATH_RULES, REVIEW_HASH, StopCoverageKind } from "../reviewPlan.ts"
 import type { GuideRoute, LineCoverage, ReviewPlan, ReviewStop } from "../reviewPlan.ts"
 import { commentsAsMarkdown, commentsOnItems, isReviewed, ItemKind, nextUnreviewedStop, overallProgress, pathProgress, remainingOffPath, reviewPlanFor, stopItems } from "../reviewProgress.ts"
 import type { ItemComment, Progress, RemainingCounts, ReviewState } from "../reviewProgress.ts"
@@ -514,7 +514,12 @@ function TestEvidence({ stop, source }: { readonly stop: ReviewStop; readonly so
   return (
     <section className="guide-section guide-evidence">
       <h2 className="guide-heading">Test evidence</h2>
-      {stop.coverage !== null && <CoverageLine coverage={stop.coverage} source={source} />}
+      {stop.coverage?.kind === StopCoverageKind.Lines && <CoverageLine coverage={stop.coverage} source={source} />}
+      {stop.coverage?.kind === StopCoverageKind.FileNotInReport && (
+        <p className="guide-coverage guide-coverage-gap">
+          <strong>Its file isn't in the coverage report.</strong> Most tools list only the files tests load, so no test may have loaded it. Or {source ?? "the report"} covers only part of the code.
+        </p>
+      )}
       {stop.coverage === null && source !== undefined && <p>{source} has no line data for this change.</p>}
       {stop.relatedTests.length === 0 ? (
         <p>No changed test mentions this. That doesn't mean it's untested.</p>

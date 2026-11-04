@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Coverage from GitLab test jobs:** the app now finds coverage in any GitLab job that declares `artifacts:reports:coverage_report`, such as a job named `test`, not only in jobs with "cov" in their name.
+- **New files tests never loaded:** when a coverage report covers other files in the same language but leaves out a changed file, the review path says no test may have loaded it, instead of saying nothing. Tools such as c8 and Jest only list files the tests load.
+- **GitLab setup advice:** the pilot guide and template explain that gitlab.com Free has no project access tokens, that the token variable must be unprotected, and how to hand coverage to the Walkdiff job.
+
 ## 0.6.0
 
 - **Comment on exact lines:** click a line number in the code to comment on that line, or shift-click to pick several. It works on changed and unchanged lines, before or after the change. Comments post to those lines on GitHub, and on GitLab to the last line of a range, naming the rest. Lines outside the diff can't take a comment, as hosts don't accept them there.

@@ -12,7 +12,10 @@ interface Call {
   readonly body: unknown
 }
 
-/** Answers each request from a list of [url part, JSON], and records what was sent. */
+/** Stands for an empty 204 reply, which some writes give instead of JSON. */
+const NO_CONTENT = Symbol("no content")
+
+/** Answers each request from a list of [url part, JSON or NO_CONTENT], and records what was sent. */
 function stubHost(answers: readonly (readonly [string, unknown])[]): Call[] {
   const calls: Call[] = []
   vi.stubGlobal(
@@ -21,7 +24,7 @@ function stubHost(answers: readonly (readonly [string, unknown])[]): Call[] {
       const text = String(url)
       calls.push({ url: text, method: init?.method ?? "GET", body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined })
       const answer = answers.find(([part]) => text.includes(part))
-      return new Response(JSON.stringify(answer?.[1] ?? {}), { status: 200 })
+      return answer?.[1] === NO_CONTENT ? new Response(null, { status: 204 }) : new Response(JSON.stringify(answer?.[1] ?? {}), { status: 200 })
     }),
   )
   return calls
@@ -132,6 +135,8 @@ describe("GitLab reviews", () => {
   }
   const host = (): ReturnType<typeof gitHostFor> => gitHostFor(parsePullRequestUrl("https://gitlab.com/g/p/-/merge_requests/7"), TOKENS)
   const answers = [
+    // GitLab answers publishing with 204 No Content, which once failed a posted review.
+    ["/draft_notes/bulk_publish", NO_CONTENT],
     ["/draft_notes", {}],
     ["/approve", {}],
     ["/merge_requests/7", mergeRequest],

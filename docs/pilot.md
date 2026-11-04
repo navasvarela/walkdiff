@@ -40,7 +40,21 @@ include:
   - remote: https://raw.githubusercontent.com/navasvarela/walkdiff/v0.6.0/ci/gitlab-ci.yml
 ```
 
-Set `GITLAB_TOKEN` as a masked CI/CD variable: a project access token with the `api` scope. The job needs merge request pipelines. The report link opens in the browser on instances with GitLab Pages enabled; otherwise it downloads as a single HTML file that opens from disk.
+Set `GITLAB_TOKEN` as a CI/CD variable with **Masked** ticked and **Protected** unticked: merge request pipelines run on unprotected branches, so they don't receive protected variables. The job needs merge request pipelines.
+
+The token needs the `api` scope, and the summary comment is posted under its name:
+
+- **GitLab self-managed, or gitlab.com Premium and Ultimate:** a project access token, which posts as the project's bot.
+- **gitlab.com Free:** project access tokens aren't available. Use a personal access token, ideally from an account made for the purpose, since it can reach every project that account can.
+
+To show test coverage, let the Walkdiff job wait for your test job and name its report:
+
+```yaml
+walkdiff:
+  needs: [test]
+  variables:
+    WALKDIFF_COVERAGE: coverage/lcov.info
+``` The report link opens in the browser on instances with GitLab Pages enabled; otherwise it downloads as a single HTML file that opens from disk.
 
 ### Feedback link
 

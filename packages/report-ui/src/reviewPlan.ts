@@ -31,6 +31,8 @@ const POINTS_FOR_SENSITIVE_FILE = 15
 const POINTS_FOR_NO_RELATED_TESTS = 5
 const POINTS_FOR_UNTESTED_LINES = 15
 const POINTS_FOR_PARTLY_TESTED_LINES = 8
+// Below untested lines: a report can leave a file out because it covers only part of a monorepo.
+const POINTS_FOR_FILE_NOT_IN_COVERAGE = 12
 const POINTS_FOR_LARGE_NEW_CODE = 10
 const LARGE_NEW_CODE_LINES = 25
 /** A change below this has nothing specific to draw attention to. */
@@ -85,14 +87,27 @@ export interface ReviewStop {
   /** Changed test files that mention this function: a hint, not proof that it is tested. */
   readonly relatedTests: readonly string[]
   /** Null without a coverage report, or when the report says nothing about these lines. */
-  readonly coverage: LineCoverage | null
+  readonly coverage: StopCoverage | null
 }
+
+export const StopCoverageKind = { Lines: "lines", FileNotInReport: "fileNotInReport" } as const
 
 /** Whether the lines this change added ran in tests. */
 export interface LineCoverage {
+  readonly kind: typeof StopCoverageKind.Lines
   readonly coveredLines: readonly number[]
   readonly uncoveredLines: readonly number[]
 }
+
+/**
+ * The report covers other files in this language but not this one. Tools such as c8 and
+ * Jest list only the files tests loaded, so a new file no test imports is simply missing.
+ */
+export interface FileNotInCoverage {
+  readonly kind: typeof StopCoverageKind.FileNotInReport
+}
+
+export type StopCoverage = LineCoverage | FileNotInCoverage
 
 export interface ReviewCheck {
   readonly severity: RiskSeverity
@@ -206,13 +221,26 @@ function buildUnitStop(unit: ChangedUnit, file: ChangedFile, inFile: readonly Ri
   return { unit, file, title: unit.kind === UnitKind.ModuleScope ? "Imports and top-level code" : unit.qualifiedName, reasons: scored.reasons.slice(0, MAX_REASONS_SHOWN), points: scored.points, findings, relatedTests, coverage: lineCoverage }
 }
 
-function coverageOfUnit(unit: ChangedUnit, file: ChangedFile, coverage: TestCoverage | null): LineCoverage | null {
-  const lines = coverage?.files.find((entry) => entry.path === file.diff.path)
-  if (lines === undefined || !("after" in unit.change)) return null
+function coverageOfUnit(unit: ChangedUnit, file: ChangedFile, coverage: TestCoverage | null): StopCoverage | null {
+  if (coverage === null || !("after" in unit.change)) return null
+  const lines = coverage.files.find((entry) => entry.path === file.diff.path)
+  if (lines === undefined) return reportCoversLanguageOf(coverage, file.diff.path) ? { kind: StopCoverageKind.FileNotInReport } : null
   const { startLine, endLine } = unit.change.after
   const inUnit = (line: number): boolean => line >= startLine && line <= endLine
-  const result = { coveredLines: lines.coveredLines.filter(inUnit), uncoveredLines: lines.uncoveredLines.filter(inUnit) }
+  const result = { kind: StopCoverageKind.Lines, coveredLines: lines.coveredLines.filter(inUnit), uncoveredLines: lines.uncoveredLines.filter(inUnit) }
   return result.coveredLines.length + result.uncoveredLines.length === 0 ? null : result
+}
+
+// Tests are never in their own coverage report, and a report for another language says nothing.
+function reportCoversLanguageOf(coverage: TestCoverage, path: string): boolean {
+  const extension = extensionOf(path)
+  return !isTestPath(path) && extension !== "" && coverage.files.some((entry) => extensionOf(entry.path) === extension)
+}
+
+function extensionOf(path: string): string {
+  const name = path.slice(path.lastIndexOf("/") + 1)
+  const dot = name.lastIndexOf(".")
+  return dot <= 0 ? "" : name.slice(dot).toLowerCase()
 }
 
 function findingIsInUnit(finding: Risk, unit: ChangedUnit): boolean {
@@ -228,7 +256,7 @@ interface Scored {
 }
 
 // Reasons are collected most important first, as only the first few are shown.
-function scoreUnit(unit: ChangedUnit, findings: readonly Risk[], inFile: readonly Risk[], relatedTests: readonly string[], coverage: LineCoverage | null): Scored {
+function scoreUnit(unit: ChangedUnit, findings: readonly Risk[], inFile: readonly Risk[], relatedTests: readonly string[], coverage: StopCoverage | null): Scored {
   let points = pointsForFindings(findings)
   const reasons = reasonsFromFindings(findings)
   const add = (amount: number, reason: string): void => {
@@ -242,7 +270,8 @@ function scoreUnit(unit: ChangedUnit, findings: readonly Risk[], inFile: readonl
   if (gone && untouched > 0) add(POINTS_FOR_LEFTOVER_REFERENCES, `It was removed, but ${places(untouched)} this PR didn't change still ${untouched === 1 ? "uses" : "use"} it`)
   else if (untouched > 0) add(Math.min(MAX_POINTS_FOR_CALLERS, untouched * POINTS_PER_UNTOUCHED_CALLER) / (isData ? DATA_KIND_CALLER_DIVISOR : 1), `${capitalize(places(untouched))} this PR didn't change ${untouched === 1 ? "depends" : "depend"} on it`)
 
-  if (coverage !== null && coverage.uncoveredLines.length > 0) {
+  if (coverage?.kind === StopCoverageKind.FileNotInReport) add(POINTS_FOR_FILE_NOT_IN_COVERAGE, "Its file isn't in the coverage report, so no test may have loaded it")
+  else if (coverage !== null && coverage.uncoveredLines.length > 0) {
     const total = coverage.coveredLines.length + coverage.uncoveredLines.length
     if (coverage.coveredLines.length === 0) add(POINTS_FOR_UNTESTED_LINES, `None of its ${total} changed ${total === 1 ? "line" : "lines"} ran in tests`)
     else add(POINTS_FOR_PARTLY_TESTED_LINES, `${coverage.uncoveredLines.length} of its ${total} changed lines didn't run in tests`)

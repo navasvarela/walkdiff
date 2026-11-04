@@ -38,16 +38,34 @@ export interface JsonWrite<T> extends JsonRequest<T> {
   readonly body: unknown
 }
 
+export interface HostWrite {
+  readonly url: string
+  readonly headers: Readonly<Record<string, string>>
+  readonly method: WriteMethod
+  readonly body: unknown
+  readonly authHint: string
+}
+
 export function getJson<T>(request: JsonRequest<T>): Promise<T> {
   return send(request, { headers: request.headers })
 }
 
 export function writeJson<T>(request: JsonWrite<T>): Promise<T> {
-  return send(request, {
-    method: request.method,
-    headers: { ...request.headers, "Content-Type": "application/json" },
-    body: JSON.stringify(request.body),
-  })
+  return send(request, jsonWriteInit(request))
+}
+
+/**
+ * Sends a write whose reply isn't needed, without reading the reply. Some writes answer
+ * 204 No Content, such as GitLab publishing draft notes; parsing that empty body as JSON
+ * reported a review that had been posted as failed, and posting again duplicated it.
+ */
+export async function writeIgnoringReply(request: HostWrite): Promise<void> {
+  const response = await fetchWithinOrigin(request.url, jsonWriteInit(request))
+  await throwIfFailed(response, request)
+}
+
+function jsonWriteInit(request: HostWrite): RequestInit {
+  return { method: request.method, headers: { ...request.headers, "Content-Type": "application/json" }, body: JSON.stringify(request.body) }
 }
 
 export interface DownloadRequest {
@@ -100,13 +118,21 @@ async function readLimited(response: Response, maxBytes: number): Promise<Buffer
 
 async function send<T>(request: JsonRequest<T>, init: RequestInit): Promise<T> {
   const response = await fetchWithinOrigin(request.url, init)
-  if (!response.ok) {
-    const body = (await response.text()).slice(0, MAX_ERROR_BODY_CHARS)
-    const detail = UNAUTHORIZED_STATUSES.has(response.status) ? `${body}\n${request.authHint}` : body
-    throw new HostApiError(response.status, request.url, detail)
-  }
+  await throwIfFailed(response, request)
   const body: unknown = await response.json()
   return request.schema.parse(body)
+}
+
+interface FailureContext {
+  readonly url: string
+  readonly authHint: string
+}
+
+async function throwIfFailed(response: Response, request: FailureContext): Promise<void> {
+  if (response.ok) return
+  const body = (await response.text()).slice(0, MAX_ERROR_BODY_CHARS)
+  const detail = UNAUTHORIZED_STATUSES.has(response.status) ? `${body}\n${request.authHint}` : body
+  throw new HostApiError(response.status, request.url, detail)
 }
 
 /**

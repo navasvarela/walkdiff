@@ -171,7 +171,7 @@ describe("buildReviewPlan", () => {
     const plan = buildReviewPlan(model)
     expect(plan.stops.at(0)?.title).toBe("untested")
     expect(plan.stops.at(0)?.reasons).toContain("None of its 2 changed lines ran in tests")
-    expect(plan.stops.at(0)?.coverage).toEqual({ coveredLines: [], uncoveredLines: [1, 2] })
+    expect(plan.stops.at(0)?.coverage).toEqual({ kind: "lines", coveredLines: [], uncoveredLines: [1, 2] })
     expect(plan.stops.at(1)?.reasons.join()).not.toContain("ran in tests")
   })
 
@@ -183,6 +183,27 @@ describe("buildReviewPlan", () => {
   it("has no coverage for a function the report says nothing about", () => {
     const model = { ...review([file("a.ts", [unit({ name: "other", callers: 2 })])]), testCoverage: { source: "x", files: [{ path: "a.ts", coveredLines: [50], uncoveredLines: [] }] } }
     expect(buildReviewPlan(model).stops.at(0)?.coverage).toBeNull()
+  })
+
+  describe("a changed file the coverage report leaves out", () => {
+    const reportFor = (files: readonly ChangedFile[]): ReviewModel => ({ ...review(files), testCoverage: { source: "lcov.info", files: [{ path: "lib/sizes.js", coveredLines: [1], uncoveredLines: [] }] } })
+
+    it("says no test may have loaded it, and ranks it above code that ran", () => {
+      const plan = buildReviewPlan(reportFor([file("lib/sizes.js", [unit({ name: "formatSize" })]), file("lib/duplicates.js", [unit({ name: "findDuplicates" })])]))
+      const stop = plan.stops.find((candidate) => candidate.title === "findDuplicates")
+      expect(plan.stops.at(0)).toBe(stop)
+      expect(stop?.coverage).toEqual({ kind: "fileNotInReport" })
+      expect(stop?.reasons).toContain("Its file isn't in the coverage report, so no test may have loaded it")
+    })
+
+    it.each([
+      { name: "a test file", path: "test/duplicates.test.js" },
+      { name: "a file in another language", path: "scripts/dedupe.py" },
+      { name: "a file without an extension", path: "bin/dedupe" },
+    ])("says nothing about $name", ({ path }) => {
+      const plan = buildReviewPlan(reportFor([file("lib/sizes.js", [unit({ name: "formatSize" })]), file(path, [unit({ name: "dedupe" })])]))
+      expect(plan.stops.find((stop) => stop.title === "dedupe")?.coverage ?? null).toBeNull()
+    })
   })
 
   it("finds tests by the code they mention, in other files or the same one", () => {

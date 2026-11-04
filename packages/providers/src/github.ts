@@ -3,7 +3,7 @@ import type { CommitSha, Conversation, DiffLineRef, ReviewComment, SubmitResult,
 import { z } from "zod"
 import { COVERAGE_ARCHIVE_NAME, MAX_COVERAGE_ARCHIVE_BYTES, MAX_COVERAGE_ARCHIVES } from "./gitHost.ts"
 import type { GitHost, GitHttpAuth, PullRequestSnapshot, CiArchive } from "./gitHost.ts"
-import { downloadFile, getJson, HostApiError, writeJson } from "./http.ts"
+import { downloadFile, getJson, HostApiError, writeIgnoringReply, writeJson } from "./http.ts"
 import type { WriteMethod } from "./http.ts"
 import { COMMENTS_PER_PAGE, upsertMarkedComment } from "./markedComment.ts"
 import type { MarkedComment } from "./markedComment.ts"
@@ -237,7 +237,7 @@ export class GitHubHost implements GitHost {
   }
 
   async #write(method: WriteMethod, url: string, body: unknown): Promise<void> {
-    await writeJson({ method, url, body, headers: this.#headers(), schema: z.unknown(), authHint: this.#authHint })
+    await writeIgnoringReply({ method, url, body, headers: this.#headers(), authHint: this.#authHint })
   }
 
   #headers(): Record<string, string> {
