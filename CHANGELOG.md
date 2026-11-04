@@ -2,8 +2,12 @@
 
 ## Unreleased
 
+## 0.6.1
+
+- **Posting a review to GitLab no longer reports a false failure:** the app said "Something went wrong" after the comments were posted, and posting again duplicated them. GitLab answers with an empty reply, which Walkdiff now accepts.
 - **Coverage from GitLab test jobs:** the app now finds coverage in any GitLab job that declares `artifacts:reports:coverage_report`, such as a job named `test`, not only in jobs with "cov" in their name.
 - **New files tests never loaded:** when a coverage report covers other files in the same language but leaves out a changed file, the review path says no test may have loaded it, instead of saying nothing. Tools such as c8 and Jest only list files the tests load.
+- **The finish screen's heading** no longer overlaps the line below it.
 - **GitLab setup advice:** the pilot guide and template explain that gitlab.com Free has no project access tokens, that the token variable must be unprotected, and how to hand coverage to the Walkdiff job.
 
 ## 0.6.0

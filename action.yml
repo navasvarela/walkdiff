@@ -34,7 +34,7 @@ inputs:
     default: "14"
   package:
     description: Which Walkdiff to install, as an npm package spec. Leave it as is to get the version this action was released with.
-    default: "walkdiff@0.6.0"
+    default: "walkdiff@0.6.1"
 
 outputs:
   report-url:
