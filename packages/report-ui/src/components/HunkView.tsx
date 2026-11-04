@@ -1,11 +1,12 @@
 import { useMemo } from "react"
 import type { ReactElement } from "react"
-import { DiffLineKind, FileContentKind } from "@walkdiff/review-model"
+import { DiffLineKind, FileContentKind, LineSide } from "@walkdiff/review-model"
 import type { DiffLine, FileDiff, Hunk } from "@walkdiff/review-model"
 import { highlightHunkLines } from "../lineDiff.ts"
 import { languageForPath, MAX_HIGHLIGHT_CHARS, NO_SPANS } from "../syntax/highlight.ts"
 import type { HighlightLanguage, LineSpans } from "../syntax/highlight.ts"
 import { CodeText } from "./CodeViews.tsx"
+import { LineNumberCell } from "./LineComments.tsx"
 
 interface HunkViewProps {
   readonly diff: FileDiff
@@ -86,8 +87,8 @@ interface RowProps {
 function Row({ className, oldLine, newLine, marker, content, spans }: RowProps): ReactElement {
   return (
     <tr>
-      <td className="line-number">{oldLine}</td>
-      <td className="line-number">{newLine}</td>
+      <LineNumberCell side={LineSide.Old} line={oldLine} />
+      <LineNumberCell side={LineSide.New} line={newLine} />
       <td className={`line ${className}`}>
         <span className="marker">{marker}</span>
         <CodeText text={content} spans={spans} />

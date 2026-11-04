@@ -21,7 +21,7 @@ Walkdiff fetches the change, analyzes it and prints a local address to open. Git
 The report opens on a brief, with what to check and where to start:
 
 1. **Start the review.** Walkdiff takes you through the changes that matter most, one at a time, and says why each one is there.
-2. **Mark what you've reviewed** and leave comments as you go. The side panel shows your progress and links to every change.
+2. **Mark what you've reviewed** and leave comments as you go: on a whole change, or on exact lines by clicking a line number, with shift-click to pick several. The side panel shows your progress and links to every change.
 3. **Finish.** The last screen shows what you reviewed, what's left, and what Walkdiff couldn't check. In the app, you can post your review from here. Elsewhere, copy your comments.
 
 Everything else is under **All changes**:

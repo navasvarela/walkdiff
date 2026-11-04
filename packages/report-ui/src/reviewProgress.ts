@@ -2,6 +2,8 @@ import { changedUnitsOf, DiffLineKind, FileChangeStatus, FileContentKind, isBeha
 import type { ChangedFile, ChangedUnit, ReviewComment, ReviewModel, UnitSnapshot } from "@walkdiff/review-model"
 import { buildReviewPlan, isTestPath, isTestUnit, stopFor } from "./reviewPlan.ts"
 import type { ReviewPlan, ReviewStop } from "./reviewPlan.ts"
+import { describeRange, reviewCommentFromLines } from "./lineComments.ts"
+import type { LineComment } from "./lineComments.ts"
 
 /**
  * The version of a change the reviewer marked. Keeping its text is what lets a later push show
@@ -206,8 +208,8 @@ export function commentsOnItems(files: readonly ChangedFile[], state: ReviewStat
  * host only accepts comments on lines in the diff. With no such line, as for a removed function,
  * it goes in the review's text instead.
  */
-export function reviewCommentsFrom(comments: readonly ItemComment[]): ReviewComment[] {
-  return comments.map(({ item, text }) => ({ path: item.path, previousPath: previousPathOf(item.file), line: firstAddedLine(item), label: item.label, body: text }))
+export function reviewCommentsFrom(comments: readonly ItemComment[], lineComments: readonly LineComment[] = [], files: readonly ChangedFile[] = []): ReviewComment[] {
+  return [...comments.map(({ item, text }) => ({ path: item.path, previousPath: previousPathOf(item.file), line: firstAddedLine(item), label: item.label, range: null, body: text })), ...lineComments.map((comment) => reviewCommentFromLines(comment, files))]
 }
 
 function previousPathOf(file: ChangedFile): string {
@@ -224,8 +226,9 @@ function firstAddedLine(item: ReviewItem): number | null {
 }
 
 /** Ready to paste into the PR, for reports opened outside the app. */
-export function commentsAsMarkdown(comments: readonly ItemComment[]): string {
-  return comments.map(({ item, text }) => (item.label === item.path ? `**\`${item.path}\`**\n\n${text}` : `**\`${item.label}\`** in \`${item.path}\`\n\n${text}`)).join("\n\n---\n\n")
+export function commentsAsMarkdown(comments: readonly ItemComment[], lineComments: readonly LineComment[] = []): string {
+  const onLines = lineComments.map(({ path, range, text }) => `**\`${path}\`** ${describeRange(range)}\n\n${text}`)
+  return [...comments.map(({ item, text }) => (item.label === item.path ? `**\`${item.path}\`**\n\n${text}` : `**\`${item.label}\`** in \`${item.path}\`\n\n${text}`)), ...onLines].join("\n\n---\n\n")
 }
 
 /** Reads saved state defensively: browser storage can hold anything, or an older format. */

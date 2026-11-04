@@ -28,8 +28,12 @@ function stubHost(answers: readonly (readonly [string, unknown])[]): Call[] {
 }
 
 const review = (overrides: Partial<SubmitReview> = {}): SubmitReview => ({ event: "comment", body: "Summary", headSha: HEAD, comments: [], ...overrides })
-const onLine = { path: "a.ts", previousPath: "a.ts", line: 4, label: "run", body: "On a line" }
-const noLine = { path: "b.ts", previousPath: "b.ts", line: null, label: "gone", body: "No line" }
+const onLine = { path: "a.ts", previousPath: "a.ts", line: 4, label: "run", range: null, body: "On a line" }
+const noLine = { path: "b.ts", previousPath: "b.ts", line: null, label: "gone", range: null, body: "No line" }
+// Lines 3 to 5 after the change, where line 3 is unchanged and so also has its old number, 2.
+const onNewRange = { ...onLine, line: null, range: { side: "new", start: { oldLine: 2, newLine: 3 }, end: { oldLine: null, newLine: 5 } }, body: "On lines" } as const
+const onOldLine = { ...onLine, line: null, range: { side: "old", start: { oldLine: 7, newLine: null }, end: { oldLine: 7, newLine: null } }, body: "Removed line" } as const
+const onUnchangedLine = { ...onLine, line: null, range: { side: "new", start: { oldLine: 2, newLine: 3 }, end: { oldLine: 2, newLine: 3 } }, body: "Unchanged" } as const
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -48,6 +52,17 @@ describe("GitHub reviews", () => {
     expect(url).toBe("https://github.com/o/r/pull/7#r")
     expect(calls.at(0)?.url).toBe("https://api.github.com/repos/o/r/pulls/7/reviews")
     expect(calls.at(0)?.body).toMatchObject({ event: expected, commit_id: HEAD, comments: [{ path: "a.ts", line: 4, side: "RIGHT", body: "On a line" }] })
+  })
+
+  it("posts picked lines as a range on the side they're on", async () => {
+    const calls = stubHost([["/reviews", { html_url: "https://x" }]])
+    await host().submitReview(review({ comments: [onNewRange, onOldLine] }))
+    expect(calls.at(0)?.body).toMatchObject({
+      comments: [
+        { path: "a.ts", line: 5, side: "RIGHT", start_line: 3, start_side: "RIGHT", body: "On lines" },
+        { path: "a.ts", line: 7, side: "LEFT", body: "Removed line" },
+      ],
+    })
   })
 
   it("moves a comment without a line into the review's text", async () => {
@@ -130,6 +145,22 @@ describe("GitLab reviews", () => {
     expect(writes.at(0)).toMatchObject({ url: `${API}/draft_notes`, body: { note: "On a line", position: { new_path: "a.ts", old_path: "old.ts", new_line: 4, head_sha: HEAD, position_type: "text" } } })
     expect(JSON.stringify(writes.at(1)?.body)).toContain("No line")
     expect(writes.at(-1)).toMatchObject({ url: `${API}/draft_notes/bulk_publish`, body: { reviewer_state: "requested_changes" } })
+  })
+
+  it.each([
+    ["an added line", onLine, { new_line: 4 }, "On a line"],
+    ["an unchanged line, with both numbers", onUnchangedLine, { old_line: 2, new_line: 3 }, "Unchanged"],
+    ["a removed line, by its old number", onOldLine, { old_line: 7 }, "Removed line"],
+    ["a range, on its last line and naming the rest", onNewRange, { new_line: 5 }, "Lines 3–5:\n\nOn lines"],
+  ] as const)("places a comment on %s", async (_name, comment, position, note) => {
+    const calls = stubHost(answers)
+    await host().submitReview(review({ comments: [comment] }))
+    const posted = calls.find((call) => call.url === `${API}/draft_notes`)
+    expect(posted?.body).toMatchObject({ note, position })
+    // A number GitLab doesn't expect, such as an old one for an added line, makes it reject the note.
+    const sent = JSON.stringify(posted?.body)
+    expect(sent.includes('"old_line"')).toBe("old_line" in position)
+    expect(sent.includes('"new_line"')).toBe("new_line" in position)
   })
 
   it("approves last, and for the commit that was read", async () => {

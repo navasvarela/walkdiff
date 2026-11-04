@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react"
 import type { ReactElement } from "react"
+import { LineSide } from "@walkdiff/review-model"
 import type { UnitSnapshot } from "@walkdiff/review-model"
 import { buildRows, numberedLines, wordMarks } from "../lineDiff.ts"
 import type { DiffRow, NumberedLine } from "../lineDiff.ts"
 import { languageForPath, segmentLine } from "../syntax/highlight.ts"
 import type { CodeSegment, LineSpans, TextRange } from "../syntax/highlight.ts"
-import type { Tone } from "../unitChange.ts"
+import { LineNumberCell } from "./LineComments.tsx"
+import { Tone } from "../unitChange.ts"
 
 const WORD_ADDED_CLASS = "word-added"
 const WORD_REMOVED_CLASS = "word-removed"
@@ -68,8 +70,8 @@ function Row({ row }: { readonly row: DiffRow }): ReactElement {
     case "same":
       return (
         <tr>
-          <LineCells line={row.left} className="" />
-          <LineCells line={row.right} className="" />
+          <LineCells line={row.left} side={LineSide.Old} className="" />
+          <LineCells line={row.right} side={LineSide.New} className="" />
         </tr>
       )
     case "changed":
@@ -102,8 +104,8 @@ function ChangedRow({ left, right }: ChangedRowProps): ReactElement {
   if (left === undefined || right === undefined) {
     return (
       <tr>
-        {left === undefined ? <EmptyCells /> : <LineCells line={left} className="line-removed" />}
-        {right === undefined ? <EmptyCells /> : <LineCells line={right} className="line-added" />}
+        {left === undefined ? <EmptyCells /> : <LineCells line={left} side={LineSide.Old} className="line-removed" />}
+        {right === undefined ? <EmptyCells /> : <LineCells line={right} side={LineSide.New} className="line-added" />}
       </tr>
     )
   }
@@ -119,11 +121,11 @@ function EditedRow({ left, right }: EditedRowProps): ReactElement {
   const marks = useMemo(() => wordMarks(left.text, right.text), [left.text, right.text])
   return (
     <tr>
-      <td className="line-number">{left.number}</td>
+      <LineNumberCell side={LineSide.Old} line={left.number} />
       <td className="line line-removed">
         <CodeText text={left.text} spans={left.spans} marks={marks.left} markClass={WORD_REMOVED_CLASS} />
       </td>
-      <td className="line-number">{right.number}</td>
+      <LineNumberCell side={LineSide.New} line={right.number} />
       <td className="line line-added">
         <CodeText text={right.text} spans={right.spans} marks={marks.right} markClass={WORD_ADDED_CLASS} />
       </td>
@@ -131,10 +133,10 @@ function EditedRow({ left, right }: EditedRowProps): ReactElement {
   )
 }
 
-function LineCells({ line, className }: { readonly line: NumberedLine; readonly className: string }): ReactElement {
+function LineCells({ line, side, className }: { readonly line: NumberedLine; readonly side: LineSide; readonly className: string }): ReactElement {
   return (
     <>
-      <td className="line-number">{line.number}</td>
+      <LineNumberCell side={side} line={line.number} />
       <td className={`line ${className}`}>
         <CodeText text={line.text} spans={line.spans} />
       </td>
@@ -170,7 +172,7 @@ export function SinglePane({ path, snapshot, tone, numbered }: SinglePaneProps):
       <tbody>
         {lines.map((line, index) => (
           <tr key={index}>
-            <LineCells line={line} className={`line-${tone}`} />
+            <LineCells line={line} side={tone === Tone.Removed ? LineSide.Old : LineSide.New} className={`line-${tone}`} />
           </tr>
         ))}
       </tbody>

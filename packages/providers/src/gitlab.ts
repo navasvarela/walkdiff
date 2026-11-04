@@ -1,5 +1,5 @@
-import { commitShaSchema, GitHostKind, ReviewerState, ReviewEvent } from "@walkdiff/review-model"
-import type { Conversation, ReviewComment, SubmitResult, SubmitReview } from "@walkdiff/review-model"
+import { commitShaSchema, GitHostKind, ReviewerState, ReviewEvent, isPlacedComment, lastLineOf, LineSide } from "@walkdiff/review-model"
+import type { Conversation, ReviewComment, SubmitResult, SubmitReview, DiffLineRef } from "@walkdiff/review-model"
 import { z } from "zod"
 import { COVERAGE_ARCHIVE_NAME, MAX_COVERAGE_ARCHIVE_BYTES, MAX_COVERAGE_ARCHIVES } from "./gitHost.ts"
 import type { GitHost, GitHttpAuth, PullRequestSnapshot, CiArchive } from "./gitHost.ts"
@@ -160,10 +160,21 @@ export class GitLabHost implements GitHost {
     const mergeRequest = await this.#get(api, mergeRequestSchema)
     const refs = mergeRequest.diff_refs
     if (refs === null) throw new DiffNotReadyError(mergeRequest.web_url)
-    for (const comment of review.comments.filter((candidate) => candidate.line !== null)) {
+    for (const comment of review.comments.filter(isPlacedComment)) {
+      const last = lastLineOf(comment)
       await this.#write("POST", `${api}/draft_notes`, {
-        note: comment.body,
-        position: { position_type: "text", base_sha: refs.base_sha, start_sha: refs.start_sha, head_sha: refs.head_sha, old_path: comment.previousPath, new_path: comment.path, new_line: comment.line },
+        note: gitlabNote(comment),
+        position: {
+          position_type: "text",
+          base_sha: refs.base_sha,
+          start_sha: refs.start_sha,
+          head_sha: refs.head_sha,
+          old_path: comment.previousPath,
+          new_path: comment.path,
+          // An unchanged line needs both numbers, or GitLab rejects the position.
+          ...(last?.oldLine == null ? {} : { old_line: last.oldLine }),
+          ...(last?.newLine == null ? {} : { new_line: last.newLine }),
+        },
       })
     }
     const text = withUnplacedComments(review)
@@ -239,6 +250,19 @@ export class GitLabHost implements GitHost {
 
 /** Comments without a line, and the summary, go together as one note. */
 function withUnplacedComments(review: SubmitReview): string {
-  const unplaced = review.comments.filter((comment: ReviewComment) => comment.line === null).map((comment) => `**\`${comment.label}\`** in \`${comment.path}\`\n\n${comment.body}`)
+  const unplaced = review.comments.filter((comment: ReviewComment) => !isPlacedComment(comment)).map((comment) => `**\`${comment.label}\`** in \`${comment.path}\`\n\n${comment.body}`)
   return [review.body, ...unplaced].filter((part) => part !== "").join("\n\n---\n\n")
+}
+
+/**
+ * GitLab's multi-line position needs line codes this can't check without a real instance, so a range
+ * sits on its last line and says which lines it covers.
+ */
+function gitlabNote(comment: ReviewComment): string {
+  const range = comment.range
+  if (range === null) return comment.body
+  const number = (ref: DiffLineRef): number | null => (range.side === LineSide.Old ? ref.oldLine : ref.newLine)
+  const first = number(range.start)
+  const last = number(range.end)
+  return first === last ? comment.body : `Lines ${first}–${last}${range.side === LineSide.Old ? " (before)" : ""}:\n\n${comment.body}`
 }

@@ -3,6 +3,8 @@ import type { ReactElement } from "react"
 import { AiReviewStatus, CheckOutcome, namesOfChecks, summarizeChecks, UnitChangeKind, UnitImpactStatus } from "@walkdiff/review-model"
 import type { ChangedUnit, CheckRun, ReviewModel, RiskAssessment, SkippedCheck } from "@walkdiff/review-model"
 import { aiNotesForStop, digestAiReview } from "../aiDigest.ts"
+import { lineCommentsIn } from "../lineComments.ts"
+import type { LineComment } from "../lineComments.ts"
 import { isConnectedToApp } from "../appApi.ts"
 import { changeSummary, FINISH_HASH, GuideRouteKind, hashForStop, PATH_RULES, REVIEW_HASH } from "../reviewPlan.ts"
 import type { GuideRoute, LineCoverage, ReviewPlan, ReviewStop } from "../reviewPlan.ts"
@@ -16,6 +18,8 @@ import { ReviewerSummary, StopThreads } from "./ConversationView.tsx"
 import { HunkView } from "./HunkView.tsx"
 import { ImpactPanel } from "./ImpactPanel.tsx"
 import { InlineCode } from "./InlineCode.tsx"
+import { CommentList } from "./CommentList.tsx"
+import { LineCommentPanel, LineCommentScopeProvider, WithoutLineComments } from "./LineComments.tsx"
 import { ReviewControls } from "./ReviewControls.tsx"
 import { SubmitReviewForm } from "./SubmitReviewForm.tsx"
 import { TopBar, TopBarSection } from "./TopBar.tsx"
@@ -421,7 +425,10 @@ function StopView({ review, stop, index, total }: { readonly review: ReviewModel
         </ul>
       )}
 
-      <StopCode stop={stop} />
+      <LineCommentScopeProvider file={stop.file}>
+        <StopCode stop={stop} />
+        <LineCommentPanel file={stop.file} />
+      </LineCommentScopeProvider>
 
       <AiNotes review={review} stop={stop} />
 
@@ -478,7 +485,9 @@ function StopCode({ stop }: { readonly stop: ReviewStop }): ReactElement {
   return (
     <>
       <p className="guide-since">Since you reviewed it</p>
-      <SideBySide path={stop.file.diff.path} before={earlier.snapshot} after={item.snapshot} numbered={!earlier.snapshot.elidesNestedUnits && !item.snapshot.elidesNestedUnits} />
+      <WithoutLineComments>
+        <SideBySide path={stop.file.diff.path} before={earlier.snapshot} after={item.snapshot} numbered={!earlier.snapshot.elidesNestedUnits && !item.snapshot.elidesNestedUnits} />
+      </WithoutLineComments>
       <details className="guide-section guide-details">
         <summary>The whole change in this PR</summary>
         <UnitBody path={stop.file.diff.path} unit={stop.unit} />
@@ -547,6 +556,7 @@ function Finish({ review, plan, state }: { readonly review: ReviewModel; readonl
   const allDone = overall.total > 0 && overall.reviewed === overall.total
   const remaining = describeRemaining(remainingOffPath(review.files, plan, state))
   const comments = commentsOnItems(review.files, state)
+  const lineComments = lineCommentsIn(state.comments, review.files)
   const resumeAt = nextUnreviewedStop(plan, state)
   return (
     <main className="guide-stop guide-finish">
@@ -555,7 +565,11 @@ function Finish({ review, plan, state }: { readonly review: ReviewModel; readonl
         {overall.reviewed} of {overall.total} changes reviewed overall. The decision is yours: Walkdiff only points at what to look at.
       </p>
 
-      {isConnectedToApp() ? <SubmitReviewForm review={review} comments={comments} /> : comments.length > 0 && <Comments comments={comments} />}
+      {isConnectedToApp() ? (
+        <SubmitReviewForm review={review} comments={comments} lineComments={lineComments} />
+      ) : (
+        comments.length + lineComments.length > 0 && <Comments comments={comments} lineComments={lineComments} />
+      )}
 
       {remaining.length > 0 && (
         <section className="guide-panel">
@@ -615,9 +629,10 @@ function NotCheckedWarning({ checks }: { readonly checks: readonly SkippedCheck[
 }
 
 /** Reasons mark commands with backticks, as Markdown does. */
-function Comments({ comments }: { readonly comments: readonly ItemComment[] }): ReactElement {
+function Comments({ comments, lineComments }: { readonly comments: readonly ItemComment[]; readonly lineComments: readonly LineComment[] }): ReactElement {
   const [copyResult, setCopyResult] = useState<CopyResult>(CopyResult.None)
-  const markdown = commentsAsMarkdown(comments)
+  const markdown = commentsAsMarkdown(comments, lineComments)
+  const count = comments.length + lineComments.length
   const copy = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(markdown)
@@ -631,16 +646,9 @@ function Comments({ comments }: { readonly comments: readonly ItemComment[] }): 
   return (
     <section className="guide-panel">
       <h2 className="guide-heading">
-        Your {comments.length === 1 ? "comment" : `${comments.length} comments`}
+        Your {count === 1 ? "comment" : `${count} comments`}
       </h2>
-      <ul className="guide-comment-list">
-        {comments.map(({ item, text }) => (
-          <li key={item.id}>
-            <code>{item.label}</code>
-            <p>{text}</p>
-          </li>
-        ))}
-      </ul>
+      <CommentList comments={comments} lineComments={lineComments} />
       <button type="button" className="guide-button" onClick={() => void copy()}>
         {copyResult === CopyResult.Copied ? "Copied" : "Copy comments for the PR"}
       </button>

@@ -1,5 +1,5 @@
-import { commitShaSchema, GitHostKind, ReviewerState, ReviewEvent } from "@walkdiff/review-model"
-import type { CommitSha, Conversation, ReviewComment, SubmitResult, SubmitReview } from "@walkdiff/review-model"
+import { commitShaSchema, GitHostKind, ReviewerState, ReviewEvent, isPlacedComment, LineSide } from "@walkdiff/review-model"
+import type { CommitSha, Conversation, DiffLineRef, ReviewComment, SubmitResult, SubmitReview } from "@walkdiff/review-model"
 import { z } from "zod"
 import { COVERAGE_ARCHIVE_NAME, MAX_COVERAGE_ARCHIVE_BYTES, MAX_COVERAGE_ARCHIVES } from "./gitHost.ts"
 import type { GitHost, GitHttpAuth, PullRequestSnapshot, CiArchive } from "./gitHost.ts"
@@ -171,7 +171,7 @@ export class GitHubHost implements GitHost {
   }
 
   async submitReview(review: SubmitReview): Promise<SubmitResult> {
-    const onLines = review.comments.filter((comment) => comment.line !== null)
+    const onLines = review.comments.filter(isPlacedComment)
     const posted = await writeJson({
       method: "POST",
       url: `${this.#repoApi()}/pulls/${this.#ref.number}/reviews`,
@@ -183,7 +183,7 @@ export class GitHubHost implements GitHost {
         commit_id: review.headSha,
         event: REVIEW_EVENTS[review.event],
         body: withUnplacedComments(review),
-        comments: onLines.map((comment) => ({ path: comment.path, line: comment.line, side: "RIGHT", body: comment.body })),
+        comments: onLines.map(githubReviewComment),
       },
     })
     return { url: posted.html_url }
@@ -263,7 +263,7 @@ const GRAPHQL_FAILURE_STATUS = 502
 
 /** GitHub only accepts comments on lines, so anything without one joins the review's own text. */
 function withUnplacedComments(review: SubmitReview): string {
-  const unplaced = review.comments.filter((comment: ReviewComment) => comment.line === null).map((comment) => `**\`${comment.label}\`** in \`${comment.path}\`\n\n${comment.body}`)
+  const unplaced = review.comments.filter((comment: ReviewComment) => !isPlacedComment(comment)).map((comment) => `**\`${comment.label}\`** in \`${comment.path}\`\n\n${comment.body}`)
   return [review.body, ...unplaced].filter((part) => part !== "").join("\n\n---\n\n")
 }
 
@@ -274,4 +274,15 @@ function graphqlUrl(webOrigin: string): string {
 // GitHub Enterprise Server serves its REST API under /api/v3 on the web host.
 function apiBase(webOrigin: string): string {
   return webOrigin === GITHUB_DOT_COM_ORIGIN ? GITHUB_DOT_COM_API : `${webOrigin}/api/v3`
+}
+
+// A range on GitHub is its last line plus `start_line`, both counted on the chosen side.
+function githubReviewComment(comment: ReviewComment): Record<string, unknown> {
+  if (comment.range === null) return { path: comment.path, line: comment.line, side: "RIGHT", body: comment.body }
+  const { side, start, end } = comment.range
+  const githubSide = side === LineSide.Old ? "LEFT" : "RIGHT"
+  const number = (ref: DiffLineRef): number | null => (side === LineSide.Old ? ref.oldLine : ref.newLine)
+  const startLine = number(start)
+  const endLine = number(end)
+  return { path: comment.path, line: endLine, side: githubSide, ...(startLine !== endLine ? { start_line: startLine, start_side: githubSide } : {}), body: comment.body }
 }
