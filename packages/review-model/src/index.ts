@@ -111,5 +111,5 @@ export {
 } from "./settings.ts"
 export type { AiConnectionResult, AiDestination, AiSettings, AppSettings,
   CurrentSettings, CheckStatus, SettingsView } from "./settings.ts"
-export { conversationSchema, replySchema, resolveThreadSchema, ReviewerState, ReviewEvent, reviewCommentSchema, submitResultSchema, submitReviewSchema } from "./conversation.ts"
-export type { Conversation, ReviewComment, ReviewThread, SubmitResult, SubmitReview, ThreadComment } from "./conversation.ts"
+export { conversationSchema, replySchema, resolveThreadSchema, ReviewerState, ReviewEvent, reviewCommentSchema, submitResultSchema, submitReviewSchema, diffLineRefSchema, LineSide, lineRangeSchema, isPlacedComment, lastLineOf } from "./conversation.ts"
+export type { Conversation, ReviewComment, ReviewThread, SubmitResult, SubmitReview, ThreadComment, DiffLineRef, LineRange } from "./conversation.ts"

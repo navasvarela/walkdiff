@@ -6,6 +6,17 @@ export type ReviewEvent = (typeof ReviewEvent)[keyof typeof ReviewEvent]
 const MAX_COMMENT_CHARS = 60_000
 const lineSchema = z.number().int().positive()
 
+export const LineSide = { Old: "old", New: "new" } as const
+export type LineSide = (typeof LineSide)[keyof typeof LineSide]
+
+/** A line in the diff, by its number on each side; an unchanged line has both. */
+export const diffLineRefSchema = z.object({ oldLine: lineSchema.nullable(), newLine: lineSchema.nullable() })
+export type DiffLineRef = z.infer<typeof diffLineRefSchema>
+
+/** Lines a reviewer chose, on one side of the diff, from `start` to `end`. */
+export const lineRangeSchema = z.object({ side: z.enum(LineSide), start: diffLineRefSchema, end: diffLineRefSchema })
+export type LineRange = z.infer<typeof lineRangeSchema>
+
 export const reviewCommentSchema = z.object({
   path: z.string().min(1),
   /** The file's previous path when it was renamed. GitLab needs both. */
@@ -14,6 +25,8 @@ export const reviewCommentSchema = z.object({
   line: lineSchema.nullable(),
   /** What the comment is about, used when it can't sit on a line. */
   label: z.string(),
+  /** Lines the reviewer picked. Takes the place of `line` when set. */
+  range: lineRangeSchema.nullable().default(null),
   body: z.string().trim().min(1).max(MAX_COMMENT_CHARS),
 })
 export type ReviewComment = z.infer<typeof reviewCommentSchema>
@@ -67,3 +80,14 @@ export type Conversation = z.infer<typeof conversationSchema>
 
 export const submitResultSchema = z.object({ url: z.string() })
 export type SubmitResult = z.infer<typeof submitResultSchema>
+
+/** Whether a comment can sit on lines of the diff; the others go in the review's text. */
+export function isPlacedComment(comment: ReviewComment): boolean {
+  return comment.range !== null || comment.line !== null
+}
+
+/** Where a comment ends: the last line it covers, as a host addresses it. */
+export function lastLineOf(comment: ReviewComment): DiffLineRef | undefined {
+  if (comment.range !== null) return comment.range.end
+  return comment.line === null ? undefined : { oldLine: null, newLine: comment.line }
+}

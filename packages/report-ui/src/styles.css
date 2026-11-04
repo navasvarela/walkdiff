@@ -2153,3 +2153,69 @@ button.guide-button-primary:hover {
     display: none;
   }
 }
+
+.line-number-button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.line-number-button:hover,
+.line-number-button:focus-visible {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.line-number-selected {
+  background: var(--hunk-bg);
+  color: var(--accent);
+}
+
+.line-number-commented {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.line-comment-panel {
+  position: sticky;
+  z-index: 5;
+  bottom: 0;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 -4px 16px rgb(0 0 0 / 0.15);
+}
+
+.line-comment-panel textarea {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 6px 0 8px;
+  font: inherit;
+}
+
+.line-comment-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.line-comment-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.line-comment-list li {
+  padding: 4px 0;
+  overflow-wrap: anywhere;
+}
+
+.line-comment-text {
+  color: var(--text-muted);
+}

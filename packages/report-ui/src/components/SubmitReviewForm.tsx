@@ -6,7 +6,10 @@ import { isWebLink, postReview } from "../appApi.ts"
 import { useReloadConversation } from "../conversationState.tsx"
 import { reviewCommentsFrom } from "../reviewProgress.ts"
 import type { ItemComment } from "../reviewProgress.ts"
+import { lineCommentKey } from "../lineComments.ts"
+import type { LineComment } from "../lineComments.ts"
 import { useReviewState } from "../reviewState.tsx"
+import { CommentList } from "./CommentList.tsx"
 
 const HOST_LABELS: Readonly<Record<GitHostKind, string>> = { [GitHostKind.GitHub]: "GitHub", [GitHostKind.GitLab]: "GitLab" }
 
@@ -19,10 +22,11 @@ const EVENTS: readonly { readonly event: ReviewEvent; readonly label: string; re
 interface SubmitReviewFormProps {
   readonly review: ReviewModel
   readonly comments: readonly ItemComment[]
+  readonly lineComments: readonly LineComment[]
 }
 
 /** The one place Walkdiff changes anything on the host, and only when this button is pressed. */
-export function SubmitReviewForm({ review, comments }: SubmitReviewFormProps): ReactElement {
+export function SubmitReviewForm({ review, comments, lineComments }: SubmitReviewFormProps): ReactElement {
   const { setComment } = useReviewState()
   const reload = useReloadConversation()
   const [event, setEvent] = useState<ReviewEvent>(ReviewEvent.Comment)
@@ -31,7 +35,7 @@ export function SubmitReviewForm({ review, comments }: SubmitReviewFormProps): R
   const [problem, setProblem] = useState<string>()
   const [postedUrl, setPostedUrl] = useState<string>()
   const host = HOST_LABELS[review.pullRequest.host]
-  const draft: SubmitReview = { event, body, headSha: review.pullRequest.headSha, comments: reviewCommentsFrom(comments) }
+  const draft: SubmitReview = { event, body, headSha: review.pullRequest.headSha, comments: reviewCommentsFrom(comments, lineComments, review.files) }
   const validation = submitReviewSchema.safeParse(draft)
 
   const submit = async (): Promise<void> => {
@@ -41,6 +45,7 @@ export function SubmitReviewForm({ review, comments }: SubmitReviewFormProps): R
       const { url } = await postReview(draft)
       // Cleared only now, so a failure never loses what someone wrote.
       comments.forEach(({ item }) => setComment(item.id, ""))
+      lineComments.forEach(({ path, range }) => setComment(lineCommentKey(path, range), ""))
       setBody("")
       setPostedUrl(url)
       await reload()
@@ -56,16 +61,7 @@ export function SubmitReviewForm({ review, comments }: SubmitReviewFormProps): R
       <h2 id="guide-submit-title" className="guide-heading">
         Submit your review
       </h2>
-      {comments.length > 0 && (
-        <ul className="guide-comment-list">
-          {comments.map(({ item, text }) => (
-            <li key={item.id}>
-              <code>{item.label}</code>
-              <p>{text}</p>
-            </li>
-          ))}
-        </ul>
-      )}
+      {comments.length + lineComments.length > 0 && <CommentList comments={comments} lineComments={lineComments} />}
       <textarea rows={3} value={body} aria-label="Review summary" placeholder="Leave a summary (optional)" onChange={(change) => setBody(change.target.value)} />
       <fieldset className="guide-submit-events">
         <legend className="sr-only">Your decision</legend>

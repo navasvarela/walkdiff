@@ -7,6 +7,7 @@ import { worstSeverity } from "../risks.ts"
 import { summarizeFile } from "../unitChange.ts"
 import { FileMap, MIN_UNITS_FOR_MAP } from "./FileMap.tsx"
 import { HunkView } from "./HunkView.tsx"
+import { LineCommentPanel, LineCommentScopeProvider } from "./LineComments.tsx"
 import { ReviewControls } from "./ReviewControls.tsx"
 import { RiskList } from "./RiskView.tsx"
 import { UnitCard } from "./UnitCard.tsx"
@@ -66,21 +67,24 @@ export function FileView({ file, findings, pullRequest, onShowImpact }: FileView
           <RiskList findings={findings} pullRequest={pullRequest} onOpenFile={undefined} />
         </details>
       )}
-      <AnalysisNote syntax={file.syntax} />
-      {mode === ViewMode.Units && units.length > 0 ? (
-        <>
-          <UnitSummary file={file} />
-          {file.syntax.status === SyntaxAnalysisStatus.Analyzed && units.length >= MIN_UNITS_FOR_MAP && (
-            <FileMap units={units} outline={file.syntax.outline} calls={file.syntax.calls} />
-          )}
-          {units.map((unit, index) => (
-            // Overloads and cfg variants can repeat a name and change, so the index disambiguates.
-            <UnitCard key={`${index}:${unit.qualifiedName}`} path={diff.path} unit={unit} item={unitItem(file, unit)} index={index} onShowImpact={() => onShowImpact({ path: diff.path, qualifiedName: unit.qualifiedName })} />
-          ))}
-        </>
-      ) : (
-        <HunkView diff={diff} />
-      )}
+      <LineCommentScopeProvider file={file}>
+        <AnalysisNote syntax={file.syntax} />
+        {mode === ViewMode.Units && units.length > 0 ? (
+          <>
+            <UnitSummary file={file} />
+            {file.syntax.status === SyntaxAnalysisStatus.Analyzed && units.length >= MIN_UNITS_FOR_MAP && (
+              <FileMap units={units} outline={file.syntax.outline} calls={file.syntax.calls} />
+            )}
+            {units.map((unit, index) => (
+              // Overloads and cfg variants can repeat a name and change, so the index disambiguates.
+              <UnitCard key={`${index}:${unit.qualifiedName}`} path={diff.path} unit={unit} item={unitItem(file, unit)} index={index} onShowImpact={() => onShowImpact({ path: diff.path, qualifiedName: unit.qualifiedName })} />
+            ))}
+          </>
+        ) : (
+          <HunkView diff={diff} />
+        )}
+        <LineCommentPanel file={file} />
+      </LineCommentScopeProvider>
     </section>
   )
 }
