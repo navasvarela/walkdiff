@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **No duplicate-code warnings on migrations:** migration files, such as db-migrate's, repeat the same template by design and must not share code, so duplicate detection now leaves them out. Rails' `db/migrate/` now also counts as a database migration for the sensitive-path check, as it already did for breaking changes.
+
 ## 0.7.1
 
 - **Works with git configs that route https to ssh:** a `url.*.insteadOf` rule that sends `https://gitlab.com/` or `https://github.com/` to ssh, common for cargo or go with private repositories, made reviews fail with "transport 'ssh' not allowed". Walkdiff's own fetch now stays on https with its token, and the rule still applies to everything else.
