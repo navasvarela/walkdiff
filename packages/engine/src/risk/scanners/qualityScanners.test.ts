@@ -66,6 +66,32 @@ const clone = (firstPath: string, firstStart: number, firstEnd: number, secondPa
   secondFile: { name: secondPath, start: secondStart, end: secondEnd },
 })
 
+// What `db-migrate create` writes: every migration starts from this, so each repeats the last.
+const DB_MIGRATE_MIGRATION = `'use strict';
+
+var dbm;
+var type;
+var seed;
+
+exports.setup = function(options, seedLink) {
+  dbm = options.dbmigrate;
+  type = dbm.dataType;
+  seed = seedLink;
+};
+
+exports.up = function(db) {
+  return null;
+};
+
+exports.down = function(db) {
+  return null;
+};
+
+exports._meta = {
+  "version": 1
+};
+`
+
 describe("runQualityScanners", () => {
   let repoDir = ""
   let head: CommitSha
@@ -74,7 +100,7 @@ describe("runQualityScanners", () => {
     repoDir = await mkdtemp(join(tmpdir(), "walkdiff-quality-test-"))
     const git = (...args: string[]): Promise<string> => runGit(args, { cwd: repoDir, env: COMMITTER_ENV })
     await git("init", "--quiet")
-    for (const [path, content] of [["src/app.py", NUMBERED], ["src/ui.ts", NUMBERED], ["src/old.ts", NUMBERED], ["src/old.test.ts", NUMBERED], ["ruff.toml", "x"], [".jscpd.json", "{}"], ["src/.oxlintrc.ts", "x"]] as const) {
+    for (const [path, content] of [["src/app.py", NUMBERED], ["src/ui.ts", NUMBERED], ["src/old.ts", NUMBERED], ["src/old.test.ts", NUMBERED], ["ruff.toml", "x"], [".jscpd.json", "{}"], ["src/.oxlintrc.ts", "x"], ["migrations/20261101000000-add-users.js", DB_MIGRATE_MIGRATION], ["migrations/20261102000000-add-orders.js", DB_MIGRATE_MIGRATION]] as const) {
       await mkdir(dirname(join(repoDir, path)), { recursive: true })
       await writeFile(join(repoDir, path), content)
     }
@@ -119,6 +145,21 @@ describe("runQualityScanners", () => {
     expect(copied).toContain("src/old.ts")
     expect(copied).not.toContain("src/old.test.ts")
     expect(copied).not.toContain("src/app.py")
+  })
+
+  it("leaves database migrations out of duplicate detection, as they repeat a template by design", async () => {
+    const { run, seen } = fakeScanners({ jscpd: jscpdReporting([]) })
+    await scan([changed("src/ui.ts", NUMBERED, [1]), changed("migrations/20261102000000-add-orders.js", DB_MIGRATE_MIGRATION, [1, 2, 3])], run)
+    const copied = seen.get("jscpd") ?? []
+    expect(copied).toContain("src/ui.ts")
+    expect(copied.filter((path) => path.startsWith("migrations"))).toEqual([])
+  })
+
+  it("doesn't look for duplicates in a PR of only new migrations", async () => {
+    const { run, seen } = fakeScanners({ jscpd: jscpdReporting([]) })
+    const { checksRun, notChecked } = await scan([changed("migrations/20261102000000-add-orders.js", DB_MIGRATE_MIGRATION, [1, 2, 3])], run)
+    expect(seen.has("jscpd")).toBe(false)
+    expect([...checksRun, ...notChecked].map((check) => ("name" in check ? check.name : check.check))).not.toContain("jscpd")
   })
 
   it("reports a clone only when most of a copy is new, pointing at the other copy", async () => {

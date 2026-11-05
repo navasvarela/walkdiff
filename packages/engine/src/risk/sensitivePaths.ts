@@ -2,6 +2,7 @@ import { matchesGlob } from "node:path"
 import { RiskCategory, RiskSeverity } from "@walkdiff/review-model"
 import type { Risk } from "@walkdiff/review-model"
 import type { WalkdiffConfig } from "../config/walkdiffConfig.ts"
+import { MIGRATION_PATH } from "./migrationFiles.ts"
 import { findingAt } from "./scannedFile.ts"
 import type { RuleDescription, ScannedFile } from "./scannedFile.ts"
 
@@ -24,7 +25,7 @@ const BUILT_IN_RULES: readonly PathRule[] = [
   pathRule("path.auth", RiskSeverity.Medium, new RegExp(`${SEGMENT}(auth|authn|authz|login|session|sessions|oauth|sso|permissions?|acl|rbac|access[_-]?control)${END}`, "i"), "Authentication or authorization", "A mistake here can let users act as someone else or reach data they should not."),
   pathRule("path.crypto", RiskSeverity.Medium, new RegExp(`${SEGMENT}(crypto|cryptography|encrypt|encryption|cipher|signing|signature|jwt|keys?tore)${END}`, "i"), "Cryptography", "Subtle errors in cryptographic code rarely show in tests; check algorithms, key handling and randomness."),
   pathRule("path.payments", RiskSeverity.Medium, new RegExp(`${SEGMENT}(payments?|billing|invoices?|stripe)${END}`, "i"), "Payments or billing", "Errors here cost money directly; check amounts, currencies and idempotency."),
-  pathRule("path.migration", RiskSeverity.Medium, /(^|\/)migrations?\/|(^|\/)alembic\/versions\//, "Database migration", "Migrations change production data and can be slow or irreversible; check locking and rollback."),
+  pathRule("path.migration", RiskSeverity.Medium, MIGRATION_PATH, "Database migration", "Migrations change production data and can be slow or irreversible; check locking and rollback."),
   pathRule("path.infrastructure", RiskSeverity.Low, /\.tf$|(^|\/)Dockerfile[^/]*$|(^|\/)docker-compose[^/]*\.ya?ml$|(^|\/)(k8s|kubernetes|helm|charts)\//, "Infrastructure or deployment", "Changes the environment the code runs in: exposure, permissions and resource limits."),
 ]
 

@@ -5,6 +5,7 @@ import type { RuleDescription, ScannedFile } from "../scannedFile.ts"
 import { isTestPath } from "../testCode.ts"
 import { describeMentions, isSpecificName } from "./codeMentions.ts"
 import type { CodeMention } from "./codeMentions.ts"
+import { isMigrationPath } from "../migrationFiles.ts"
 
 export const SchemaChangeKind = {
   DropTable: "dropTable",
@@ -24,7 +25,6 @@ export interface SchemaChange {
   readonly statement: string
 }
 
-const MIGRATION_FILE = /(^|\/)migrations?\/|(^|\/)alembic\/versions\/|(^|\/)db\/(?:post_)?migrate\//
 // The file holds only the way back: sqlx and golang-migrate's `.down.sql`, Flyway's `U1__x.sql`.
 const DOWN_FILE = /\.down\.sql$|(^|\/)U\d[^/]*\.sql$/i
 const DOWN_SECTION = /\bdef\s+down(?:grade)?\b|\bdown\s*[(:=]|\bexports\.down\b|\+goose\s+Down|\+migrate\s+Down|migrate:down/i
@@ -154,7 +154,7 @@ function changeOnLine(lines: readonly string[], index: number): FoundChange | un
 
 function isMigration(file: ScannedFile): boolean {
   const { path, status } = file.diff
-  return status !== FileChangeStatus.Deleted && MIGRATION_FILE.test(path) && !DOWN_FILE.test(path) && !isTestPath(path) && !isThirdParty(file)
+  return status !== FileChangeStatus.Deleted && isMigrationPath(path) && !DOWN_FILE.test(path) && !isTestPath(path) && !isThirdParty(file)
 }
 
 /** Names this PR's migrations bring into being, which nothing outside the PR can depend on yet. */

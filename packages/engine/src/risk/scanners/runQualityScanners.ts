@@ -18,6 +18,7 @@ import type { ScanOutcome } from "./scanWorkspace.ts"
 import type { ScannerFinding } from "./scannerFinding.ts"
 import { firstErrorLine } from "./scannerProcess.ts"
 import type { ProcessResult, ScannerProcessRunner } from "./scannerProcess.ts"
+import { isMigrationPath } from "../migrationFiles.ts"
 
 export interface QualityScanRequest {
   readonly repoDir: string
@@ -134,10 +135,10 @@ function runProblem(result: ProcessResult | undefined, okExitCodes: ReadonlySet<
  */
 async function runJscpd(request: QualityScanRequest, candidates: readonly ScannedFile[], workspace: string): Promise<ScanOutcome<Risk>> {
   if (request.disabled?.has(JSCPD.id)) return notRun(JSCPD.check, TURNED_OFF_IN_SETTINGS)
-  const reviewable = candidates.filter((file) => !isTestPath(file.diff.path) && hasAddedLines(file))
+  const reviewable = candidates.filter((file) => isDuplicationCandidate(file.diff.path) && hasAddedLines(file))
   if (reviewable.length === 0) return { findings: [], checksRun: [], notChecked: [] }
   const sources = (await listSourceFiles(request.repoDir, request.head)).filter(
-    (path) => !isTestPath(path) && !request.isIgnored(path) && !CONFIG_LIKE_FILE.test(basename(path)),
+    (path) => isDuplicationCandidate(path) && !request.isIgnored(path) && !CONFIG_LIKE_FILE.test(basename(path)),
   )
   if (sources.length > MAX_DUPLICATION_SOURCE_FILES) {
     return notRun(JSCPD.check, `the repository has more than ${MAX_DUPLICATION_SOURCE_FILES} source files`)
@@ -154,6 +155,16 @@ async function runJscpd(request: QualityScanRequest, candidates: readonly Scanne
   } catch (error: unknown) {
     return notRun(JSCPD.check, `its report could not be read: ${messageOf(error)}`)
   }
+}
+
+/**
+ * Tests repeat setup on purpose. Migrations are written from a template, such as db-migrate's
+ * `setup`, `up` and `down`, and are frozen once run, so copying code into one rather than
+ * importing it is right: the migration must not change when the app does. Either would make
+ * every new file look like a copy of the last.
+ */
+function isDuplicationCandidate(path: string): boolean {
+  return !isTestPath(path) && !isMigrationPath(path)
 }
 
 async function copySources(request: QualityScanRequest, paths: readonly string[], root: string): Promise<void> {
