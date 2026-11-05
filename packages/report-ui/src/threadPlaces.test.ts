@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { ChangedFile, DiffLine, ReviewThread } from "@walkdiff/review-model"
-import { commentCountsByPath, threadContext } from "./threadPlaces.ts"
+import { openCommentCountsByPath, openCommentsOnStop, threadContext } from "./threadPlaces.ts"
+import type { ReviewStop } from "./reviewPlan.ts"
 
 const LINES: readonly DiffLine[] = [
   { kind: "context", content: "a", oldLine: 1, newLine: 1 },
@@ -53,10 +54,23 @@ describe("threadContext", () => {
   })
 })
 
-describe("commentCountsByPath", () => {
-  it("counts every comment in each file's threads, under its head path", () => {
-    const reply = { author: "ana", body: "Fixed", createdAt: "2026", url: null }
+describe("open comment counts", () => {
+  const reply = { author: "ana", body: "Fixed", createdAt: "2026", url: null }
+
+  it("counts every comment in each file's open threads, under its head path", () => {
     const threads = [thread({}), thread({ comments: [...thread({}).comments, reply] }), thread({ path: "old.ts", side: "old" }), thread({ path: null })]
-    expect(commentCountsByPath([file("a.ts"), file("new.ts", "old.ts")], threads)).toEqual(new Map([["a.ts", 3], ["new.ts", 1]]))
+    expect(openCommentCountsByPath([file("a.ts"), file("new.ts", "old.ts")], threads)).toEqual(new Map([["a.ts", 3], ["new.ts", 1]]))
+  })
+
+  it("drops a thread's comments once it's resolved", () => {
+    const threads = [thread({}), thread({ isResolved: true, comments: [...thread({}).comments, reply] })]
+    expect(openCommentCountsByPath([file("a.ts")], threads)).toEqual(new Map([["a.ts", 1]]))
+  })
+
+  it("counts the open comments on a stop's lines only", () => {
+    const unit = { kind: "function", name: "run", qualifiedName: "run", facts: null, impact: null, change: { kind: "modified", weight: "semantic", before: { startLine: 1, endLine: 4, text: "", elidesNestedUnits: false }, after: { startLine: 1, endLine: 4, text: "", elidesNestedUnits: false } } } as const
+    const stop: ReviewStop = { unit, file: file("a.ts"), title: "run", reasons: [], points: 0, findings: [], relatedTests: [], coverage: null }
+    const threads = [thread({ line: 3 }), thread({ line: 40 }), thread({ line: 2, isResolved: true }), thread({ line: 3, side: "old", comments: [...thread({}).comments, reply] })]
+    expect(openCommentsOnStop(threads, stop)).toBe(3)
   })
 })

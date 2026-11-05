@@ -1,5 +1,6 @@
 import { DiffLineKind, FileContentKind, LineSide } from "@walkdiff/review-model"
 import type { ChangedFile, DiffLine, ReviewThread } from "@walkdiff/review-model"
+import type { ReviewStop } from "./reviewPlan.ts"
 
 // Enough to recognise the code without opening the file: two lines either side.
 const CONTEXT_LINES = 2
@@ -30,14 +31,37 @@ export function threadContext(files: readonly ChangedFile[], thread: ReviewThrea
   return undefined
 }
 
-/** How many comments each file's threads hold, by the file's path at the head. */
-export function commentCountsByPath(files: readonly ChangedFile[], threads: readonly ReviewThread[]): ReadonlyMap<string, number> {
+/**
+ * How many comments each file's open threads hold, by the file's path at the head. Resolved
+ * threads don't count: the number is what's still to discuss, so it drops as threads close.
+ */
+export function openCommentCountsByPath(files: readonly ChangedFile[], threads: readonly ReviewThread[]): ReadonlyMap<string, number> {
   const counts = new Map<string, number>()
-  for (const thread of threads) {
+  for (const thread of threads.filter(isOpen)) {
     const path = fileOfThread(files, thread)?.diff.path
     if (path !== undefined) counts.set(path, (counts.get(path) ?? 0) + thread.comments.length)
   }
   return counts
+}
+
+/** How many comments the open threads on a stop's code hold. */
+export function openCommentsOnStop(threads: readonly ReviewThread[], stop: ReviewStop): number {
+  return threads.filter((thread) => isOpen(thread) && isThreadOnStop(thread, stop)).reduce((sum, thread) => sum + thread.comments.length, 0)
+}
+
+/** Whether a thread is on a stop's code: anywhere in its file, or within its unit's lines. */
+export function isThreadOnStop(thread: ReviewThread, stop: ReviewStop): boolean {
+  if (thread.path !== stop.file.diff.path) return false
+  if (stop.unit === null) return true
+  const { change } = stop.unit
+  // Line numbers on the old side count in the version before the change.
+  const snapshot = thread.side === LineSide.Old ? ("before" in change ? change.before : undefined) : "after" in change ? change.after : undefined
+  if (thread.line === null || snapshot === undefined) return false
+  return thread.line >= snapshot.startLine && thread.line <= snapshot.endLine
+}
+
+function isOpen(thread: ReviewThread): boolean {
+  return !thread.isResolved
 }
 
 /** Where to show a thread in the Changes tab: its file's head path, and its line if it has one. */

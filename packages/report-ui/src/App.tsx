@@ -18,7 +18,7 @@ import { ConversationProvider, useConversation } from "./conversationState.tsx"
 import { guideRouteFromHash } from "./reviewPlan.ts"
 import { ReviewStateProvider } from "./reviewState.tsx"
 import { ReportTab, summarizeTabs, tabFromHash } from "./tabs.ts"
-import { commentCountsByPath } from "./threadPlaces.ts"
+import { openCommentCountsByPath } from "./threadPlaces.ts"
 import type { LinePlace } from "./threadPlaces.ts"
 
 export function App(): ReactElement {
@@ -92,7 +92,7 @@ function Report({ review }: ReportProps): ReactElement {
 
   const conversation = useConversation()
   const openThreads = conversation.status === "loaded" ? conversation.conversation.threads.filter((thread) => !thread.isResolved).length : undefined
-  const commentCounts = conversation.status === "loaded" ? commentCountsByPath(review.files, conversation.conversation.threads) : NO_COMMENTS
+  const commentCounts = conversation.status === "loaded" ? openCommentCountsByPath(review.files, conversation.conversation.threads) : NO_COMMENTS
 
   const showTab = (next: ReportTab): void => {
     setTab(next)
