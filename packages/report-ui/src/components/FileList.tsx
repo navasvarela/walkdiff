@@ -22,7 +22,7 @@ const STATUS_BADGES: Readonly<Record<FileChangeStatus, StatusBadge>> = {
 interface FileListProps {
   readonly files: readonly ChangedFile[]
   readonly findings: readonly Risk[]
-  /** Comments on the PR by file path; empty when the discussion isn't available. */
+  /** Comments in the PR's open threads by file path; empty when the discussion isn't available. */
   readonly commentCounts: ReadonlyMap<string, number>
   readonly selectedPath: string | undefined
   readonly onSelect: (path: string) => void
@@ -93,7 +93,7 @@ function FileGroup({ files, findings, commentCounts, selectedPath, onSelect }: F
 
 function CommentCount({ count }: { readonly count: number }): ReactElement | null {
   if (count === 0) return null
-  const label = count === 1 ? "1 comment on the PR" : `${count} comments on the PR`
+  const label = count === 1 ? "1 comment in open threads on the PR" : `${count} comments in open threads on the PR`
   return (
     <span className="file-comment-count" title={label} aria-label={label}>
       <span aria-hidden="true">💬</span> {count}

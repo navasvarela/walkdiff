@@ -5,7 +5,7 @@ import type { ChangedFile, DiffLine, ReviewThread } from "@walkdiff/review-model
 import { isWebLink, replyToThread, setThreadResolved } from "../appApi.ts"
 import { useConversation, useReloadConversation } from "../conversationState.tsx"
 import type { ReviewStop } from "../reviewPlan.ts"
-import { threadContext, threadTarget } from "../threadPlaces.ts"
+import { isThreadOnStop, threadContext, threadTarget } from "../threadPlaces.ts"
 import type { ContextLine, LinePlace } from "../threadPlaces.ts"
 
 // Long enough to recognise a comment in a collapsed thread, short enough to keep one line.
@@ -62,16 +62,6 @@ export function StopThreads({ stop, files }: StopThreadsProps): ReactElement | n
       ))}
     </section>
   )
-}
-
-export function isThreadOnStop(thread: ReviewThread, stop: ReviewStop): boolean {
-  if (thread.path !== stop.file.diff.path) return false
-  if (stop.unit === null) return true
-  const { change } = stop.unit
-  // Line numbers on the old side count in the version before the change.
-  const snapshot = thread.side === LineSide.Old ? ("before" in change ? change.before : undefined) : "after" in change ? change.after : undefined
-  if (thread.line === null || snapshot === undefined) return false
-  return thread.line >= snapshot.startLine && thread.line <= snapshot.endLine
 }
 
 /** Shows a file in the Changes tab, scrolled to a line when there is one. */

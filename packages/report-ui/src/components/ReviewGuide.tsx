@@ -14,6 +14,8 @@ import { useReviewState } from "../reviewState.tsx"
 import { ReportTab } from "../tabs.ts"
 import { factPhrases } from "../unitChange.ts"
 import { SideBySide } from "./CodeViews.tsx"
+import { useConversation } from "../conversationState.tsx"
+import { openCommentsOnStop } from "../threadPlaces.ts"
 import { ReviewerSummary, StopThreads } from "./ConversationView.tsx"
 import { HunkView } from "./HunkView.tsx"
 import { ImpactPanel } from "./ImpactPanel.tsx"
@@ -377,9 +379,24 @@ function RailItem({ stop, index, state, current }: { readonly stop: ReviewStop; 
           <span className="guide-rail-name">{stop.unit === null ? stop.file.diff.path.split("/").at(-1) : stop.title}</span>
           <span className="guide-rail-path">{stop.file.diff.path}</span>
         </span>
+        <OpenCommentCount stop={stop} />
         {commented && <span className="guide-rail-comment" title="You left a comment here">Comment</span>}
       </a>
     </li>
+  )
+}
+
+/** Discussion still open on this change, so a reviewer knows where others have weighed in. */
+function OpenCommentCount({ stop }: { readonly stop: ReviewStop }): ReactElement | null {
+  const load = useConversation()
+  if (load.status !== "loaded") return null
+  const count = openCommentsOnStop(load.conversation.threads, stop)
+  if (count === 0) return null
+  const label = count === 1 ? "1 comment in open threads on the PR" : `${count} comments in open threads on the PR`
+  return (
+    <span className="guide-rail-discussion" title={label} aria-label={label}>
+      <span aria-hidden="true">💬</span> {count}
+    </span>
   )
 }
 

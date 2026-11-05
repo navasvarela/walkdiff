@@ -1335,6 +1335,14 @@ code {
   min-width: 0;
 }
 
+.guide-rail-discussion {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .guide-rail-name,
 .guide-rail-path {
   display: block;
