@@ -20,7 +20,7 @@ jobs:
     continue-on-error: true
     steps:
       # For the strongest guarantee, replace the tag with the full commit SHA it points to.
-      - uses: navasvarela/walkdiff@v0.7.0
+      - uses: navasvarela/walkdiff@v0.7.1
         # For AI review:
         # with:
         #   ai: "true"
@@ -37,7 +37,7 @@ Include the template in `.gitlab-ci.yml`:
 
 ```yaml
 include:
-  - remote: https://raw.githubusercontent.com/navasvarela/walkdiff/v0.7.0/ci/gitlab-ci.yml
+  - remote: https://raw.githubusercontent.com/navasvarela/walkdiff/v0.7.1/ci/gitlab-ci.yml
 ```
 
 Set `GITLAB_TOKEN` as a CI/CD variable with **Masked** ticked and **Protected** unticked: merge request pipelines run on unprotected branches, so they don't receive protected variables. The job needs merge request pipelines.
