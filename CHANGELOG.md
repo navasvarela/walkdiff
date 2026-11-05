@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **`walkdiff --version`:** shows which Walkdiff runs, and every error now ends with the version, so a report of a problem says which release it came from.
+
 ## 0.7.1
 
 - **Works with git configs that route https to ssh:** a `url.*.insteadOf` rule that sends `https://gitlab.com/` or `https://github.com/` to ssh, common for cargo or go with private repositories, made reviews fail with "transport 'ssh' not allowed". Walkdiff's own fetch now stays on https with its token, and the rule still applies to everything else.

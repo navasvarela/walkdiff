@@ -6,6 +6,7 @@ import { parseCommand, USAGE, UsageError } from "./args.ts"
 import { defaultCacheDir, protectLocalData, readHostTokens } from "./environment.ts"
 import { runComment } from "./commentCommand.ts"
 import { runReview } from "./reviewCommand.ts"
+import { walkdiffVersion } from "./version.ts"
 
 const EXIT_FAILURE = 1
 const EXIT_USAGE = 2
@@ -20,6 +21,9 @@ async function main(argv: readonly string[]): Promise<void> {
   switch (command.kind) {
     case "help":
       console.log(USAGE)
+      return
+    case "version":
+      console.log(`walkdiff ${walkdiffVersion()}`)
       return
     case "setup":
       await installScannersHere((message) => console.error(message))
@@ -57,5 +61,16 @@ main(process.argv.slice(2)).catch((error: unknown) => {
     return
   }
   console.error(error instanceof Error ? `${error.name}: ${error.message}` : String(error))
+  console.error(versionLine())
   process.exitCode = EXIT_FAILURE
 })
+
+/** Names the version in every failure, so a report of one says which Walkdiff it came from. */
+function versionLine(): string {
+  // The failure itself must still be reported when the version can't be read.
+  try {
+    return `(walkdiff ${walkdiffVersion()})`
+  } catch {
+    return "(walkdiff, version unknown)"
+  }
+}
