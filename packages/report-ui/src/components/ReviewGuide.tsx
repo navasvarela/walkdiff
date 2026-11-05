@@ -438,7 +438,7 @@ function StopView({ review, stop, index, total }: { readonly review: ReviewModel
           <RiskList findings={located} pullRequest={review.pullRequest} onOpenFile={undefined} />
         </section>
       )}
-      <StopThreads stop={stop} />
+      <StopThreads stop={stop} files={review.files} />
       {stop.unit !== null && <Callers unit={stop.unit} review={review} />}
       {stop.unit !== null && <TestEvidence stop={stop} source={review.testCoverage?.source} />}
 

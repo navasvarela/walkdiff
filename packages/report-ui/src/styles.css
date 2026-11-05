@@ -1505,6 +1505,14 @@ button.guide-button-primary:hover {
   font-size: 12px;
 }
 
+.file-comment-count {
+  flex: none;
+  margin-left: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .file-review-mark {
   flex: none;
   margin-left: 4px;
@@ -1727,11 +1735,109 @@ button.guide-button-primary:hover {
   background: var(--bg-subtle);
 }
 
+.thread-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  cursor: pointer;
+}
+
+.thread[open] > .thread-summary {
+  margin-bottom: 10px;
+}
+
 .thread-place {
-  margin: 0 0 8px;
   color: var(--text-muted);
   font-family: var(--mono);
   font-size: 12px;
+}
+
+.thread-excerpt {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.thread[open] .thread-excerpt {
+  display: none;
+}
+
+.thread-tags {
+  display: flex;
+  gap: 6px;
+}
+
+.thread-tag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.thread-code {
+  margin-bottom: 8px;
+}
+
+.thread-context {
+  width: 100%;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.thread-context td {
+  padding: 1px 8px;
+  vertical-align: top;
+}
+
+.thread-context-number,
+.thread-context-marker {
+  width: 1%;
+  color: var(--text-muted);
+  text-align: right;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.thread-context-text code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.thread-context-added {
+  background: var(--added-bg);
+}
+
+.thread-context-removed {
+  background: var(--removed-bg);
+}
+
+.thread-context-commented td {
+  box-shadow: inset 0 1px 0 var(--accent), inset 0 -1px 0 var(--accent);
+}
+
+.thread-context-commented .thread-context-number {
+  box-shadow: inset 3px 0 0 var(--accent), inset 0 1px 0 var(--accent), inset 0 -1px 0 var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.line-focused td {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  transition: background 0.6s;
+}
+
+.thread-no-context {
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .thread-comment {

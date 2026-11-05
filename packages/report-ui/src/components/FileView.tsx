@@ -1,9 +1,10 @@
-import { useState } from "react"
-import type { ReactElement } from "react"
+import { useEffect, useRef, useState } from "react"
+import type { ReactElement, RefObject } from "react"
 import { changedUnitsOf, FileChangeStatus, RiskSeverity, SyntaxAnalysisStatus } from "@walkdiff/review-model"
 import type { ChangedFile, PullRequest, Risk, SyntaxAnalysis, UnitRef } from "@walkdiff/review-model"
 import { itemsOfFile, unitItem } from "../reviewProgress.ts"
 import { worstSeverity } from "../risks.ts"
+import type { LinePlace } from "../threadPlaces.ts"
 import { summarizeFile } from "../unitChange.ts"
 import { FileMap, MIN_UNITS_FOR_MAP } from "./FileMap.tsx"
 import { HunkView } from "./HunkView.tsx"
@@ -15,22 +16,31 @@ import { UnitCard } from "./UnitCard.tsx"
 const ViewMode = { Units: "units", Lines: "lines" } as const
 type ViewMode = (typeof ViewMode)[keyof typeof ViewMode]
 
+// Long enough to find the line after the scroll ends; the highlight then fades.
+const FOCUS_HIGHLIGHT_MS = 2_500
+const FOCUSED_ROW_CLASS = "line-focused"
+
 interface FileViewProps {
   readonly file: ChangedFile
   /** Risk findings located in this file. */
   readonly findings: readonly Risk[]
   readonly pullRequest: PullRequest
   readonly onShowImpact: (unit: UnitRef) => void
+  /** A line to scroll to on opening, such as one a discussion thread is on. */
+  readonly focus: LinePlace | undefined
 }
 
-export function FileView({ file, findings, pullRequest, onShowImpact }: FileViewProps): ReactElement {
+export function FileView({ file, findings, pullRequest, onShowImpact, focus }: FileViewProps): ReactElement {
   const units = changedUnitsOf(file)
-  const [mode, setMode] = useState<ViewMode>(units.length > 0 ? ViewMode.Units : ViewMode.Lines)
+  // The line diff shows every line in the diff; the units view can leave the focused one out.
+  const [mode, setMode] = useState<ViewMode>(units.length > 0 && focus === undefined ? ViewMode.Units : ViewMode.Lines)
   const { diff } = file
   const items = itemsOfFile(file)
+  const sectionRef = useRef<HTMLElement>(null)
+  useScrollToLine(sectionRef, focus)
 
   return (
-    <section className="file-view">
+    <section className="file-view" ref={sectionRef}>
       <header className="file-view-header">
         <h2>
           {diff.status === FileChangeStatus.Renamed || diff.status === FileChangeStatus.Copied ? (
@@ -108,4 +118,16 @@ function AnalysisNote({ syntax }: { readonly syntax: SyntaxAnalysis }): ReactEle
     case SyntaxAnalysisStatus.UnsupportedLanguage:
       return null
   }
+}
+
+function useScrollToLine(sectionRef: RefObject<HTMLElement | null>, focus: LinePlace | undefined): void {
+  useEffect(() => {
+    if (focus === undefined) return undefined
+    const row = sectionRef.current?.querySelector(`td[data-side="${focus.side}"][data-line="${focus.line}"]`)?.closest("tr")
+    if (row === null || row === undefined) return undefined
+    row.scrollIntoView({ block: "center" })
+    row.classList.add(FOCUSED_ROW_CLASS)
+    const timer = window.setTimeout(() => row.classList.remove(FOCUSED_ROW_CLASS), FOCUS_HIGHLIGHT_MS)
+    return () => window.clearTimeout(timer)
+  }, [sectionRef, focus])
 }

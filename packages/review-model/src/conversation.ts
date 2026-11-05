@@ -63,6 +63,8 @@ export const reviewThreadSchema = z.object({
   path: z.string().nullable(),
   /** Null when the code it was on has since changed, or it isn't on a line. */
   line: lineSchema.nullable(),
+  /** Which version of the file `line` counts in: a comment on a removed line is on the old one. */
+  side: z.enum(LineSide).default(LineSide.New),
   isResolved: z.boolean(),
   isOutdated: z.boolean(),
   comments: z.array(threadCommentSchema).readonly(),

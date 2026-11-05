@@ -87,7 +87,10 @@ describe("GitHub reviews", () => {
                 latestReviews: { nodes: [{ state: "APPROVED", author: { login: "ana" } }, { state: "DISMISSED", author: null }] },
                 reviewThreads: {
                   pageInfo: { hasNextPage: true },
-                  nodes: [{ id: "T1", isResolved: false, isOutdated: true, path: "a.ts", line: null, comments: { nodes: [{ bodyText: "Why?", createdAt: "2026-11-01", url: "https://x", author: { login: "bo" } }] } }],
+                  nodes: [
+                    { id: "T1", isResolved: false, isOutdated: true, path: "a.ts", line: null, diffSide: "RIGHT", comments: { nodes: [{ bodyText: "Why?", createdAt: "2026-11-01", url: "https://x", author: { login: "bo" } }] } },
+                    { id: "T2", isResolved: false, isOutdated: false, path: "a.ts", line: 9, diffSide: "LEFT", comments: { nodes: [{ bodyText: "Gone?", createdAt: "2026-11-01", url: "https://y", author: { login: "bo" } }] } },
+                  ],
                 },
               },
             },
@@ -97,7 +100,8 @@ describe("GitHub reviews", () => {
     ])
     const conversation = await host().fetchConversation()
     expect(conversation.reviewers).toEqual([{ name: "ana", state: "approved" }, { name: "ghost", state: "other" }])
-    expect(conversation.threads.at(0)).toMatchObject({ id: "T1", path: "a.ts", isOutdated: true, comments: [{ author: "bo", body: "Why?" }] })
+    expect(conversation.threads.at(0)).toMatchObject({ id: "T1", path: "a.ts", side: "new", isOutdated: true, comments: [{ author: "bo", body: "Why?" }] })
+    expect(conversation.threads.at(1)).toMatchObject({ id: "T2", line: 9, side: "old" })
     expect(conversation.truncated).toBe(true)
   })
 
@@ -181,6 +185,8 @@ describe("GitLab reviews", () => {
         [
           { id: "d1", individual_note: false, notes: [{ id: 5, body: "Why?", created_at: "2026", system: false, author: { username: "bo" }, resolvable: true, resolved: true, position: { new_path: "a.ts", new_line: 3 } }] },
           { id: "d2", individual_note: true, notes: [{ id: 6, body: "Plain note", created_at: "2026", system: false, author: { username: "bo" } }] },
+          { id: "d3", individual_note: false, notes: [{ id: 7, body: "On a removed line", created_at: "2026", system: false, author: { username: "bo" }, position: { new_path: "b.ts", new_line: null, old_path: "b.ts", old_line: 9 } }] },
+          { id: "d4", individual_note: false, notes: [{ id: 8, body: "On an unchanged line", created_at: "2026", system: false, author: { username: "bo" }, position: { new_path: "b.ts", new_line: 3, old_path: "b.ts", old_line: 3 } }] },
         ],
       ],
       ["/approvals", { approved_by: [{ user: { username: "ana" } }] }],
@@ -188,8 +194,10 @@ describe("GitLab reviews", () => {
     ])
     const conversation = await host().fetchConversation()
     expect(conversation.reviewers).toEqual([{ name: "ana", state: "approved" }, { name: "cy", state: "changesRequested" }])
-    expect(conversation.threads).toHaveLength(1)
-    expect(conversation.threads.at(0)).toMatchObject({ id: "d1", path: "a.ts", line: 3, isResolved: true, comments: [{ url: "https://gitlab.com/g/p/-/merge_requests/7#note_5" }] })
+    expect(conversation.threads).toHaveLength(3)
+    expect(conversation.threads.at(0)).toMatchObject({ id: "d1", path: "a.ts", line: 3, side: "new", isResolved: true, comments: [{ url: "https://gitlab.com/g/p/-/merge_requests/7#note_5" }] })
+    expect(conversation.threads.at(1)).toMatchObject({ id: "d3", path: "b.ts", line: 9, side: "old" })
+    expect(conversation.threads.at(2)).toMatchObject({ id: "d4", line: 3, side: "new" })
   })
 
   it("replies and resolves a discussion", async () => {

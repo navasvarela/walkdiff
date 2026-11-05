@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Conversation threads show their code:** each thread shows the lines around the one it's on, with that line marked, and "Show line 12 in Changes" opens the file scrolled to it. Threads collapse to one line (where, who, and how it starts) so a long discussion is easy to scan; beside the code on the review path they start open.
+- **Comment counts in the file list:** files with comments on the PR show 💬 and how many.
+- **Comments on removed lines are placed correctly:** GitHub's left-side comments counted their line in the new version of the file, and GitLab's had no line at all. Both now keep the side they're on.
+
 ## 0.6.1
 
 - **Posting a review to GitLab no longer reports a false failure:** the app said "Something went wrong" after the comments were posted, and posting again duplicated them. GitLab answers with an empty reply, which Walkdiff now accepts.
