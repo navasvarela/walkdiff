@@ -1,4 +1,5 @@
-import { FileChangeStatus, FileContentKind, SyntaxAnalysisStatus } from "@walkdiff/review-model"
+import { AnalysisStep, FileChangeStatus, FileContentKind, SyntaxAnalysisStatus } from "@walkdiff/review-model"
+import type { StepReporter } from "@walkdiff/review-model"
 import type { ChangedFile, ChangedUnit, CheckId, CommitSha, ComparedUnit, FileDiff, FileNoise, RiskAssessment, SyntaxAnalysis } from "@walkdiff/review-model"
 import { readBlobs } from "./blobs.ts"
 import type { BlobRequest } from "./blobs.ts"
@@ -38,6 +39,8 @@ export interface AnalysisOptions {
   readonly runScanner?: ScannerProcessRunner
   /** Checks the person turned off in their settings. */
   readonly disabledChecks?: readonly CheckId[]
+  /** Told as each step starts, to show progress. */
+  readonly reportStep?: StepReporter
 }
 
 export interface PullRequestAnalysis {
@@ -52,6 +55,8 @@ export async function analyzeChangedFiles(
   to: CommitSha,
   options: AnalysisOptions,
 ): Promise<PullRequestAnalysis> {
+  const reportStep = options.reportStep ?? ignoreStep
+  reportStep(AnalysisStep.ReadingChanges)
   const diffs = await collectFileDiffs(repoDir, from, to)
   const texts = await readFileTexts(repoDir, from, to, diffs)
   const noise = diffs.map((diff, index) => classifyNoise(diff.path, textAt(texts, index).after ?? textAt(texts, index).before))
@@ -62,6 +67,7 @@ export async function analyzeChangedFiles(
   )
   const analyzed = versions.filter((version): version is FileVersions => version !== undefined)
   const unitsByPath = compareUnits(analyzed)
+  reportStep(AnalysisStep.TracingCallers)
   const impacts = await traceImpact(repoDir, to, analyzedFiles(diffs, plans, unitsByPath))
   const withImpact = (unit: ComparedUnit): ChangedUnit => ({ ...unit, impact: impacts.get(unit) ?? null })
 
@@ -81,9 +87,12 @@ export async function analyzeChangedFiles(
     network: options.network,
     runScanner: options.runScanner ?? runScannerProcess,
     disabledChecks: new Set(options.disabledChecks),
+    reportStep,
   })
   return { files, risk }
 }
+
+function ignoreStep(): void {}
 
 function analyzedFiles(
   diffs: readonly FileDiff[],
