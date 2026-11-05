@@ -1,12 +1,19 @@
 import { displayName, parsePullRequestUrl, repositoryPath } from "@walkdiff/providers"
 import type { PullRequestRef } from "@walkdiff/providers"
 import { changedUnitsOf, isBehaviourChange, ReviewStatus, untouchedReferences } from "@walkdiff/review-model"
-import type { AddReviewRequest, ReviewModel, ReviewSummary } from "@walkdiff/review-model"
+import type { AddReviewRequest, AnalysisStep, ReviewModel, ReviewSummary, StepReporter } from "@walkdiff/review-model"
 import type { AttachedCoverage } from "../reviewCommand.ts"
 import type { CompletedAnalysis, ReviewStore } from "./reviewStore.ts"
 
+export interface ReportRequest {
+  readonly ref: PullRequestRef
+  readonly ai: boolean
+  readonly attachedCoverage: AttachedCoverage | undefined
+  readonly reportStep: StepReporter
+}
+
 /** Produces and writes a report for a PR, returning the directory it wrote. */
-export type ReportGenerator = (ref: PullRequestRef, ai: boolean, attachedCoverage: AttachedCoverage | undefined) => Promise<GeneratedReport>
+export type ReportGenerator = (request: ReportRequest) => Promise<GeneratedReport>
 
 export interface GeneratedReport {
   readonly model: ReviewModel
@@ -22,6 +29,8 @@ export class ReviewService {
   readonly #generate: ReportGenerator
   readonly #log: (message: string) => void
   readonly #waiting: number[] = []
+  /** Where each running analysis is. Only ever one entry while analyses run one at a time. */
+  readonly #steps = new Map<number, AnalysisStep>()
   #drained: Promise<void> = Promise.resolve()
   #running = false
 
@@ -59,6 +68,11 @@ export class ReviewService {
     return this.#store.get(id)
   }
 
+  /** The review list, with the step each running analysis is on. */
+  list(): ReviewSummary[] {
+    return this.#store.list().map((review) => ({ ...review, step: this.#steps.get(review.id) ?? null }))
+  }
+
   /** Resolves once the queue is empty. */
   idle(): Promise<void> {
     return this.#drained
@@ -85,12 +99,19 @@ export class ReviewService {
     if (review === undefined) return
     this.#store.setStatus(id, ReviewStatus.Analyzing)
     try {
-      const report = await this.#generate(parsePullRequestUrl(review.url), review.ai, this.#store.attachedCoverageOf(id))
+      const report = await this.#generate({
+        ref: parsePullRequestUrl(review.url),
+        ai: review.ai,
+        attachedCoverage: this.#store.attachedCoverageOf(id),
+        reportStep: (step) => this.#steps.set(id, step),
+      })
       if (this.#store.get(id) !== undefined) this.#store.markReady(id, summarize(report))
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
       this.#log(`${review.displayName}: ${message}`)
       if (this.#store.get(id) !== undefined) this.#store.markFailed(id, message)
+    } finally {
+      this.#steps.delete(id)
     }
   }
 }

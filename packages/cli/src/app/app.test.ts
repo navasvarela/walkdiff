@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { request } from "node:http"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { commitShaSchema, REVIEW_MODEL_SCHEMA_VERSION, DEFAULT_APP_SETTINGS, reviewModelSchema } from "@walkdiff/review-model"
+import { AnalysisStep, commitShaSchema, REVIEW_MODEL_SCHEMA_VERSION, DEFAULT_APP_SETTINGS, reviewModelSchema } from "@walkdiff/review-model"
 import type { ReviewModel } from "@walkdiff/review-model"
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { HostApiError, parsePullRequestUrl } from "@walkdiff/providers"
@@ -41,7 +41,7 @@ describe("ReviewStore and ReviewService", () => {
   const service = (): ReviewService =>
     new ReviewService(
       store,
-      (ref, ai) => {
+      ({ ref, ai }) => {
         calls.push(`${ref.number}:${ai}`)
         return outcome(ref.webOrigin)
       },
@@ -124,6 +124,33 @@ describe("ReviewStore and ReviewService", () => {
     store = new ReviewStore(join(dir, "walkdiff.db"), () => new Date())
     store.markInterrupted()
     expect(store.list()).toMatchObject([{ status: "failed", error: expect.stringContaining("Refresh") }])
+  })
+
+  it("lists the step a running analysis is on, and forgets it when the analysis ends", async () => {
+    let finish = (): void => undefined
+    const finished = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    let started = (): void => undefined
+    const scanning = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    const stepping = new ReviewService(
+      store,
+      async ({ reportStep }) => {
+        reportStep(AnalysisStep.ScanningCode)
+        started()
+        await finished
+        return { model: fakeModel("Cap retries"), reportDir: "/tmp/report" }
+      },
+      () => undefined,
+    )
+    const { id } = stepping.add({ url: "https://github.com/acme/app/pull/7", ai: false })
+    await scanning
+    expect(stepping.list().find((review) => review.id === id)).toMatchObject({ status: "analyzing", step: "scanningCode" })
+    finish()
+    await stepping.idle()
+    expect(stepping.list().find((review) => review.id === id)).toMatchObject({ status: "ready", step: null })
   })
 
   it("does not bring back a review removed during its analysis", async () => {
@@ -253,8 +280,8 @@ describe("the app server", () => {
       await saveModel(model, reportDir)
       const service = new ReviewService(
         store,
-        async (_ref, _ai, attached) => {
-          attachedSeen = attached
+        async ({ attachedCoverage }) => {
+          attachedSeen = attachedCoverage
           return { model, reportDir }
         },
         () => undefined,

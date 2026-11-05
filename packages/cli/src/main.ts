@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { installScannersHere, MANAGED_SCANNERS_ROOT } from "@walkdiff/engine"
+import { stepLabel } from "@walkdiff/review-model"
 import { runApp } from "./appCommand.ts"
 import { parseCommand, USAGE, UsageError } from "./args.ts"
 import { defaultCacheDir, protectLocalData, readHostTokens } from "./environment.ts"
@@ -32,6 +33,7 @@ async function main(argv: readonly string[]): Promise<void> {
         env: process.env,
         now: () => new Date(),
         log: (message) => console.error(message),
+        reportStep: (step) => console.error(`${stepLabel(step)}…`),
       })
       return
     case "app":

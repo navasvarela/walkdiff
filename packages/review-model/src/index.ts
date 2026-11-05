@@ -1,3 +1,5 @@
+export { AnalysisStep, stepLabel, stepPosition } from "./analysisSteps.ts"
+export type { StepPosition, StepReporter } from "./analysisSteps.ts"
 export {
   REVIEW_MODEL_SCHEMA_VERSION,
   GitHostKind,

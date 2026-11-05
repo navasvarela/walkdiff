@@ -1,6 +1,6 @@
 import { extname } from "node:path"
-import { CheckId, RiskCategory, RiskSeverity, isSecurityFinding, securityFindings } from "@walkdiff/review-model"
-import type { ChangedFile, CheckRun, CommitSha, Risk, RiskAssessment, SkippedCheck } from "@walkdiff/review-model"
+import { AnalysisStep, CheckId, RiskCategory, RiskSeverity, isSecurityFinding, securityFindings } from "@walkdiff/review-model"
+import type { ChangedFile, CheckRun, CommitSha, Risk, RiskAssessment, SkippedCheck, StepReporter } from "@walkdiff/review-model"
 import { scanBreakingChanges } from "./breaking/scanBreakingChanges.ts"
 import { scanDangerousApis } from "./dangerousApis.ts"
 import { scanDependencies } from "./dependencies/scanDependencies.ts"
@@ -33,6 +33,7 @@ export interface RiskAssessmentRequest {
   readonly network: boolean
   readonly runScanner: ScannerProcessRunner
   readonly disabledChecks: ReadonlySet<CheckId>
+  readonly reportStep: StepReporter
 }
 
 const SEVERITY_RANK: Readonly<Record<RiskSeverity, number>> = {
@@ -58,6 +59,7 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
     .map((file, index) => ({ diff: file.diff, noise: file.noise, after: request.headTexts.at(index) }))
     .filter((file) => !isIgnored(config, file.diff.path))
 
+  request.reportStep(AnalysisStep.CheckingDependencies)
   const dependencies = await scanDependencies({
     repoDir: request.repoDir,
     base: request.base,
@@ -69,8 +71,11 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
     privatePackages: config.dependencies.private,
     allowedLicenses: config.dependencies.allowedLicenses ?? undefined,
   })
+  request.reportStep(AnalysisStep.ScanningCode)
   const codeScan = await runCodeScanners({ files: scanned, semgrepRules: config.scanners.semgrep.rules, network: request.network, run: request.runScanner, disabled: request.disabledChecks })
+  request.reportStep(AnalysisStep.CheckingQuality)
   const quality = config.quality.enabled ? await assessQuality(request, scanned, config) : { findings: [], checksRun: [], notChecked: [QUALITY_TURNED_OFF] }
+  request.reportStep(AnalysisStep.CheckingBreakingChanges)
   const breaking = await scanBreakingChanges({
     repoDir: request.repoDir,
     base: request.base,
