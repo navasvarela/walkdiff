@@ -1,7 +1,7 @@
 # Adds a Walkdiff report to each merge request. In your .gitlab-ci.yml:
 #
 #   include:
-#     - remote: https://raw.githubusercontent.com/navasvarela/walkdiff/v0.6.1/ci/gitlab-ci.yml
+#     - remote: https://raw.githubusercontent.com/navasvarela/walkdiff/v0.7.0/ci/gitlab-ci.yml
 #
 # Set GITLAB_TOKEN as a masked, unprotected CI/CD variable with the `api` scope: a project access
 # token, or on gitlab.com Free, where those aren't available, a personal access token (CI_JOB_TOKEN
@@ -19,7 +19,7 @@ walkdiff:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   variables:
     # The npm package spec to install. Pinned to the version this template was released with.
-    WALKDIFF_PACKAGE: "walkdiff@0.6.1"
+    WALKDIFF_PACKAGE: "walkdiff@0.7.0"
     WALKDIFF_AI: "false"
     WALKDIFF_AI_PROVIDER: "anthropic"
     WALKDIFF_AI_MODEL: ""
