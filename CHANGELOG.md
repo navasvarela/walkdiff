@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.7.2
 
+- **`walkdiff --version`:** shows which Walkdiff runs, and every error now ends with the version, such as `(walkdiff 0.7.2)`, so a pasted error says which release it came from. The troubleshooting guide covers "transport 'ssh' not allowed" and how to find which Walkdiff runs when several are installed.
 - **No duplicate-code warnings on migrations:** migration files, such as db-migrate's, repeat the same template by design and must not share code, so duplicate detection now leaves them out. Rails' `db/migrate/` now also counts as a database migration for the sensitive-path check, as it already did for breaking changes.
 
 ## 0.7.1
