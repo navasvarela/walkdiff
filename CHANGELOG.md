@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **`walkdiff --version`:** shows which Walkdiff runs, and every error now ends with the version, so a report of a problem says which release it came from.
+- **No duplicate-code warnings on migrations:** migration files, such as db-migrate's, repeat the same template by design and must not share code, so duplicate detection now leaves them out. Rails' `db/migrate/` now also counts as a database migration for the sensitive-path check, as it already did for breaking changes.
 
 ## 0.7.1
 

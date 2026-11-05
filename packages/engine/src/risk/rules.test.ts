@@ -93,6 +93,7 @@ describe("scanSensitivePaths", () => {
     ["src/auth/session.ts", "path.auth"],
     ["app/billing/invoice.py", "path.payments"],
     ["db/migrations/0042_add_index.sql", "path.migration"],
+    ["db/migrate/20261105120000_add_orders.rb", "path.migration"],
     ["deploy/Dockerfile", "path.infrastructure"],
     ["config/.env.production", "path.secrets-config"],
   ])("rates %s as %s", (path, ruleId) => {
