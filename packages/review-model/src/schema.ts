@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { AnalysisStep } from "./analysisSteps.ts"
 
 /**
  * The review model is the contract between the analysis engine and every consumer
@@ -514,6 +515,8 @@ export const reviewSummarySchema = z.object({
   /** `owner/repo#12` or `group/project!12`, known before the analysis finishes. */
   displayName: z.string(),
   status: z.enum(ReviewStatus),
+  /** The step a running analysis is on; null unless analyzing. Kept in memory, not stored. */
+  step: z.enum(AnalysisStep).nullable().default(null),
   /** Why the last analysis failed; null otherwise. */
   error: z.string().nullable(),
   /** False until an analysis succeeds; a failed refresh keeps the earlier report. */

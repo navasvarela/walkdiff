@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import type { FormEvent, ReactElement } from "react"
-import { aiDestination, ReviewStatus, RiskSeverity } from "@walkdiff/review-model"
+import { aiDestination, ReviewStatus, RiskSeverity, stepPosition } from "@walkdiff/review-model"
 import type { AiDestination, ReviewSummary } from "@walkdiff/review-model"
 import { addReview, attachCoverage, listReviews, loadCurrentSettings, refreshReview, removeReview } from "./api.ts"
 import logoUrl from "../../../docs/assets/walkdiff-logo.svg"
@@ -193,6 +193,28 @@ interface ReviewRowProps {
   readonly onRemove: () => void
 }
 
+/**
+ * Which step an analysis is on, as a bar. It moves a step at a time rather than by a made-up
+ * percentage: steps take very different times, and scanning is usually the longest.
+ */
+function AnalysisProgress({ review }: { readonly review: ReviewSummary }): ReactElement {
+  if (review.step === null) {
+    return <div className="progress progress-starting" role="progressbar" aria-label="Starting the analysis" />
+  }
+  const { number, total, label } = stepPosition(review.step, review.ai)
+  return (
+    <div className="analysis-progress">
+      <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={number - 1} aria-valuetext={`Step ${number} of ${total}: ${label}`}>
+        <div className="progress-done" style={{ width: `${((number - 1) / total) * 100}%` }} />
+        <div className="progress-current" style={{ left: `${((number - 1) / total) * 100}%`, width: `${100 / total}%` }} />
+      </div>
+      <p className="progress-label">
+        Step {number} of {total}: {label}…
+      </p>
+    </div>
+  )
+}
+
 function ReviewRow({ review, onRefresh, onAttachCoverage, onRemove }: ReviewRowProps): ReactElement {
   const working = review.status === ReviewStatus.Queued || review.status === ReviewStatus.Analyzing
   return (
@@ -208,6 +230,7 @@ function ReviewRow({ review, onRefresh, onAttachCoverage, onRemove }: ReviewRowP
         )}
         {review.status !== ReviewStatus.Ready && <span className={`status status-${review.status}`}>{STATUS_LABELS[review.status]}</span>}
       </div>
+      {review.status === ReviewStatus.Analyzing && <AnalysisProgress review={review} />}
       <p className="review-meta">
         <a href={review.url} target="_blank" rel="noreferrer">
           {review.displayName}

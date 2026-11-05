@@ -148,7 +148,7 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, pat
   const method = request.method ?? "GET"
   if (pathname === "/api/reviews") {
     if (method === "GET") {
-      sendJson(response, 200, context.store.list())
+      sendJson(response, 200, context.service.list())
       return
     }
     if (method === "POST") {

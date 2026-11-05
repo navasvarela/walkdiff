@@ -1,10 +1,10 @@
 import { join } from "node:path"
 import { analyzeChangedFiles, coverageFromArchives, coverageInPullRequest, createAiProvider, fetchCommits, readCoverage, readWalkdiffConfig, reviewWithAi } from "@walkdiff/engine"
 import type { AiProvider } from "@walkdiff/engine"
-import { displayName, gitHostFor, parsePullRequestUrl, repositoryPath } from "@walkdiff/providers"
+import { gitHostFor, parsePullRequestUrl, repositoryPath } from "@walkdiff/providers"
 import type { HostTokens, PullRequestRef } from "@walkdiff/providers"
-import { AiReviewStatus, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, securitySummary } from "@walkdiff/review-model"
-import type { AiReview, CheckId, CommitSha, FileDiff, ReviewModel, TestCoverage } from "@walkdiff/review-model"
+import { AiReviewStatus, AnalysisStep, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, securitySummary } from "@walkdiff/review-model"
+import type { AiReview, CheckId, CommitSha, FileDiff, ReviewModel, StepReporter, TestCoverage } from "@walkdiff/review-model"
 import type { AiOptions, ReviewOptions } from "./args.ts"
 import { detectPullRequestUrl } from "./ciEnvironment.ts"
 import type { CiEnvironment } from "./ciEnvironment.ts"
@@ -16,13 +16,14 @@ import type { ReportServer } from "./server.ts"
 const PREFERRED_REPORT_PORT = 4318
 const ANY_FREE_PORT = 0
 
-const SHORT_SHA_LENGTH = 10
 
 export interface AnalysisDependencies {
   readonly tokens: HostTokens
   readonly cacheDir: string
   readonly now: () => Date
   readonly log: (message: string) => void
+  /** Told as each step of the analysis starts. */
+  readonly reportStep: StepReporter
 }
 
 export interface ReviewDependencies extends AnalysisDependencies {
@@ -74,11 +75,11 @@ async function serveReportOnPreferredPort(reportDir: string, port: number | unde
 }
 
 export async function analyzePullRequest(ref: PullRequestRef, options: AnalysisRequest, deps: AnalysisDependencies): Promise<ReviewModel> {
-  deps.log(`Fetching ${displayName(ref)}…`)
+  deps.reportStep(AnalysisStep.FetchingPullRequest)
   const snapshot = await gitHostFor(ref, deps.tokens).fetchPullRequest()
   const { pullRequest } = snapshot
 
-  deps.log(`Fetching commits ${shortSha(pullRequest.mergeBaseSha)}..${shortSha(pullRequest.headSha)}…`)
+  deps.reportStep(AnalysisStep.FetchingCommits)
   const repoDir = await fetchCommits({
     cacheDir: deps.cacheDir,
     cloneUrl: snapshot.cloneUrl,
@@ -86,13 +87,15 @@ export async function analyzePullRequest(ref: PullRequestRef, options: AnalysisR
     commits: [pullRequest.mergeBaseSha, pullRequest.headSha],
   })
 
-  deps.log("Analyzing changes…")
   const { files, risk } = await analyzeChangedFiles(repoDir, pullRequest.mergeBaseSha, pullRequest.headSha, {
     network: options.network,
     disabledChecks: options.disabledChecks ?? [],
+    reportStep: deps.reportStep,
   })
   const config = await readWalkdiffConfig(repoDir, pullRequest.mergeBaseSha)
+  deps.reportStep(AnalysisStep.FindingCoverage)
   const testCoverage = await coverageFor(options, { ref, repoDir, headSha: pullRequest.headSha, diffs: files.map((file) => file.diff), patterns: config.coverage.paths }, deps)
+  if (options.ai !== undefined) deps.reportStep(AnalysisStep.ReviewingWithAi)
   const ai: AiReview =
     options.ai === undefined
       ? { status: AiReviewStatus.Disabled }
@@ -171,6 +174,3 @@ export function defaultReportDir(cacheDir: string, ref: PullRequestRef): string 
   return join(cacheDir, "reports", new URL(ref.webOrigin).host, repositoryPath(ref), String(ref.number))
 }
 
-function shortSha(sha: string): string {
-  return sha.slice(0, SHORT_SHA_LENGTH)
-}
