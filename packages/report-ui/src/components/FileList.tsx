@@ -22,22 +22,24 @@ const STATUS_BADGES: Readonly<Record<FileChangeStatus, StatusBadge>> = {
 interface FileListProps {
   readonly files: readonly ChangedFile[]
   readonly findings: readonly Risk[]
+  /** Comments on the PR by file path; empty when the discussion isn't available. */
+  readonly commentCounts: ReadonlyMap<string, number>
   readonly selectedPath: string | undefined
   readonly onSelect: (path: string) => void
 }
 
 /** Files needing review first; lockfiles, generated and vendored files grouped below. */
-export function FileList({ files, findings, selectedPath, onSelect }: FileListProps): ReactElement {
+export function FileList({ files, findings, commentCounts, selectedPath, onSelect }: FileListProps): ReactElement {
   const reviewable = files.filter((file) => file.noise === null)
   const skippable = files.filter((file) => file.noise !== null)
   return (
     <nav className="file-list" aria-label="Changed files">
       <h3 className="file-group-title">To review ({reviewable.length})</h3>
-      <FileGroup files={reviewable} findings={findings} selectedPath={selectedPath} onSelect={onSelect} />
+      <FileGroup files={reviewable} findings={findings} commentCounts={commentCounts} selectedPath={selectedPath} onSelect={onSelect} />
       {skippable.length > 0 && (
         <>
           <h3 className="file-group-title">Skippable ({skippable.length})</h3>
-          <FileGroup files={skippable} findings={findings} selectedPath={selectedPath} onSelect={onSelect} />
+          <FileGroup files={skippable} findings={findings} commentCounts={commentCounts} selectedPath={selectedPath} onSelect={onSelect} />
         </>
       )}
     </nav>
@@ -47,11 +49,12 @@ export function FileList({ files, findings, selectedPath, onSelect }: FileListPr
 interface FileGroupProps {
   readonly files: readonly ChangedFile[]
   readonly findings: readonly Risk[]
+  readonly commentCounts: ReadonlyMap<string, number>
   readonly selectedPath: string | undefined
   readonly onSelect: (path: string) => void
 }
 
-function FileGroup({ files, findings, selectedPath, onSelect }: FileGroupProps): ReactElement {
+function FileGroup({ files, findings, commentCounts, selectedPath, onSelect }: FileGroupProps): ReactElement {
   return (
     <ul>
       {files.map((file) => {
@@ -74,6 +77,7 @@ function FileGroup({ files, findings, selectedPath, onSelect }: FileGroupProps):
                 {diff.path}
                 <FileHint file={file} />
               </span>
+              <CommentCount count={commentCounts.get(diff.path) ?? 0} />
               <FileReviewMark file={file} />
               <RiskBadge findings={findingsInFile(findings, diff.path)} />
               <span className="counts">
@@ -84,6 +88,16 @@ function FileGroup({ files, findings, selectedPath, onSelect }: FileGroupProps):
         )
       })}
     </ul>
+  )
+}
+
+function CommentCount({ count }: { readonly count: number }): ReactElement | null {
+  if (count === 0) return null
+  const label = count === 1 ? "1 comment on the PR" : `${count} comments on the PR`
+  return (
+    <span className="file-comment-count" title={label} aria-label={label}>
+      <span aria-hidden="true">💬</span> {count}
+    </span>
   )
 }
 

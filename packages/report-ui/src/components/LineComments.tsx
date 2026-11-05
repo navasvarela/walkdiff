@@ -58,13 +58,17 @@ export function LineNumberCell({ side, line, className = "" }: LineNumberCellPro
   const commented = useCommentedLines(scope?.path)
   const onSide = scope === undefined ? undefined : side === LineSide.Old ? scope.lines.old : scope.lines.new
   if (scope === undefined || line === undefined || onSide === undefined || !onSide.has(line)) {
-    return <td className={`line-number ${className}`.trim()}>{line}</td>
+    return (
+      <td className={`line-number ${className}`.trim()} data-side={side} data-line={line}>
+        {line}
+      </td>
+    )
   }
   const selected = scope.selection !== undefined && scope.selection.side === side && line >= Math.min(scope.selection.anchor, scope.selection.focus) && line <= Math.max(scope.selection.anchor, scope.selection.focus)
   const hasComment = commented.has(`${side}:${line}`)
   const classes = ["line-number", className, selected ? "line-number-selected" : "", hasComment ? "line-number-commented" : ""].filter((name) => name !== "").join(" ")
   return (
-    <td className={classes}>
+    <td className={classes} data-side={side} data-line={line}>
       <button type="button" className="line-number-button" title="Comment on this line. Shift-click to pick several." onClick={(event) => scope.select(side, line, event.shiftKey)}>
         {line}
       </button>

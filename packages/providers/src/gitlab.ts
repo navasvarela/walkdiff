@@ -46,7 +46,15 @@ const discussionSchema = z.object({
       author: userSchema,
       resolvable: z.boolean().optional(),
       resolved: z.boolean().optional(),
-      position: z.object({ new_path: z.string().nullable().optional(), new_line: z.number().int().positive().nullable().optional() }).nullable().optional(),
+      position: z
+        .object({
+          new_path: z.string().nullable().optional(),
+          new_line: z.number().int().positive().nullable().optional(),
+          old_path: z.string().nullable().optional(),
+          old_line: z.number().int().positive().nullable().optional(),
+        })
+        .nullable()
+        .optional(),
     }),
   ),
 })
@@ -217,8 +225,10 @@ export class GitLabHost implements GitHost {
     const position = notes.at(0)?.position
     return {
       id: discussion.id,
-      path: position?.new_path ?? null,
-      line: position?.new_line ?? null,
+      // GitLab leaves out `new_line` on a removed line, and gives only `old_line`.
+      path: position?.new_path ?? position?.old_path ?? null,
+      line: position?.new_line ?? position?.old_line ?? null,
+      side: position?.new_line == null && position?.old_line != null ? LineSide.Old : LineSide.New,
       isResolved: notes.some((note) => note.resolvable === true) && notes.filter((note) => note.resolvable === true).every((note) => note.resolved === true),
       isOutdated: false,
       comments: notes.map((note) => ({ author: note.author.username, body: note.body, createdAt: note.created_at, url: `${webOrigin}/${projectPath}/-/merge_requests/${number}#note_${note.id}` })),

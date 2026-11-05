@@ -38,6 +38,9 @@ const compareSchema = z.object({
 })
 
 const THREADS_PER_PAGE = 100
+// GitHub's names for the two sides of a diff: the base version and the head version.
+const GITHUB_LEFT = "LEFT"
+const GITHUB_RIGHT = "RIGHT"
 const COMMENTS_PER_THREAD = 50
 const REVIEWERS_PER_PAGE = 30
 
@@ -48,7 +51,7 @@ const CONVERSATION_QUERY = `query($owner: String!, $repo: String!, $number: Int!
       reviewThreads(first: ${THREADS_PER_PAGE}) {
         pageInfo { hasNextPage }
         nodes {
-          id isResolved isOutdated path line
+          id isResolved isOutdated path line diffSide
           comments(first: ${COMMENTS_PER_THREAD}) { nodes { bodyText createdAt url author { login } } }
         }
       }
@@ -74,6 +77,7 @@ const conversationResponseSchema = z.object({
             isOutdated: z.boolean(),
             path: z.string(),
             line: z.number().int().positive().nullable(),
+            diffSide: z.enum([GITHUB_LEFT, GITHUB_RIGHT]),
             comments: z.object({ nodes: z.array(z.object({ bodyText: z.string(), createdAt: z.string(), url: z.string(), author: authorSchema })) }),
           }),
         ),
@@ -162,6 +166,7 @@ export class GitHubHost implements GitHost {
         id: thread.id,
         path: thread.path,
         line: thread.line,
+        side: thread.diffSide === GITHUB_LEFT ? LineSide.Old : LineSide.New,
         isResolved: thread.isResolved,
         isOutdated: thread.isOutdated,
         comments: thread.comments.nodes.map((comment) => ({ author: comment.author?.login ?? DELETED_USER_LOGIN, body: comment.bodyText, createdAt: comment.createdAt, url: comment.url })),
@@ -278,9 +283,9 @@ function apiBase(webOrigin: string): string {
 
 // A range on GitHub is its last line plus `start_line`, both counted on the chosen side.
 function githubReviewComment(comment: ReviewComment): Record<string, unknown> {
-  if (comment.range === null) return { path: comment.path, line: comment.line, side: "RIGHT", body: comment.body }
+  if (comment.range === null) return { path: comment.path, line: comment.line, side: GITHUB_RIGHT, body: comment.body }
   const { side, start, end } = comment.range
-  const githubSide = side === LineSide.Old ? "LEFT" : "RIGHT"
+  const githubSide = side === LineSide.Old ? GITHUB_LEFT : GITHUB_RIGHT
   const number = (ref: DiffLineRef): number | null => (side === LineSide.Old ? ref.oldLine : ref.newLine)
   const startLine = number(start)
   const endLine = number(end)

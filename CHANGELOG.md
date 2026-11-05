@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Conversation threads show their code:** each thread shows the lines around the one it's on, with that line marked, and "Show line 12 in Changes" opens the file scrolled to it. Threads collapse to one line (where, who, and how it starts) so a long discussion is easy to scan; beside the code on the review path they start open.
+- **Comment counts in the file list:** files with comments on the PR show 💬 and how many.
+- **Comments on removed lines are placed correctly:** GitHub's left-side comments counted their line in the new version of the file, and GitLab's had no line at all. Both now keep the side they're on.
+
 - **Coverage from GitLab test jobs:** the app now finds coverage in any GitLab job that declares `artifacts:reports:coverage_report`, such as a job named `test`, not only in jobs with "cov" in their name.
 - **New files tests never loaded:** when a coverage report covers other files in the same language but leaves out a changed file, the review path says no test may have loaded it, instead of saying nothing. Tools such as c8 and Jest only list files the tests load.
 - **GitLab setup advice:** the pilot guide and template explain that gitlab.com Free has no project access tokens, that the token variable must be unprotected, and how to hand coverage to the Walkdiff job.

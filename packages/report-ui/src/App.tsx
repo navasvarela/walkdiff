@@ -18,6 +18,8 @@ import { ConversationProvider, useConversation } from "./conversationState.tsx"
 import { guideRouteFromHash } from "./reviewPlan.ts"
 import { ReviewStateProvider } from "./reviewState.tsx"
 import { ReportTab, summarizeTabs, tabFromHash } from "./tabs.ts"
+import { commentCountsByPath } from "./threadPlaces.ts"
+import type { LinePlace } from "./threadPlaces.ts"
 
 export function App(): ReactElement {
   const [load, setLoad] = useState<ReviewLoad>({ status: "loading" })
@@ -36,6 +38,8 @@ export function App(): ReactElement {
   }
 }
 
+
+const NO_COMMENTS: ReadonlyMap<string, number> = new Map()
 /** The guided review comes first; the full lists are one link away from it. */
 function Routed({ review }: ReportProps): ReactElement {
   const [hash, setHash] = useState(window.location.hash)
@@ -61,6 +65,7 @@ function Report({ review }: ReportProps): ReactElement {
   const firstReviewable = review.files.find((file) => file.noise === null) ?? review.files.at(0)
   const [selectedPath, setSelectedPath] = useState(firstReviewable?.diff.path)
   const [impactFocus, setImpactFocus] = useState<UnitRef>()
+  const [lineFocus, setLineFocus] = useState<LinePlace>()
   const selectedFile = review.files.find((file) => file.diff.path === selectedPath)
 
   // The hash is the source of truth for the tab, so the back button and shared links work.
@@ -87,14 +92,21 @@ function Report({ review }: ReportProps): ReactElement {
 
   const conversation = useConversation()
   const openThreads = conversation.status === "loaded" ? conversation.conversation.threads.filter((thread) => !thread.isResolved).length : undefined
+  const commentCounts = conversation.status === "loaded" ? commentCountsByPath(review.files, conversation.conversation.threads) : NO_COMMENTS
 
   const showTab = (next: ReportTab): void => {
     setTab(next)
     window.location.hash = next
   }
-  const openFile = (path: string): void => {
+  const openLine = (path: string, place: LinePlace | undefined): void => {
     setSelectedPath(path)
+    setLineFocus(place)
     showTab(ReportTab.Changes)
+  }
+  const openFile = (path: string): void => openLine(path, undefined)
+  const selectFile = (path: string): void => {
+    setSelectedPath(path)
+    setLineFocus(undefined)
   }
   const showImpact = (unit: UnitRef): void => {
     setImpactFocus(unit)
@@ -108,17 +120,19 @@ function Report({ review }: ReportProps): ReactElement {
       <ReportTabs tabs={summarizeTabs(review, openThreads)} selected={tab} onSelect={showTab} />
       {/* Stays mounted while hidden, so expanded cards and the scroll position survive a tab switch. */}
       <div id={tabPanelId(ReportTab.Changes)} role="tabpanel" aria-labelledby={tabButtonId(ReportTab.Changes)} className="changes-panel" hidden={tab !== ReportTab.Changes}>
-        <FileList files={review.files} findings={review.risk.findings} selectedPath={selectedPath} onSelect={setSelectedPath} />
+        <FileList files={review.files} findings={review.risk.findings} commentCounts={commentCounts} selectedPath={selectedPath} onSelect={selectFile} />
         <main ref={contentRef} className="content" onScroll={rememberScroll}>
           {selectedFile === undefined ? (
             <p className="notice">This pull request changes no files.</p>
           ) : (
             <FileView
-              key={selectedFile.diff.path}
+              // A new line to show remounts the view, so it opens in line diff mode and scrolls there.
+              key={lineFocus === undefined ? selectedFile.diff.path : `${selectedFile.diff.path}:${lineFocus.side}:${lineFocus.line}`}
               file={selectedFile}
               findings={findingsInFile(review.risk.findings, selectedFile.diff.path)}
               pullRequest={review.pullRequest}
               onShowImpact={showImpact}
+              focus={lineFocus}
             />
           )}
         </main>
@@ -127,7 +141,7 @@ function Report({ review }: ReportProps): ReactElement {
         <div id={tabPanelId(tab)} role="tabpanel" aria-labelledby={tabButtonId(tab)} className="content tab-panel">
           {tab === ReportTab.Impact && <ImpactView files={review.files} focus={impactFocus} pullRequest={review.pullRequest} onOpenFile={openFile} />}
           {tab === ReportTab.Risks && <RiskView risk={review.risk} pullRequest={review.pullRequest} onOpenFile={openFile} />}
-          {tab === ReportTab.Conversation && <ConversationView />}
+          {tab === ReportTab.Conversation && <ConversationView files={review.files} onOpenLine={openLine} />}
           {tab === ReportTab.AiReview && <AiReviewView ai={review.ai} pullRequest={review.pullRequest} onOpenFile={openFile} />}
         </div>
       )}
