@@ -180,6 +180,28 @@ describe("buildReviewPlan", () => {
     expect(buildReviewPlan(model).stops.at(0)?.reasons).toContain("1 of its 3 changed lines didn't run in tests")
   })
 
+  it("keeps new code that no test ran on the path, even with nothing else to say about it", () => {
+    const busy = Array.from({ length: 3 }, (_, index) => file(`busy${index}.ts`, [unit({ name: `busy${index}`, callers: 4 })]))
+    const lonely = file("totals.ts", [unit({ name: "totalSize", added: true })])
+    const unloaded = file("duplicates.ts", [unit({ name: "findDuplicates", added: true })])
+    const model = {
+      ...review([...busy, lonely, unloaded]),
+      testCoverage: { source: "lcov.info", files: [...busy.map((entry) => ({ path: entry.diff.path, coveredLines: [1, 2], uncoveredLines: [] })), { path: "totals.ts", coveredLines: [], uncoveredLines: [1, 2, 3] }] },
+    }
+    expect(titles(model)).toEqual(expect.arrayContaining(["totalSize", "findDuplicates"]))
+  })
+
+  it("counts a function no test called as untested, though its declaration line ran", () => {
+    const busy = Array.from({ length: 3 }, (_, index) => file(`busy${index}.ts`, [unit({ name: `busy${index}`, callers: 4 })]))
+    const uncalled = { ...unit({ name: "totalSize", added: true }), change: { kind: UnitChangeKind.Added, after: { ...SNAPSHOT, startLine: 1, endLine: 10 } } }
+    const model = {
+      ...review([...busy, file("sizes.ts", [uncalled])]),
+      testCoverage: { source: "lcov.info", files: [...busy.map((entry) => ({ path: entry.diff.path, coveredLines: [1, 2], uncoveredLines: [] })), { path: "sizes.ts", coveredLines: [1], uncoveredLines: [2, 3, 4, 5, 6, 7, 8, 9, 10] }] },
+    }
+    const stop = buildReviewPlan(model).stops.find((candidate) => candidate.title === "totalSize")
+    expect(stop?.reasons).toContain("9 of its 10 changed lines didn't run in tests")
+  })
+
   it("has no coverage for a function the report says nothing about", () => {
     const model = { ...review([file("a.ts", [unit({ name: "other", callers: 2 })])]), testCoverage: { source: "x", files: [{ path: "a.ts", coveredLines: [50], uncoveredLines: [] }] } }
     expect(buildReviewPlan(model).stops.at(0)?.coverage).toBeNull()
