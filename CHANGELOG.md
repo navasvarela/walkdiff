@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Works with git configs that route https to ssh:** a `url.*.insteadOf` rule that sends `https://gitlab.com/` or `https://github.com/` to ssh, common for cargo or go with private repositories, made reviews fail with "transport 'ssh' not allowed". Walkdiff's own fetch now stays on https with its token, and the rule still applies to everything else.
+
 ## 0.7.0
 
 - **Progress while a review is analyzed:** the app shows a bar with the step under way, such as "Step 6 of 9: Scanning for security problems", instead of only "Analyzing…". The command line prints each step as it starts, so CI logs show where a slow run is.

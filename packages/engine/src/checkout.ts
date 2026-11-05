@@ -44,7 +44,7 @@ export async function fetchCommits(request: FetchCommitsRequest): Promise<string
   const refspecs = missing.map((sha) => `${sha}:refs/walkdiff/commits/${sha}`)
   await runGit(["fetch", "--no-tags", "--no-recurse-submodules", "--quiet", "--depth=1", "--", request.cloneUrl, ...refspecs], {
     cwd: repoDir,
-    env: credentialEnv(request.credentials),
+    env: fetchEnv(request.cloneUrl, request.credentials),
   })
 
   const stillMissing = await missingCommits(repoDir, missing)
@@ -78,22 +78,36 @@ async function missingCommits(repoDir: string, commits: readonly CommitSha[]): P
 // Links are pasted by hand, so git may only speak http(s) here, never `ext::` or `file://`.
 const ALLOWED_PROTOCOLS = "https:http"
 
-// The header travels through GIT_CONFIG_* variables rather than `-c` arguments or the
-// remote URL, which keeps the token out of `ps` output and out of the repository's config.
-// Redirects are refused because git would send this header to wherever one points.
-function credentialEnv(credentials: GitCredentials | undefined): Record<string, string> {
-  if (credentials === undefined) {
-    return { GIT_ALLOW_PROTOCOL: ALLOWED_PROTOCOLS }
+type ConfigEntry = readonly [key: string, value: string]
+
+/**
+ * The fetch keeps the person's git config, for proxies and credential helpers, with three
+ * additions:
+ * - A rewrite of the clone URL to itself. People route https to ssh with `url.*.insteadOf`,
+ *   for cargo or go with private repositories, and that rewrite would carry this fetch to a
+ *   transport ALLOWED_PROTOCOLS refuses. Git applies the longest matching `insteadOf`, and
+ *   the full URL is longer than any prefix rule that matches it, so this one wins and the
+ *   fetch stays on https, with its token.
+ * - The token as an `Authorization` header, through GIT_CONFIG_* variables rather than `-c`
+ *   arguments or the remote URL, which keeps it out of `ps` output and the repository's config.
+ * - No redirects, because git would send that header to wherever one points.
+ */
+function fetchEnv(cloneUrl: string, credentials: GitCredentials | undefined): Record<string, string> {
+  const rewriteToItself: ConfigEntry = [`url.${cloneUrl}.insteadOf`, cloneUrl]
+  const entries: ConfigEntry[] = [rewriteToItself]
+  if (credentials !== undefined) {
+    const basic = Buffer.from(`${credentials.username}:${credentials.token}`).toString("base64")
+    entries.push(["http.extraHeader", `Authorization: Basic ${basic}`], ["http.followRedirects", "false"])
   }
-  const basic = Buffer.from(`${credentials.username}:${credentials.token}`).toString("base64")
-  return {
-    GIT_ALLOW_PROTOCOL: ALLOWED_PROTOCOLS,
-    GIT_CONFIG_COUNT: "2",
-    GIT_CONFIG_KEY_0: "http.extraHeader",
-    GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}`,
-    GIT_CONFIG_KEY_1: "http.followRedirects",
-    GIT_CONFIG_VALUE_1: "false",
-  }
+  return { GIT_ALLOW_PROTOCOL: ALLOWED_PROTOCOLS, ...configEnv(entries) }
+}
+
+function configEnv(entries: readonly ConfigEntry[]): Record<string, string> {
+  const numbered = entries.flatMap(([key, value], index) => [
+    [`GIT_CONFIG_KEY_${index}`, key],
+    [`GIT_CONFIG_VALUE_${index}`, value],
+  ])
+  return Object.fromEntries([["GIT_CONFIG_COUNT", String(entries.length)], ...numbered])
 }
 
 async function exists(path: string): Promise<boolean> {
