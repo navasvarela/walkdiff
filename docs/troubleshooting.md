@@ -80,6 +80,16 @@ You have probably hit the API rate limit, which is low without a token. Set `GIT
 
 The commits Walkdiff asked for are no longer on the host. Run the review again so it picks up the latest commits. If it's a review in the app, refresh it.
 
+### `git fetch failed: fatal: transport 'ssh' not allowed`
+
+Your git config sends https to ssh, with a rule such as `url."ssh://git@gitlab.com/".insteadOf = https://gitlab.com`, and the Walkdiff you're running is older than 0.7.1. Walkdiff only fetches over https, and since 0.7.1 it keeps its own fetch on https whatever your rules say, so you can keep them.
+
+Check which Walkdiff runs with `walkdiff --version`. Every error also ends with the version. If it's older than 0.7.1:
+
+- Stop any running `walkdiff app`: it keeps the version it started with.
+- Run `which -a walkdiff`. If it lists more than one, the first one is what runs; update or remove the others.
+- With `npx`, name the version, such as `npx walkdiff@latest app`, since npx reuses one it already has.
+
 ### `GitLab has not computed the diff … yet`
 
 Wait a moment and try again. This is common just after a merge request is opened.

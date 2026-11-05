@@ -39,6 +39,7 @@ Options:
   --report <dir>     With comment: the directory review wrote (--out)
   --report-url <url> With comment: where reviewers can open the report
   -h, --help         Show this help
+  -v, --version      Show which Walkdiff this is
 
 Environment:
   GITHUB_TOKEN, GH_TOKEN   Token for GitHub (required for private repositories)
@@ -89,6 +90,7 @@ export interface AppOptions {
 
 export type Command =
   | { readonly kind: "help" }
+  | { readonly kind: "version" }
   | { readonly kind: "setup" }
   | { readonly kind: "app"; readonly options: AppOptions }
   | { readonly kind: "review"; readonly options: ReviewOptions }
@@ -120,10 +122,14 @@ export function parseCommand(argv: readonly string[]): Command {
       "cache-dir": { type: "string" },
       coverage: { type: "string" },
       help: { type: "boolean", short: "h", default: false },
+      version: { type: "boolean", short: "v", default: false },
     },
   })
 
   const [command, url, ...extra] = positionals
+  if (values.version) {
+    return { kind: "version" }
+  }
   if (values.help || command === undefined) {
     return { kind: "help" }
   }
