@@ -1,4 +1,4 @@
-import type { Conversation, PullRequest, SubmitResult, SubmitReview } from "@walkdiff/review-model"
+import type { Conversation, PullRequest, PullRequestStack, SubmitResult, SubmitReview } from "@walkdiff/review-model"
 import type { MarkedComment } from "./markedComment.ts"
 import type { TrustedOrigins } from "./trustedHosts.ts"
 
@@ -38,6 +38,8 @@ export interface GitHost {
   setThreadResolved(threadId: string, resolved: boolean): Promise<void>
   /** Archives CI kept for this commit whose names suggest coverage, newest first. */
   fetchCoverageArchives(headSha: string): Promise<readonly CiArchive[]>
+  /** The open PRs stacked with this one, from the host's own stacks or by following branches. Undefined when it stands alone. */
+  fetchStack(): Promise<PullRequestStack | undefined>
 }
 
 export interface HostTokens {

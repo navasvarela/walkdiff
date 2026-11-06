@@ -1,13 +1,15 @@
 import { commitShaSchema, GitHostKind, ReviewerState, ReviewEvent, isPlacedComment, lastLineOf, LineSide } from "@walkdiff/review-model"
-import type { Conversation, ReviewComment, SubmitResult, SubmitReview, DiffLineRef } from "@walkdiff/review-model"
+import type { Conversation, PullRequestStack, ReviewComment, StackMember, SubmitResult, SubmitReview, DiffLineRef } from "@walkdiff/review-model"
 import { z } from "zod"
 import { COVERAGE_ARCHIVE_NAME, MAX_COVERAGE_ARCHIVE_BYTES, MAX_COVERAGE_ARCHIVES } from "./gitHost.ts"
 import type { GitHost, GitHttpAuth, PullRequestSnapshot, CiArchive } from "./gitHost.ts"
-import { downloadFile, getJson, writeIgnoringReply } from "./http.ts"
+import { downloadFile, getJson, HostApiError, writeIgnoringReply, writeJson } from "./http.ts"
 import type { WriteMethod } from "./http.ts"
 import { COMMENTS_PER_PAGE, upsertMarkedComment } from "./markedComment.ts"
 import type { MarkedComment } from "./markedComment.ts"
 import type { GitLabMergeRequestRef } from "./pullRequestUrl.ts"
+import { inStackOrder, stackFromHost, walkStack } from "./stack.ts"
+import type { OpenPullRequests, StackCandidate } from "./stack.ts"
 
 // GitLab requires this username when a personal access token is used as the git password.
 const GITLAB_GIT_USERNAME = "oauth2"
@@ -27,6 +29,49 @@ const mergeRequestSchema = z.object({
     .object({ base_sha: commitShaSchema, head_sha: commitShaSchema, start_sha: commitShaSchema })
     .nullable(),
 })
+
+/** A merge request as lists give it, with what stack detection needs. */
+const listedMergeRequestSchema = z.object({
+  iid: z.number().int().positive(),
+  title: z.string(),
+  author: z.object({ username: z.string() }),
+  source_branch: z.string(),
+  target_branch: z.string(),
+  source_project_id: z.number().int(),
+  target_project_id: z.number().int(),
+})
+const projectSchema = z.object({ default_branch: z.string() })
+const OPEN_STATE = "opened"
+const MERGE_REQUESTS_PER_PAGE = 100
+
+const STACK_MEMBER_FIELDS = "iid title author { username } sourceBranch targetBranch"
+const STACK_QUERY = `query($project: ID!, $iid: String!) {
+  project(fullPath: $project) { mergeRequest(iid: $iid) { ${STACK_MEMBER_FIELDS} stack { ${STACK_MEMBER_FIELDS} } } }
+}`
+const stackMemberSchema = z.object({
+  // GraphQL gives the iid as a string.
+  iid: z.coerce.number().int().positive(),
+  title: z.string(),
+  author: z.object({ username: z.string() }),
+  sourceBranch: z.string(),
+  targetBranch: z.string(),
+})
+const stackResponseSchema = z.object({
+  data: z
+    .object({
+      project: z.object({ mergeRequest: stackMemberSchema.extend({ stack: z.array(stackMemberSchema).nullable() }).nullable() }).nullable(),
+    })
+    .nullish(),
+  errors: z.array(z.object({ message: z.string(), extensions: z.object({ code: z.string().optional() }).optional() })).optional(),
+})
+// What GitLab before 19.1, which has no stacks, answers when asked for the field.
+const UNDEFINED_FIELD_ERROR = "undefinedField"
+const GRAPHQL_FAILURE_STATUS = 502
+const NOT_FOUND_STATUS = 404
+
+/** What GitLab's own stacks say: a stack or none, or nothing to go by, which leaves following branches. */
+type HostStackAnswer = { readonly usable: true; readonly stack: PullRequestStack | undefined } | { readonly usable: false }
+const UNUSABLE: HostStackAnswer = { usable: false }
 
 const noteSchema = z.object({ id: z.number().int(), body: z.string().nullable() })
 
@@ -235,17 +280,62 @@ export class GitLabHost implements GitHost {
     }
   }
 
+  /**
+   * GitLab's own stacks are found from branches, as Walkdiff would, but only between merge requests
+   * by the same author, so its answer wins where there is one. Instances older than 19.1 have none.
+   */
+  async fetchStack(): Promise<PullRequestStack | undefined> {
+    const answer = await this.#hostStack()
+    return answer.usable ? answer.stack : this.#walkStack()
+  }
+
+  async #hostStack(): Promise<HostStackAnswer> {
+    const url = `${this.#ref.webOrigin}/api/graphql`
+    const response = await writeJson({
+      method: "POST",
+      url,
+      body: { query: STACK_QUERY, variables: { project: this.#ref.projectPath, iid: String(this.#ref.number) } },
+      headers: this.#headers(),
+      schema: stackResponseSchema,
+      authHint: this.#authHint,
+    })
+    const errors = response.errors ?? []
+    if (errors.some((error) => error.extensions?.code === UNDEFINED_FIELD_ERROR)) return UNUSABLE
+    // GraphQL reports most failures with a 200, so they would otherwise look like success.
+    if (errors.length > 0) throw new HostApiError(GRAPHQL_FAILURE_STATUS, url, errors.map((error) => error.message).join("; "))
+    const mergeRequest = response.data?.project?.mergeRequest
+    if (mergeRequest == null) throw new HostApiError(NOT_FOUND_STATUS, url, this.#authHint)
+    // Null when the stack is longer than GitLab shows; following branches still finds part of it.
+    if (mergeRequest.stack === null) return UNUSABLE
+    if (mergeRequest.stack.length === 0) return { usable: true, stack: undefined }
+    const ordered = inStackOrder([mergeRequest, ...mergeRequest.stack].map(fromGraphql))
+    return ordered === undefined ? UNUSABLE : { usable: true, stack: stackFromHost(ordered, this.#ref.number) }
+  }
+
+  async #walkStack(): Promise<PullRequestStack | undefined> {
+    const projectApi = this.#projectApi()
+    const [mergeRequest, project] = await Promise.all([this.#get(this.#mergeRequestApi(), listedMergeRequestSchema), this.#get(projectApi, projectSchema)])
+    return walkStack({ pullRequest: stackCandidate(mergeRequest), defaultBranch: project.default_branch }, this.#openMergeRequests(projectApi))
+  }
+
+  #openMergeRequests(projectApi: string): OpenPullRequests {
+    const list = async (filter: string): Promise<readonly StackCandidate[]> =>
+      (await this.#get(`${projectApi}/merge_requests?state=${OPEN_STATE}&per_page=${MERGE_REQUESTS_PER_PAGE}&${filter}`, z.array(listedMergeRequestSchema))).map(stackCandidate)
+    return {
+      withHead: (branch) => list(`source_branch=${encodeURIComponent(branch)}`),
+      withBase: (branch) => list(`target_branch=${encodeURIComponent(branch)}`),
+    }
+  }
+
   #get<T>(url: string, schema: z.ZodType<T>): Promise<T> {
     return getJson({ url, headers: this.#headers(), schema, authHint: this.#authHint })
   }
 
   async fetchCoverageArchives(headSha: string): Promise<readonly CiArchive[]> {
-    const { webOrigin, projectPath } = this.#ref
-    const projectApi = `${webOrigin}/api/v4/projects/${encodeURIComponent(projectPath)}`
-    const read = <T>(url: string, schema: z.ZodType<T>): Promise<T> => getJson({ url, headers: this.#headers(), schema, authHint: this.#authHint })
-    const [pipeline] = await read(`${projectApi}/pipelines?sha=${encodeURIComponent(headSha)}&per_page=1`, pipelinesSchema)
+    const projectApi = this.#projectApi()
+    const [pipeline] = await this.#get(`${projectApi}/pipelines?sha=${encodeURIComponent(headSha)}&per_page=1`, pipelinesSchema)
     if (pipeline === undefined) return []
-    const jobs = await read(`${projectApi}/pipelines/${pipeline.id}/jobs?per_page=100`, pipelineJobsSchema)
+    const jobs = await this.#get(`${projectApi}/pipelines/${pipeline.id}/jobs?per_page=100`, pipelineJobsSchema)
     // Jobs that declare a coverage report come first: they're the surest to hold one.
     const declared = jobs.filter(declaresCoverageReport)
     const named = jobs.filter((job) => !declaresCoverageReport(job) && COVERAGE_ARCHIVE_NAME.test(job.name))
@@ -261,9 +351,13 @@ export class GitLabHost implements GitHost {
     return downloaded.flatMap(({ name, zip }) => (zip === undefined ? [] : [{ name, zip }]))
   }
 
+  #projectApi(): string {
+    const { webOrigin, projectPath } = this.#ref
+    return `${webOrigin}/api/v4/projects/${encodeURIComponent(projectPath)}`
+  }
+
   #mergeRequestApi(): string {
-    const { webOrigin, projectPath, number } = this.#ref
-    return `${webOrigin}/api/v4/projects/${encodeURIComponent(projectPath)}/merge_requests/${number}`
+    return `${this.#projectApi()}/merge_requests/${this.#ref.number}`
   }
 
   async #write(method: WriteMethod, url: string, body: unknown): Promise<void> {
@@ -277,6 +371,17 @@ export class GitLabHost implements GitHost {
   #gitAuth(): GitHttpAuth | undefined {
     return this.#token === undefined ? undefined : { username: GITLAB_GIT_USERNAME, token: this.#token }
   }
+}
+
+function stackCandidate(mergeRequest: z.infer<typeof listedMergeRequestSchema>): StackCandidate {
+  return {
+    member: { number: mergeRequest.iid, title: mergeRequest.title, author: mergeRequest.author.username, headRef: mergeRequest.source_branch, baseRef: mergeRequest.target_branch },
+    headInRepository: mergeRequest.source_project_id === mergeRequest.target_project_id,
+  }
+}
+
+function fromGraphql(mergeRequest: z.infer<typeof stackMemberSchema>): StackMember {
+  return { number: mergeRequest.iid, title: mergeRequest.title, author: mergeRequest.author.username, headRef: mergeRequest.sourceBranch, baseRef: mergeRequest.targetBranch }
 }
 
 /** Comments without a line, and the summary, go together as one note. */
