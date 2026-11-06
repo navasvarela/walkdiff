@@ -1,6 +1,6 @@
 import { HostApiError, parsePullRequestUrl } from "@walkdiff/providers"
 import type { GitHost, PullRequestRef } from "@walkdiff/providers"
-import { MemberCheck, PullRequestState } from "@walkdiff/review-model"
+import { MemberCheck, PullRequestState, ReportChange } from "@walkdiff/review-model"
 import type { PullRequestStatus, ReviewSummary, StackMemberStatus, StackView } from "@walkdiff/review-model"
 import type { AnalyzedHead, ReviewStore } from "./reviewStore.ts"
 
@@ -23,7 +23,7 @@ async function memberStatus(member: ReviewSummary, analyzed: AnalyzedHead | unde
     // The host comes from the saved review, whose URL the app built itself.
     const host = await hostFor(parsePullRequestUrl(member.url))
     const [status, conversation] = await Promise.all([host.fetchStatus(), host.fetchConversation()])
-    return { check: MemberCheck.Checked, reviewId: member.id, status, needsRefresh: needsRefresh(analyzed, status), reviewers: conversation.reviewers }
+    return { check: MemberCheck.Checked, reviewId: member.id, status, reportChange: reportChange(analyzed, status), reviewers: conversation.reviewers }
   } catch (error: unknown) {
     if (!(error instanceof HostApiError)) throw error
     return { check: MemberCheck.Failed, reviewId: member.id, error: error.message }
@@ -31,10 +31,12 @@ async function memberStatus(member: ReviewSummary, analyzed: AnalyzedHead | unde
 }
 
 /**
- * An open PR's report is out of date when it has new commits, or merges into another branch now,
- * as when the member below it merged: its diff then runs from a different base.
+ * Why an open PR's report is out of date. A new base wins over new commits: rebasing onto the
+ * new base usually brings both, and the base is what moves the whole diff.
  */
-export function needsRefresh(analyzed: AnalyzedHead | undefined, status: PullRequestStatus): boolean {
-  if (status.state !== PullRequestState.Open) return false
-  return analyzed === undefined || analyzed.headSha !== status.headSha || analyzed.baseRef !== status.baseRef
+export function reportChange(analyzed: AnalyzedHead | undefined, status: PullRequestStatus): ReportChange {
+  if (status.state !== PullRequestState.Open) return ReportChange.None
+  if (analyzed === undefined) return ReportChange.NoReport
+  if (analyzed.baseRef !== status.baseRef) return ReportChange.Retargeted
+  return analyzed.headSha === status.headSha ? ReportChange.None : ReportChange.NewCommits
 }

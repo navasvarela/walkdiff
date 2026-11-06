@@ -1,11 +1,13 @@
 import { useMemo } from "react"
 import type { ReactElement } from "react"
+import { numberLabel } from "@walkdiff/review-model"
 import type { ReviewModel } from "@walkdiff/review-model"
 import { overallProgress, pathProgress, reviewPlanFor } from "../reviewProgress.ts"
 import { useReviewState } from "../reviewState.tsx"
 import { REVIEW_HASH } from "../reviewPlan.ts"
 import { ReportTab } from "../tabs.ts"
 import { homeUrl } from "./PullRequestHeader.tsx"
+import { StackStrip } from "./StackStrip.tsx"
 
 const ALL_CHANGES_HASH = `#${ReportTab.Changes}`
 
@@ -26,39 +28,42 @@ export function TopBar({ review, section }: TopBarProps): ReactElement {
   const home = homeUrl()
   const { pullRequest } = review
   return (
-    <header className="topbar">
-      <div className="topbar-trail">
-        <span className="topbar-brand">
-          <Logo />
-          Walkdiff
-        </span>
-        {home !== undefined && (
-          <>
-            <span className="topbar-separator" aria-hidden="true">
-              /
-            </span>
-            <a href={home}>All reviews</a>
-          </>
-        )}
-        <span className="topbar-separator" aria-hidden="true">
-          /
-        </span>
-        <a href={pullRequest.url} target="_blank" rel="noreferrer">
-          #{pullRequest.number}
-        </a>
-      </div>
-      <nav className="topbar-nav" aria-label="Review sections">
-        <a href={REVIEW_HASH} aria-current={section === TopBarSection.Review ? "page" : undefined}>
-          Review
-        </a>
-        <a href={ALL_CHANGES_HASH} aria-current={section === TopBarSection.AllChanges ? "page" : undefined}>
-          All changes
-        </a>
-      </nav>
-      <p className="topbar-progress">
-        {path.reviewed} of {path.total} on the path · {overall.reviewed} of {overall.total} overall
-      </p>
-    </header>
+    <>
+      <header className="topbar">
+        <div className="topbar-trail">
+          <span className="topbar-brand">
+            <Logo />
+            Walkdiff
+          </span>
+          {home !== undefined && (
+            <>
+              <span className="topbar-separator" aria-hidden="true">
+                /
+              </span>
+              <a href={home}>All reviews</a>
+            </>
+          )}
+          <span className="topbar-separator" aria-hidden="true">
+            /
+          </span>
+          <a href={pullRequest.url} target="_blank" rel="noreferrer">
+            {numberLabel(pullRequest.host, pullRequest.number)}
+          </a>
+        </div>
+        <nav className="topbar-nav" aria-label="Review sections">
+          <a href={REVIEW_HASH} aria-current={section === TopBarSection.Review ? "page" : undefined}>
+            Review
+          </a>
+          <a href={ALL_CHANGES_HASH} aria-current={section === TopBarSection.AllChanges ? "page" : undefined}>
+            All changes
+          </a>
+        </nav>
+        <p className="topbar-progress">
+          {path.reviewed} of {path.total} on the path · {overall.reviewed} of {overall.total} overall
+        </p>
+      </header>
+      <StackStrip />
+    </>
   )
 }
 

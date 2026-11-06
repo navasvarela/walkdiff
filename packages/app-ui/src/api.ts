@@ -1,5 +1,5 @@
-import { aiConnectionResultSchema, currentSettingsSchema, reviewSummarySchema, settingsViewSchema } from "@walkdiff/review-model"
-import type { AddReviewRequest, AiConnectionResult, AttachCoverageRequest, AppSettings, CurrentSettings, ReviewSummary, SettingsView } from "@walkdiff/review-model"
+import { aiConnectionResultSchema, currentSettingsSchema, reviewSummarySchema, settingsViewSchema, stackViewSchema } from "@walkdiff/review-model"
+import type { AcceptStackRequest, AddReviewRequest, AiConnectionResult, AttachCoverageRequest, AppSettings, CurrentSettings, ReviewSummary, SettingsView, StackView } from "@walkdiff/review-model"
 
 const API_KEY_HEADER = "X-Walkdiff-Key"
 
@@ -7,7 +7,7 @@ function apiKey(): string {
   return document.querySelector('meta[name="walkdiff-api-key"]')?.getAttribute("content") ?? ""
 }
 
-async function call(path: string, method: string, body?: AddReviewRequest | AppSettings | AttachCoverageRequest): Promise<unknown> {
+async function call(path: string, method: string, body?: AddReviewRequest | AppSettings | AttachCoverageRequest | AcceptStackRequest): Promise<unknown> {
   const response = await fetch(path, {
     method,
     headers: { [API_KEY_HEADER]: apiKey(), ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
@@ -43,6 +43,29 @@ export async function attachCoverage(id: number, files: readonly File[]): Promis
 
 export async function removeReview(id: number): Promise<void> {
   await call(`/api/reviews/${id}`, "DELETE")
+}
+
+/** Groups the review with the rest of its stack, adding those not on the list with this AI choice. */
+export async function acceptStack(id: number, request: AcceptStackRequest): Promise<void> {
+  await call(`/api/reviews/${id}/stack`, "POST", request)
+}
+
+export async function dismissStackOffer(id: number): Promise<void> {
+  await call(`/api/reviews/${id}/stack`, "DELETE")
+}
+
+/** Asks each member's host, so it takes a moment. */
+export async function loadStack(id: number): Promise<StackView> {
+  return stackViewSchema.parse(await call(`/api/stacks/${id}`, "GET"))
+}
+
+/** Re-runs the members whose reports are out of date, and answers with the stack as it was found. */
+export async function refreshStack(id: number): Promise<StackView> {
+  return stackViewSchema.parse(await call(`/api/stacks/${id}/refresh`, "POST"))
+}
+
+export async function ungroupStack(id: number): Promise<void> {
+  await call(`/api/stacks/${id}`, "DELETE")
 }
 
 export async function loadSettings(): Promise<SettingsView> {

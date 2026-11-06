@@ -117,5 +117,7 @@ export { conversationSchema, reviewerSchema, replySchema, resolveThreadSchema, R
 export type { Conversation, Reviewer, ReviewComment, ReviewThread, SubmitResult, SubmitReview, ThreadComment, DiffLineRef, LineRange } from "./conversation.ts"
 export { acceptStackRequestSchema, MAX_STACK_SIZE, pullRequestStackSchema, StackSource, stackMemberSchema, stackOfferSchema, stackPlaceSchema } from "./stack.ts"
 export type { AcceptStackRequest, PullRequestStack, StackMember, StackOffer, StackPlace } from "./stack.ts"
-export { MemberCheck, PullRequestState, pullRequestStatusSchema, stackMemberStatusSchema, stackViewSchema } from "./stackStatus.ts"
+export { MemberCheck, numberLabel, PullRequestState, ReportChange, pullRequestStatusSchema, stackMemberStatusSchema, stackViewSchema } from "./stackStatus.ts"
 export type { PullRequestStatus, StackMemberStatus, StackView } from "./stackStatus.ts"
+export { parseProgressRecord, progressKey, progressRecordSchema } from "./browserProgress.ts"
+export type { ProgressRecord } from "./browserProgress.ts"
