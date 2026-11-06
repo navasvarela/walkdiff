@@ -6,12 +6,13 @@ import type { ReviewStore } from "./reviewStore.ts"
 import { reportChange } from "./stackStatus.ts"
 import type { HostResolver } from "./stackStatus.ts"
 
-export const ApproveKind = { NoStack: "noStack", Blocked: "blocked", Done: "done" } as const
+export const ApproveKind = { NoStack: "noStack", Blocked: "blocked", Ready: "ready", Done: "done" } as const
 
-export type ApproveResult =
-  | { readonly kind: typeof ApproveKind.NoStack }
-  | { readonly kind: typeof ApproveKind.Blocked; readonly blocked: readonly BlockedMember[] }
-  | { readonly kind: typeof ApproveKind.Done; readonly results: readonly MemberApproval[] }
+type NoStack = { readonly kind: typeof ApproveKind.NoStack }
+type Blocked = { readonly kind: typeof ApproveKind.Blocked; readonly blocked: readonly BlockedMember[] }
+
+export type CheckResult = NoStack | Blocked | { readonly kind: typeof ApproveKind.Ready; readonly checked: readonly Checked[] }
+export type ApproveResult = NoStack | Blocked | { readonly kind: typeof ApproveKind.Done; readonly results: readonly MemberApproval[] }
 
 interface Checked {
   readonly member: ReviewSummary
@@ -22,12 +23,24 @@ interface Checked {
 type Preflight = { readonly passed: true; readonly checked: Checked } | { readonly passed: false; readonly blocked: BlockedMember }
 
 /**
- * Approves the members asked for, bottom first. First every one is checked with its host, and if
- * any has moved on from the commit the reviewer saw, nothing is posted. Then each approval is posted
- * on its own: a host refusing one doesn't stop the rest, since approvals already posted can't safely
- * be taken back, and each stands for its own PR.
+ * Approves the members asked for, bottom first, once `checkApproval` passes for all of them. Each
+ * approval is posted on its own: a host refusing one doesn't stop the rest, since approvals already
+ * posted can't safely be taken back, and each stands for its own PR.
  */
 export async function approveStack(store: ReviewStore, stackId: number, request: ApproveStackRequest, hostFor: HostResolver): Promise<ApproveResult> {
+  const check = await checkApproval(store, stackId, request, hostFor)
+  if (check.kind !== ApproveKind.Ready) return check
+  const results: MemberApproval[] = []
+  // One at a time, so the hosts see them bottom first, as a reviewer would post them by hand.
+  for (const checked of check.checked) results.push(await approve(checked, request.body))
+  return { kind: ApproveKind.Done, results }
+}
+
+/**
+ * Checks every member asked for with its host, without posting. Any one that has moved on from the
+ * commit the reviewer saw blocks them all, so a stack is never left part-approved by surprise.
+ */
+export async function checkApproval(store: ReviewStore, stackId: number, request: ApproveStackRequest, hostFor: HostResolver): Promise<CheckResult> {
   if (store.stack(stackId) === undefined) return { kind: ApproveKind.NoStack }
   const members = store.stackMembers(stackId)
   const inStack = new Set(members.map((member) => member.id))
@@ -43,13 +56,7 @@ export async function approveStack(store: ReviewStore, stackId: number, request:
   )
   const blocked = preflights.flatMap((result) => (result.passed ? [] : [result.blocked]))
   if (blocked.length > 0) return { kind: ApproveKind.Blocked, blocked }
-
-  const results: MemberApproval[] = []
-  // One at a time, so the hosts see them bottom first, as a reviewer would post them by hand.
-  for (const result of preflights) {
-    if (result.passed) results.push(await approve(result.checked, request.body))
-  }
-  return { kind: ApproveKind.Done, results }
+  return { kind: ApproveKind.Ready, checked: preflights.flatMap((result) => (result.passed ? [result.checked] : [])) }
 }
 
 async function preflight(member: ReviewSummary, seenHead: string, hostFor: HostResolver): Promise<Preflight> {
