@@ -1,5 +1,5 @@
-import { commitShaSchema, GitHostKind, ReviewerState, ReviewEvent, isPlacedComment, LineSide } from "@walkdiff/review-model"
-import type { CommitSha, Conversation, DiffLineRef, PullRequestStack, ReviewComment, SubmitResult, SubmitReview } from "@walkdiff/review-model"
+import { commitShaSchema, GitHostKind, PullRequestState, ReviewerState, ReviewEvent, isPlacedComment, LineSide } from "@walkdiff/review-model"
+import type { CommitSha, Conversation, DiffLineRef, PullRequestStack, PullRequestStatus, ReviewComment, SubmitResult, SubmitReview } from "@walkdiff/review-model"
 import { z } from "zod"
 import { COVERAGE_ARCHIVE_NAME, MAX_COVERAGE_ARCHIVE_BYTES, MAX_COVERAGE_ARCHIVES } from "./gitHost.ts"
 import type { GitHost, GitHttpAuth, PullRequestSnapshot, CiArchive } from "./gitHost.ts"
@@ -31,6 +31,13 @@ const pullSchema = z.object({
   user: z.object({ login: z.string() }).nullable(),
   base: branchTipSchema,
   head: branchTipSchema,
+})
+
+const pullStatusSchema = z.object({
+  state: z.string(),
+  merged_at: z.string().nullable(),
+  base: z.object({ ref: z.string() }),
+  head: z.object({ sha: commitShaSchema }),
 })
 
 const repositorySchema = z.object({ full_name: z.string() })
@@ -169,6 +176,11 @@ export class GitHubHost implements GitHost {
       cloneUrl: `${webOrigin}/${owner}/${repo}.git`,
       gitAuth: this.#gitAuth(),
     }
+  }
+
+  async fetchStatus(): Promise<PullRequestStatus> {
+    const pull = await this.#get(`${this.#repoApi()}/pulls/${this.#ref.number}`, pullStatusSchema)
+    return { state: githubState(pull), headSha: pull.head.sha, baseRef: pull.base.ref }
   }
 
   upsertComment(comment: MarkedComment): Promise<void> {
@@ -328,6 +340,12 @@ const GRAPHQL_FAILURE_STATUS = 502
 function withUnplacedComments(review: SubmitReview): string {
   const unplaced = review.comments.filter((comment: ReviewComment) => !isPlacedComment(comment)).map((comment) => `**\`${comment.label}\`** in \`${comment.path}\`\n\n${comment.body}`)
   return [review.body, ...unplaced].filter((part) => part !== "").join("\n\n---\n\n")
+}
+
+/** GitHub calls a merged PR closed, telling them apart only by `merged_at`. */
+function githubState(pull: z.infer<typeof pullStatusSchema>): PullRequestState {
+  if (pull.merged_at !== null) return PullRequestState.Merged
+  return pull.state === OPEN_STATE ? PullRequestState.Open : PullRequestState.Closed
 }
 
 function stackCandidate(pull: ListedPull): StackCandidate {

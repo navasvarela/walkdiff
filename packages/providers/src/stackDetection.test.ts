@@ -154,3 +154,39 @@ describe("finding a GitLab stack", () => {
     await expect(host().fetchStack()).rejects.toThrow("Rate limited")
   })
 })
+
+describe("reading a member's status", () => {
+  const HEAD = "c".repeat(40)
+  const NEWER = "d".repeat(40)
+  const github = (): ReturnType<typeof gitHostFor> => gitHostFor(parsePullRequestUrl("https://github.com/acme/app/pull/7"), TOKENS)
+  const gitlab = (): ReturnType<typeof gitHostFor> => gitHostFor(parsePullRequestUrl("https://gitlab.com/acme/app/-/merge_requests/4"), TOKENS)
+  const githubPull = (state: string, mergedAt: string | null): Record<string, unknown> => ({ state, merged_at: mergedAt, base: { ref: "b6" }, head: { sha: HEAD } })
+
+  it.each([
+    ["open", null, "open"],
+    ["closed", "2026-11-01T00:00:00Z", "merged"],
+    ["closed", null, "closed"],
+  ])("reads a GitHub PR that is %s, merged at %s, as %s", async (state, mergedAt, expected) => {
+    const sent = stubHost({ "https://api.github.com/repos/acme/app/pulls/7": githubPull(state, mergedAt) })
+    expect(await github().fetchStatus()).toEqual({ state: expected, headSha: HEAD, baseRef: "b6" })
+    expect(sent).toHaveLength(1)
+  })
+
+  const mergeRequest = (state: string, diffHead: string | null): Record<string, unknown> => ({ state, target_branch: "b3", sha: NEWER, diff_refs: diffHead === null ? null : { head_sha: diffHead } })
+
+  it.each([
+    ["opened", "open"],
+    ["locked", "open"],
+    ["merged", "merged"],
+    ["closed", "closed"],
+  ])("reads a GitLab merge request that is %s as %s", async (state, expected) => {
+    stubHost({ "https://gitlab.com/api/v4/projects/acme%2Fapp/merge_requests/4": mergeRequest(state, HEAD) })
+    // The head its diff was computed for, which is what a review is checked against.
+    expect(await gitlab().fetchStatus()).toEqual({ state: expected, headSha: HEAD, baseRef: "b3" })
+  })
+
+  it("takes the GitLab head commit while the new diff is still being computed", async () => {
+    stubHost({ "https://gitlab.com/api/v4/projects/acme%2Fapp/merge_requests/4": mergeRequest("opened", null) })
+    expect((await gitlab().fetchStatus()).headSha).toBe(NEWER)
+  })
+})

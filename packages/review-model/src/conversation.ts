@@ -71,9 +71,12 @@ export const reviewThreadSchema = z.object({
 })
 export type ReviewThread = z.infer<typeof reviewThreadSchema>
 
+export const reviewerSchema = z.object({ name: z.string(), state: z.enum(ReviewerState) })
+export type Reviewer = z.infer<typeof reviewerSchema>
+
 /** The discussion as the host has it now. The host stays the record; Walkdiff never stores this. */
 export const conversationSchema = z.object({
-  reviewers: z.array(z.object({ name: z.string(), state: z.enum(ReviewerState) })).readonly(),
+  reviewers: z.array(reviewerSchema).readonly(),
   threads: z.array(reviewThreadSchema).readonly(),
   /** True when the host had more than Walkdiff read. */
   truncated: z.boolean(),

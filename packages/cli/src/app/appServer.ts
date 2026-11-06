@@ -6,8 +6,9 @@ import { join, resolve } from "node:path"
 import { gitHostFor, HostApiError, InvalidPullRequestUrlError, parsePullRequestUrl } from "@walkdiff/providers"
 import type { GitHost, PullRequestRef } from "@walkdiff/providers"
 import { AI_API_KEY_VARIABLE, AiUnavailableError, CoverageFileError, createAiProvider, describeChecks, firstExisting } from "@walkdiff/engine"
-import { addReviewRequestSchema, anthropicBaseUrlFrom, appSettingsSchema, attachCoverageRequestSchema, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
-import type { AiConnectionResult, SettingsView, CheckStatus } from "@walkdiff/review-model"
+import { acceptStackRequestSchema, addReviewRequestSchema, anthropicBaseUrlFrom, appSettingsSchema, attachCoverageRequestSchema, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
+import { MemberCheck, ReviewStatus } from "@walkdiff/review-model"
+import type { AiConnectionResult, SettingsView, CheckStatus, StackView } from "@walkdiff/review-model"
 import { readHostTokens } from "../environment.ts"
 import { REPORT_FILE_POLICY_TAG, REPORT_PAGE_FILE, writeReport } from "../report.ts"
 import { addressOf, BASE_POLICY, listen, LOOPBACK_HOST, REPORT_PAGE_POLICY, respond, SECURITY_HEADERS } from "../server.ts"
@@ -15,6 +16,10 @@ import { attachCoverage } from "./attachCoverage.ts"
 import type { ReportWriter } from "./attachCoverage.ts"
 import type { ReviewService } from "./reviewService.ts"
 import type { ReviewStore } from "./reviewStore.ts"
+import { readStackView } from "./stackStatus.ts"
+import type { HostResolver } from "./stackStatus.ts"
+
+export type { HostResolver } from "./stackStatus.ts"
 
 export const API_KEY_HEADER = "x-walkdiff-key"
 const API_KEY_META = "walkdiff-api-key"
@@ -59,8 +64,6 @@ export class AppPortInUseError extends Error {
     super(`Port ${port} is in use. If the app is already running, open http://${LOOPBACK_HOST}:${port}/, or pick another with --port.`)
   }
 }
-
-export type HostResolver = (ref: PullRequestRef) => Promise<GitHost>
 
 export interface AppServerOptions {
   readonly port: number
@@ -180,6 +183,21 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, pat
     await attachCoverageReports(request, response, Number(coverage[1]), context)
     return
   }
+  const reviewStack = /^\/api\/reviews\/(\d+)\/stack$/.exec(pathname)
+  if (reviewStack !== null) {
+    await handleStackOffer(request, response, Number(reviewStack[1]), context)
+    return
+  }
+  const stack = /^\/api\/stacks\/(\d+)$/.exec(pathname)
+  if (stack !== null && (method === "GET" || method === "DELETE")) {
+    await handleStack(response, method, Number(stack[1]), context)
+    return
+  }
+  const stackRefresh = /^\/api\/stacks\/(\d+)\/refresh$/.exec(pathname)
+  if (stackRefresh !== null && method === "POST") {
+    await refreshStack(response, Number(stackRefresh[1]), context)
+    return
+  }
   const action = /^\/api\/reviews\/(\d+)\/(conversation|submit)$/.exec(pathname)
   if (action !== null) {
     await handleReviewAction(request, response, Number(action[1]), action[2] ?? "", context)
@@ -198,11 +216,61 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, pat
     return
   }
   if (match !== null && method === "DELETE" && match[2] === undefined) {
-    context.store.remove(id)
+    context.service.remove(id)
     sendJson(response, 200, {})
     return
   }
   sendJson(response, 404, { error: "Not found" })
+}
+
+/** POST accepts the stack found from a review, DELETE turns it down for now. */
+async function handleStackOffer(request: IncomingMessage, response: ServerResponse, id: number, context: AppContext): Promise<void> {
+  if (request.method === "DELETE") {
+    const review = context.service.dismissStackOffer(id)
+    sendJson(response, review === undefined ? 404 : 200, review ?? { error: "No such review" })
+    return
+  }
+  if (request.method !== "POST") {
+    sendJson(response, 404, { error: "Not found" })
+    return
+  }
+  const parsed = acceptStackRequestSchema.safeParse(await readJsonBody(request))
+  if (!parsed.success) {
+    sendJson(response, 400, { error: "Expected whether to include AI review" })
+    return
+  }
+  const review = context.service.acceptStack(id, parsed.data)
+  sendJson(response, review === undefined ? 404 : 202, review ?? { error: "No such review" })
+}
+
+/** GET reads a stack's state from the host; DELETE ungroups it, keeping the reviews. */
+async function handleStack(response: ServerResponse, method: "GET" | "DELETE", id: number, context: AppContext): Promise<void> {
+  if (method === "DELETE") {
+    sendJson(response, context.service.ungroup(id) ? 200 : 404, {})
+    return
+  }
+  const view = await readStackView(context.store, id, context.hostFor)
+  sendJson(response, view === undefined ? 404 : 200, view ?? { error: "No such stack" })
+}
+
+/** Reads the stack's state from the host, and re-runs the members it shows are out of date. */
+async function refreshStack(response: ServerResponse, id: number, context: AppContext): Promise<void> {
+  const view = await readStackView(context.store, id, context.hostFor)
+  if (view === undefined) {
+    sendJson(response, 404, { error: "No such stack" })
+    return
+  }
+  refreshChanged(view, context)
+  sendJson(response, 202, view)
+}
+
+/** Re-runs the members whose reports are out of date, leaving alone those already waiting or running. */
+function refreshChanged(view: StackView, context: AppContext): void {
+  for (const member of view.members) {
+    if (member.check !== MemberCheck.Checked || !member.needsRefresh) continue
+    const status = context.store.get(member.reviewId)?.status
+    if (status !== ReviewStatus.Queued && status !== ReviewStatus.Analyzing) context.service.refresh(member.reviewId)
+  }
 }
 
 async function settingsView(context: AppContext): Promise<SettingsView> {

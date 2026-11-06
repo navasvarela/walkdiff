@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
+import { MAX_STACK_SIZE } from "@walkdiff/review-model"
 import type { StackMember } from "@walkdiff/review-model"
-import { inStackOrder, MAX_STACK_SIZE, stackFromHost, walkStack } from "./stack.ts"
+import { inStackOrder, stackFromHost, walkStack } from "./stack.ts"
 import type { OpenPullRequests, StackCandidate } from "./stack.ts"
 
 const member = (number: number, baseRef: string, headRef = `b${number}`): StackMember => ({ number, title: `PR ${number}`, author: "ana", headRef, baseRef })

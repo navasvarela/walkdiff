@@ -1,5 +1,5 @@
-import { commitShaSchema, GitHostKind, ReviewerState, ReviewEvent, isPlacedComment, lastLineOf, LineSide } from "@walkdiff/review-model"
-import type { Conversation, PullRequestStack, ReviewComment, StackMember, SubmitResult, SubmitReview, DiffLineRef } from "@walkdiff/review-model"
+import { commitShaSchema, GitHostKind, PullRequestState, ReviewerState, ReviewEvent, isPlacedComment, lastLineOf, LineSide } from "@walkdiff/review-model"
+import type { Conversation, PullRequestStack, PullRequestStatus, ReviewComment, StackMember, SubmitResult, SubmitReview, DiffLineRef } from "@walkdiff/review-model"
 import { z } from "zod"
 import { COVERAGE_ARCHIVE_NAME, MAX_COVERAGE_ARCHIVE_BYTES, MAX_COVERAGE_ARCHIVES } from "./gitHost.ts"
 import type { GitHost, GitHttpAuth, PullRequestSnapshot, CiArchive } from "./gitHost.ts"
@@ -29,6 +29,15 @@ const mergeRequestSchema = z.object({
     .object({ base_sha: commitShaSchema, head_sha: commitShaSchema, start_sha: commitShaSchema })
     .nullable(),
 })
+
+const mergeRequestStatusSchema = z.object({
+  state: z.string(),
+  target_branch: z.string(),
+  sha: commitShaSchema,
+  diff_refs: z.object({ head_sha: commitShaSchema }).nullable(),
+})
+const MERGED_STATE = "merged"
+const CLOSED_STATE = "closed"
 
 /** A merge request as lists give it, with what stack detection needs. */
 const listedMergeRequestSchema = z.object({
@@ -183,6 +192,16 @@ export class GitLabHost implements GitHost {
       },
       cloneUrl: `${webOrigin}/${projectPath}.git`,
       gitAuth: this.#gitAuth(),
+    }
+  }
+
+  async fetchStatus(): Promise<PullRequestStatus> {
+    const mergeRequest = await this.#get(this.#mergeRequestApi(), mergeRequestStatusSchema)
+    return {
+      state: gitlabState(mergeRequest.state),
+      // The head the diff was computed for, as `fetchPullRequest` reports it, so the two agree.
+      headSha: mergeRequest.diff_refs?.head_sha ?? mergeRequest.sha,
+      baseRef: mergeRequest.target_branch,
     }
   }
 
@@ -371,6 +390,12 @@ export class GitLabHost implements GitHost {
   #gitAuth(): GitHttpAuth | undefined {
     return this.#token === undefined ? undefined : { username: GITLAB_GIT_USERNAME, token: this.#token }
   }
+}
+
+/** GitLab's "locked" is an open merge request in the middle of being merged. */
+function gitlabState(state: string): PullRequestState {
+  if (state === MERGED_STATE) return PullRequestState.Merged
+  return state === CLOSED_STATE ? PullRequestState.Closed : PullRequestState.Open
 }
 
 function stackCandidate(mergeRequest: z.infer<typeof listedMergeRequestSchema>): StackCandidate {
