@@ -8,7 +8,12 @@ const PROGRESS_KEY_PREFIX = "walkdiff-progress:"
  * never sees it.
  */
 export const progressRecordSchema = z
-  .object({ reviewed: z.number().int().nonnegative(), total: z.number().int().nonnegative() })
+  .object({
+    reviewed: z.number().int().nonnegative(),
+    total: z.number().int().nonnegative(),
+    /** Comments written in the report and not posted yet. Approving from the list would leave them behind. */
+    drafts: z.number().int().nonnegative().default(0),
+  })
   .refine((progress) => progress.reviewed <= progress.total)
 export type ProgressRecord = z.infer<typeof progressRecordSchema>
 

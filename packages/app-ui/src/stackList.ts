@@ -1,5 +1,5 @@
 import { MemberCheck, numberLabel, PullRequestState, ReportChange, ReviewerState, ReviewStatus } from "@walkdiff/review-model"
-import type { ReviewSummary, StackMember, StackMemberStatus, StackOffer, StackView } from "@walkdiff/review-model"
+import type { CommitSha, ProgressRecord, ReviewSummary, StackMember, StackMemberStatus, StackOffer, StackView } from "@walkdiff/review-model"
 
 export const EntryKind = { Review: "review", Stack: "stack" } as const
 
@@ -106,4 +106,46 @@ export function stackHeadline(members: readonly ReviewSummary[], view: StackView
 
 export function isWorking(review: ReviewSummary): boolean {
   return review.status === ReviewStatus.Queued || review.status === ReviewStatus.Analyzing
+}
+
+/** What the approve-all dialog says of one member before anything is posted. */
+export type ApprovalCheck =
+  | { readonly ready: true; readonly headSha: CommitSha; readonly warnings: readonly string[] }
+  | { readonly ready: false; readonly blocker: string }
+
+/**
+ * Whether a member can be approved with the rest. Anything that would approve other code than
+ * the report showed blocks; things the reviewer may well mean to do, such as approving before
+ * finishing the path, only warn.
+ */
+export function approvalCheck(status: StackMemberStatus | undefined, progress: ProgressRecord | undefined): ApprovalCheck {
+  if (status === undefined) return { ready: false, blocker: "Still checking with the host." }
+  if (status.check === MemberCheck.Failed) return { ready: false, blocker: `Couldn't check it: ${status.error}` }
+  switch (status.reportChange) {
+    case ReportChange.NoReport:
+      return { ready: false, blocker: "It has no report yet." }
+    case ReportChange.NewCommits:
+      return { ready: false, blocker: "It has new commits. Refresh it first." }
+    case ReportChange.Retargeted:
+      return { ready: false, blocker: `It merges into ${status.status.baseRef} now. Refresh it first.` }
+    case ReportChange.None:
+      return { ready: true, headSha: status.status.headSha, warnings: approvalWarnings(progress) }
+  }
+}
+
+function approvalWarnings(progress: ProgressRecord | undefined): string[] {
+  const warnings: string[] = []
+  if (progress !== undefined && progress.drafts > 0) {
+    const comments = progress.drafts === 1 ? "a comment" : `${progress.drafts} comments`
+    warnings.push(`It has ${comments} you haven't posted. Open it to post them, or approve without them.`)
+  }
+  if (progress === undefined || progress.reviewed < progress.total) {
+    warnings.push(progress === undefined || progress.reviewed === 0 ? "You haven't started reviewing it." : `You've reviewed ${progress.reviewed} of ${progress.total} changes.`)
+  }
+  return warnings
+}
+
+/** Links come from the host's answer, so only web addresses become clickable. */
+export function isWebLink(url: string): boolean {
+  return /^https?:\/\//i.test(url)
 }

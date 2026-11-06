@@ -7,7 +7,9 @@ describe("the saved progress record", () => {
   })
 
   it.each([
-    ['{"reviewed":3,"total":7}', { reviewed: 3, total: 7 }],
+    ['{"reviewed":3,"total":7,"drafts":2}', { reviewed: 3, total: 7, drafts: 2 }],
+    // As saved before drafts were counted.
+    ['{"reviewed":3,"total":7}', { reviewed: 3, total: 7, drafts: 0 }],
     [null, undefined],
     ["not json", undefined],
     ['{"reviewed":8,"total":7}', undefined],

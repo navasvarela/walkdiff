@@ -3,7 +3,7 @@ import { z } from "zod"
 export const ReviewEvent = { Comment: "comment", Approve: "approve", RequestChanges: "requestChanges" } as const
 export type ReviewEvent = (typeof ReviewEvent)[keyof typeof ReviewEvent]
 
-const MAX_COMMENT_CHARS = 60_000
+export const MAX_COMMENT_CHARS = 60_000
 const lineSchema = z.number().int().positive()
 
 export const LineSide = { Old: "old", New: "new" } as const

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { commitShaSchema } from "@walkdiff/review-model"
 import type { ReviewSummary, StackMemberStatus, StackOffer } from "@walkdiff/review-model"
-import { doneState, EntryKind, listEntries, memberStateLabels, newToList, siblingUrl, stackHeadline } from "./stackList.ts"
+import { approvalCheck, doneState, EntryKind, isWebLink, listEntries, memberStateLabels, newToList, siblingUrl, stackHeadline } from "./stackList.ts"
 
 const HEAD = commitShaSchema.parse("a".repeat(40))
 
@@ -104,5 +104,35 @@ describe("done members", () => {
     ["unchecked", undefined, undefined],
   ])("reads a %s member", (_case, status, expected) => {
     expect(doneState(status)).toBe(expected)
+  })
+})
+
+describe("whether a member can be approved with the rest", () => {
+  const done = { reviewed: 4, total: 4, drafts: 0 }
+
+  it.each([
+    ["not checked yet", undefined, done, "Still checking"],
+    ["unreachable", { check: "failed", reviewId: 1, error: "Token expired" } satisfies StackMemberStatus, done, "Token expired"],
+    ["pushed to", checked(1, { reportChange: "newCommits" }), done, "new commits"],
+    ["retargeted", checked(1, { reportChange: "retargeted", status: { state: "open", headSha: HEAD, baseRef: "main" } }), done, "merges into main"],
+    ["never analyzed", checked(1, { reportChange: "noReport" }), done, "no report"],
+  ])("blocks a member %s", (_case, status, progress, blocker) => {
+    expect(approvalCheck(status, progress)).toEqual({ ready: false, blocker: expect.stringContaining(blocker) })
+  })
+
+  it.each([
+    ["fully reviewed", done, []],
+    ["with unposted comments", { ...done, drafts: 2 }, ["It has 2 comments you haven't posted. Open it to post them, or approve without them."]],
+    ["part reviewed", { reviewed: 1, total: 4, drafts: 0 }, ["You've reviewed 1 of 4 changes."]],
+    ["never opened here", undefined, ["You haven't started reviewing it."]],
+  ])("lets through a member %s, with what to watch for", (_case, progress, warnings) => {
+    expect(approvalCheck(checked(1), progress)).toEqual({ ready: true, headSha: HEAD, warnings })
+  })
+
+  it.each([
+    ["https://gitlab.com/a/-/merge_requests/1#note_1", true],
+    ["javascript:alert(1)", false],
+  ])("links %s only if it is a web address", (url, expected) => {
+    expect(isWebLink(url)).toBe(expected)
   })
 })
