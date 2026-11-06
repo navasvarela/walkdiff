@@ -232,8 +232,7 @@ describe("stacks in the app", () => {
     old.exec("PRAGMA user_version = 4")
     old.close()
     harness = { ...harness, store: new ReviewStore(path, () => new Date()) }
-    expect(harness.store.list()).toMatchObject([{ displayName: "acme/app!4", stack: null }])
-    expect(harness.store.analyzedHeadOf(1)).toBeUndefined()
+    expect(harness.store.list()).toMatchObject([{ displayName: "acme/app!4", stack: null, reportHead: null }])
   })
 })
 

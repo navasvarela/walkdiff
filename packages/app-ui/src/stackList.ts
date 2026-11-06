@@ -1,5 +1,7 @@
 import { MemberCheck, numberLabel, PullRequestState, ReportChange, ReviewerState, ReviewStatus } from "@walkdiff/review-model"
-import type { CommitSha, ProgressRecord, ReviewSummary, StackMember, StackMemberStatus, StackOffer, StackView } from "@walkdiff/review-model"
+import type { CommitSha, ReviewSummary, StackMember, StackMemberStatus, StackOffer, StackView } from "@walkdiff/review-model"
+import { ProgressStage } from "./progress.ts"
+import type { ReviewProgress } from "./progress.ts"
 
 export const EntryKind = { Review: "review", Stack: "stack" } as const
 
@@ -118,7 +120,7 @@ export type ApprovalCheck =
  * the report showed blocks; things the reviewer may well mean to do, such as approving before
  * finishing the path, only warn.
  */
-export function approvalCheck(status: StackMemberStatus | undefined, progress: ProgressRecord | undefined): ApprovalCheck {
+export function approvalCheck(status: StackMemberStatus | undefined, progress: ReviewProgress): ApprovalCheck {
   if (status === undefined) return { ready: false, blocker: "Still checking with the host." }
   if (status.check === MemberCheck.Failed) return { ready: false, blocker: `Couldn't check it: ${status.error}` }
   switch (status.reportChange) {
@@ -133,16 +135,27 @@ export function approvalCheck(status: StackMemberStatus | undefined, progress: P
   }
 }
 
-function approvalWarnings(progress: ProgressRecord | undefined): string[] {
-  const warnings: string[] = []
-  if (progress !== undefined && progress.drafts > 0) {
-    const comments = progress.drafts === 1 ? "a comment" : `${progress.drafts} comments`
-    warnings.push(`It has ${comments} you haven't posted. Open it to post them, or approve without them.`)
+function approvalWarnings(progress: ReviewProgress): string[] {
+  return [draftsWarning(progress.drafts), unfinishedWarning(progress)].filter((warning): warning is string => warning !== undefined)
+}
+
+function draftsWarning(drafts: number): string | undefined {
+  if (drafts === 0) return undefined
+  return drafts === 1 ? "It has a comment you haven't posted. Open it to post it, or approve without it." : `It has ${drafts} comments you haven't posted. Open it to post them, or approve without them.`
+}
+
+function unfinishedWarning(progress: ReviewProgress): string | undefined {
+  switch (progress.stage) {
+    case ProgressStage.NotStarted:
+      return "You haven't started reviewing it."
+    case ProgressStage.Partly:
+      return `You've reviewed ${progress.reviewed} of ${progress.total} changes.`
+    case ProgressStage.Changed:
+      return "It changed since you reviewed it. Open it to see what's new."
+    case ProgressStage.Done:
+    case ProgressStage.NothingToReview:
+      return undefined
   }
-  if (progress === undefined || progress.reviewed < progress.total) {
-    warnings.push(progress === undefined || progress.reviewed === 0 ? "You haven't started reviewing it." : `You've reviewed ${progress.reviewed} of ${progress.total} changes.`)
-  }
-  return warnings
 }
 
 /** Links come from the host's answer, so only web addresses become clickable. */

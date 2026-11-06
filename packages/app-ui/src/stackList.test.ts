@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { commitShaSchema } from "@walkdiff/review-model"
 import type { ReviewSummary, StackMemberStatus, StackOffer } from "@walkdiff/review-model"
+import type { ReviewProgress } from "./progress.ts"
 import { approvalCheck, doneState, EntryKind, isWebLink, listEntries, memberStateLabels, newToList, siblingUrl, stackHeadline } from "./stackList.ts"
 
 const HEAD = commitShaSchema.parse("a".repeat(40))
@@ -23,6 +24,7 @@ const review = (id: number, stack: { readonly id: number; readonly position: num
   untouchedReferences: 0,
   findings: 0,
   coverageSource: null,
+  reportHead: { headSha: HEAD, baseRef: "b1" },
   stack,
   stackOffer: null,
   createdAt: "2026-11-06T00:00:00.000Z",
@@ -108,7 +110,7 @@ describe("done members", () => {
 })
 
 describe("whether a member can be approved with the rest", () => {
-  const done = { reviewed: 4, total: 4, drafts: 0 }
+  const done: ReviewProgress = { stage: "done", drafts: 0 }
 
   it.each([
     ["not checked yet", undefined, done, "Still checking"],
@@ -123,8 +125,9 @@ describe("whether a member can be approved with the rest", () => {
   it.each([
     ["fully reviewed", done, []],
     ["with unposted comments", { ...done, drafts: 2 }, ["It has 2 comments you haven't posted. Open it to post them, or approve without them."]],
-    ["part reviewed", { reviewed: 1, total: 4, drafts: 0 }, ["You've reviewed 1 of 4 changes."]],
-    ["never opened here", undefined, ["You haven't started reviewing it."]],
+    ["part reviewed", { stage: "partly", reviewed: 1, total: 4, drafts: 0 } satisfies ReviewProgress, ["You've reviewed 1 of 4 changes."]],
+    ["not started", { stage: "notStarted", drafts: 0 } satisfies ReviewProgress, ["You haven't started reviewing it."]],
+    ["changed since it was reviewed, with a draft", { stage: "changed", drafts: 1 } satisfies ReviewProgress, ["It has a comment you haven't posted. Open it to post it, or approve without it.", "It changed since you reviewed it. Open it to see what's new."]],
   ])("lets through a member %s, with what to watch for", (_case, progress, warnings) => {
     expect(approvalCheck(checked(1), progress)).toEqual({ ready: true, headSha: HEAD, warnings })
   })

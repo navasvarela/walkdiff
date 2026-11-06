@@ -38,7 +38,7 @@ export function ApproveStackDialog({ stackId, members, view, onClose, onPosted }
   const [problem, setProblem] = useState<string>()
   useEffect(() => dialog.current?.showModal(), [])
 
-  const checks = new Map(members.map((member) => [member.id, approvalCheck(view.members.find((status) => status.reviewId === member.id), readProgress(member.url))]))
+  const checks = new Map(members.map((member) => [member.id, approvalCheck(view.members.find((status) => status.reviewId === member.id), readProgress(member))]))
   const refused = state.phase === Phase.Results ? state.results.filter((result) => result.outcome === ApprovalOutcome.Refused).map((result) => result.reviewId) : []
   // A retry goes to the refused members only; the first attempt to every open one.
   const targets = state.phase === Phase.Results ? members.filter((member) => refused.includes(member.id)) : members

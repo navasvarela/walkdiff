@@ -502,13 +502,17 @@ export type ReviewModel = z.infer<typeof reviewModelSchema>
 export const ReviewStatus = { Queued: "queued", Analyzing: "analyzing", Ready: "ready", Failed: "failed" } as const
 export type ReviewStatus = (typeof ReviewStatus)[keyof typeof ReviewStatus]
 
-/** One row of the local app's review list; the JSON its API and page share. */
 /** Coverage reports a reviewer picked for one PR, as text from their browser. */
 export const attachCoverageRequestSchema = z.object({
   reports: z.array(z.object({ name: z.string().min(1), text: z.string() })).min(1),
 })
 export type AttachCoverageRequest = z.infer<typeof attachCoverageRequestSchema>
 
+/** What a report describes: the commit it was made from, and the branch that commit was compared with. */
+export const reportHeadSchema = z.object({ headSha: commitShaSchema, baseRef: z.string() })
+export type ReportHead = z.infer<typeof reportHeadSchema>
+
+/** One row of the local app's review list; the JSON its API and page share. */
 export const reviewSummarySchema = z.object({
   id: z.number().int().positive(),
   url: z.url(),
@@ -532,6 +536,8 @@ export const reviewSummarySchema = z.object({
   findings: z.number().int().nonnegative().nullable(),
   /** Where the report's test coverage came from; null when none was found. */
   coverageSource: z.string().nullable(),
+  /** Null until an analysis succeeds. */
+  reportHead: reportHeadSchema.nullable(),
   /** Null unless the reviewer grouped this review with others in its stack. */
   stack: stackPlaceSchema.nullable(),
   /** A stack found for it that the reviewer can accept; null when there's nothing new to offer. */

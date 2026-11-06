@@ -1,8 +1,8 @@
 import { HostApiError, parsePullRequestUrl } from "@walkdiff/providers"
 import type { GitHost } from "@walkdiff/providers"
 import { ApprovalOutcome, PullRequestState, ReportChange, ReviewEvent } from "@walkdiff/review-model"
-import type { ApproveStackRequest, BlockedMember, MemberApproval, PullRequestStatus, ReviewSummary } from "@walkdiff/review-model"
-import type { AnalyzedHead, ReviewStore } from "./reviewStore.ts"
+import type { ApproveStackRequest, BlockedMember, MemberApproval, PullRequestStatus, ReportHead, ReviewSummary } from "@walkdiff/review-model"
+import type { ReviewStore } from "./reviewStore.ts"
 import { reportChange } from "./stackStatus.ts"
 import type { HostResolver } from "./stackStatus.ts"
 
@@ -16,7 +16,7 @@ export type ApproveResult =
 interface Checked {
   readonly member: ReviewSummary
   readonly host: GitHost
-  readonly analyzed: AnalyzedHead
+  readonly analyzed: ReportHead
 }
 
 type Preflight = { readonly passed: true; readonly checked: Checked } | { readonly passed: false; readonly blocked: BlockedMember }
@@ -38,7 +38,7 @@ export async function approveStack(store: ReviewStore, stackId: number, request:
   const preflights = await Promise.all(
     members.flatMap((member) => {
       const seenHead = seen.get(member.id)
-      return seenHead === undefined ? [] : [preflight(store, member, seenHead, hostFor)]
+      return seenHead === undefined ? [] : [preflight(member, seenHead, hostFor)]
     }),
   )
   const blocked = preflights.flatMap((result) => (result.passed ? [] : [result.blocked]))
@@ -52,10 +52,10 @@ export async function approveStack(store: ReviewStore, stackId: number, request:
   return { kind: ApproveKind.Done, results }
 }
 
-async function preflight(store: ReviewStore, member: ReviewSummary, seenHead: string, hostFor: HostResolver): Promise<Preflight> {
+async function preflight(member: ReviewSummary, seenHead: string, hostFor: HostResolver): Promise<Preflight> {
   const block = (reason: string): Preflight => ({ passed: false, blocked: { reviewId: member.id, reason } })
-  const analyzed = store.analyzedHeadOf(member.id)
-  if (analyzed === undefined) return block(NO_REPORT)
+  const analyzed = member.reportHead
+  if (analyzed === null) return block(NO_REPORT)
   try {
     // The host comes from the saved review, whose URL the app built itself.
     const host = await hostFor(parsePullRequestUrl(member.url))
@@ -73,7 +73,7 @@ const NO_REPORT = "It has no report yet."
  * Why approving a member must wait. Its report must describe what the host has now, and be the
  * one the reviewer saw when they decided.
  */
-export function blockReason(analyzed: AnalyzedHead, status: PullRequestStatus, seenHead: string): string | undefined {
+export function blockReason(analyzed: ReportHead, status: PullRequestStatus, seenHead: string): string | undefined {
   if (status.state !== PullRequestState.Open) return `It's ${status.state}.`
   switch (reportChange(analyzed, status)) {
     case ReportChange.NoReport:

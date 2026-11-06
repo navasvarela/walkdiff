@@ -98,7 +98,7 @@ function ReviewMeta({ review }: { readonly review: ReviewSummary }): ReactElemen
         </>
       )}
       {review.ai && <> · AI</>}
-      {review.hasReport && <> · {progressLabel(readProgress(review.url))}</>}
+      {review.hasReport && <> · {progressLabel(readProgress(review))}</>}
       {review.hasReport && <> · {coverageLabel(review.coverageSource)}</>}
       <> · updated {new Date(review.updatedAt).toLocaleString()}</>
     </p>
