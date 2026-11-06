@@ -142,6 +142,8 @@ describe("GitLab reviews", () => {
     // GitLab answers publishing with 204 No Content, which once failed a posted review.
     ["/draft_notes/bulk_publish", NO_CONTENT],
     ["/draft_notes", {}],
+    // Before "/approve", which it contains.
+    ["/approvals", { user_has_approved: false, approved_by: [] }],
     ["/approve", {}],
     ["/merge_requests/7", mergeRequest],
   ] as const
@@ -176,6 +178,29 @@ describe("GitLab reviews", () => {
     const calls = stubHost(answers)
     await host().submitReview(review({ event: "approve", body: "" }))
     expect(calls.at(-1)).toMatchObject({ url: `${API}/approve`, body: { sha: HEAD } })
+  })
+
+  it("says GitLab refused an approval, rather than blaming the token that posted the comments", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async (url) => {
+        const text = String(url)
+        if (text.endsWith("/approve")) return new Response(JSON.stringify({ message: "401 Unauthorized" }), { status: 401 })
+        const answer = answers.find(([part]) => text.includes(part))?.[1]
+        return answer === NO_CONTENT ? new Response(null, { status: 204 }) : new Response(JSON.stringify(answer ?? {}), { status: 200 })
+      }),
+    )
+    const refusal = host().submitReview(review({ event: "approve", body: "" }))
+    await expect(refusal).rejects.toThrow("may not let you approve")
+    await expect(refusal).rejects.not.toThrow("GITLAB_TOKEN")
+  })
+
+  it("keeps an approval the user already gave, since GitLab refuses a second one", async () => {
+    const calls = stubHost([["/approvals", { user_has_approved: true, approved_by: [{ user: { username: "a" } }] }], ...answers])
+    const { url } = await host().submitReview(review({ event: "approve", body: "Again" }))
+    expect(url).toBe(mergeRequest.web_url)
+    expect(calls.some((call) => call.url === `${API}/approve`)).toBe(false)
+    expect(calls.find((call) => call.url === `${API}/draft_notes`)?.body).toMatchObject({ note: "Again" })
   })
 
   it("reads threads and reviewers, skipping system notes", async () => {
