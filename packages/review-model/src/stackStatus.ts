@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { reviewerSchema } from "./conversation.ts"
-import { commitShaSchema } from "./schema.ts"
+import { commitShaSchema, GitHostKind } from "./schema.ts"
 
 export const PullRequestState = { Open: "open", Merged: "merged", Closed: "closed" } as const
 export type PullRequestState = (typeof PullRequestState)[keyof typeof PullRequestState]
@@ -13,6 +13,17 @@ export const pullRequestStatusSchema = z.object({
 })
 export type PullRequestStatus = z.infer<typeof pullRequestStatusSchema>
 
+/** Why a member's report no longer describes it, if it doesn't. */
+export const ReportChange = {
+  None: "none",
+  /** It was never analyzed successfully. */
+  NoReport: "noReport",
+  NewCommits: "newCommits",
+  /** It merges into another branch now, as after the member below it merged, so its diff runs from a different base. */
+  Retargeted: "retargeted",
+} as const
+export type ReportChange = (typeof ReportChange)[keyof typeof ReportChange]
+
 /** Whether the host could be asked about a member. */
 export const MemberCheck = { Checked: "checked", Failed: "failed" } as const
 export type MemberCheck = (typeof MemberCheck)[keyof typeof MemberCheck]
@@ -22,11 +33,8 @@ export const stackMemberStatusSchema = z.discriminatedUnion("check", [
     check: z.literal(MemberCheck.Checked),
     reviewId: z.number().int().positive(),
     status: pullRequestStatusSchema,
-    /**
-     * True for an open PR whose report is missing or describes other code: it has new commits,
-     * or now merges into another branch, as after the member below it merged.
-     */
-    needsRefresh: z.boolean(),
+    /** Always `none` for a merged or closed PR, whose report no longer matters. */
+    reportChange: z.enum(ReportChange),
     reviewers: z.array(reviewerSchema).readonly(),
   }),
   z.object({
@@ -46,3 +54,8 @@ export const stackViewSchema = z.object({
   members: z.array(stackMemberStatusSchema).readonly(),
 })
 export type StackView = z.infer<typeof stackViewSchema>
+
+/** How each host writes a PR's number in text: `#12` on GitHub, `!12` on GitLab. */
+export function numberLabel(host: GitHostKind, number: number): string {
+  return `${host === GitHostKind.GitHub ? "#" : "!"}${number}`
+}

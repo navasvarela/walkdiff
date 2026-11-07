@@ -7,7 +7,7 @@ import { gitHostFor, HostApiError, InvalidPullRequestUrlError, parsePullRequestU
 import type { GitHost, PullRequestRef } from "@walkdiff/providers"
 import { AI_API_KEY_VARIABLE, AiUnavailableError, CoverageFileError, createAiProvider, describeChecks, firstExisting } from "@walkdiff/engine"
 import { acceptStackRequestSchema, addReviewRequestSchema, anthropicBaseUrlFrom, appSettingsSchema, attachCoverageRequestSchema, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
-import { MemberCheck, ReviewStatus } from "@walkdiff/review-model"
+import { MemberCheck, ReportChange, ReviewStatus } from "@walkdiff/review-model"
 import type { AiConnectionResult, SettingsView, CheckStatus, StackView } from "@walkdiff/review-model"
 import { readHostTokens } from "../environment.ts"
 import { REPORT_FILE_POLICY_TAG, REPORT_PAGE_FILE, writeReport } from "../report.ts"
@@ -267,7 +267,7 @@ async function refreshStack(response: ServerResponse, id: number, context: AppCo
 /** Re-runs the members whose reports are out of date, leaving alone those already waiting or running. */
 function refreshChanged(view: StackView, context: AppContext): void {
   for (const member of view.members) {
-    if (member.check !== MemberCheck.Checked || !member.needsRefresh) continue
+    if (member.check !== MemberCheck.Checked || member.reportChange === ReportChange.None) continue
     const status = context.store.get(member.reviewId)?.status
     if (status !== ReviewStatus.Queued && status !== ReviewStatus.Analyzing) context.service.refresh(member.reviewId)
   }
