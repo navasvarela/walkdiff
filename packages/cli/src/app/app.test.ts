@@ -341,6 +341,7 @@ describe("the app server", () => {
       replyToThread: async (id, body) => void calls.push(`reply ${id} ${body}`),
       setThreadResolved: async (id, resolved) => void calls.push(`resolve ${id} ${resolved}`),
       fetchCoverageArchives: async () => [],
+      fetchStack: async () => undefined,
     }
     let hostServer: AppServer
     let hostBase = ""

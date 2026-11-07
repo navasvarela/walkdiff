@@ -1,5 +1,5 @@
 import { commitShaSchema, GitHostKind, ReviewerState, ReviewEvent, isPlacedComment, LineSide } from "@walkdiff/review-model"
-import type { CommitSha, Conversation, DiffLineRef, ReviewComment, SubmitResult, SubmitReview } from "@walkdiff/review-model"
+import type { CommitSha, Conversation, DiffLineRef, PullRequestStack, ReviewComment, SubmitResult, SubmitReview } from "@walkdiff/review-model"
 import { z } from "zod"
 import { COVERAGE_ARCHIVE_NAME, MAX_COVERAGE_ARCHIVE_BYTES, MAX_COVERAGE_ARCHIVES } from "./gitHost.ts"
 import type { GitHost, GitHttpAuth, PullRequestSnapshot, CiArchive } from "./gitHost.ts"
@@ -8,6 +8,8 @@ import type { WriteMethod } from "./http.ts"
 import { COMMENTS_PER_PAGE, upsertMarkedComment } from "./markedComment.ts"
 import type { MarkedComment } from "./markedComment.ts"
 import type { GitHubPullRequestRef } from "./pullRequestUrl.ts"
+import { keptAround, stackFromHost, walkStack } from "./stack.ts"
+import type { OpenPullRequests, StackCandidate } from "./stack.ts"
 
 const GITHUB_DOT_COM_ORIGIN = "https://github.com"
 const GITHUB_DOT_COM_API = "https://api.github.com"
@@ -30,6 +32,32 @@ const pullSchema = z.object({
   base: branchTipSchema,
   head: branchTipSchema,
 })
+
+const repositorySchema = z.object({ full_name: z.string() })
+
+/** A PR as lists give it, with what stack detection needs. */
+const listedPullSchema = z.object({
+  number: z.number().int().positive(),
+  title: z.string(),
+  user: z.object({ login: z.string() }).nullable(),
+  base: z.object({ ref: z.string(), repo: repositorySchema }),
+  // Null when the fork it came from has been deleted.
+  head: z.object({ ref: z.string(), repo: repositorySchema.nullable() }),
+})
+type ListedPull = z.infer<typeof listedPullSchema>
+
+const stackedPullSchema = listedPullSchema.extend({
+  base: z.object({ ref: z.string(), repo: repositorySchema.extend({ default_branch: z.string() }) }),
+  // GitHub Enterprise Server has no stacks yet, and leaves the field out.
+  stack: z.object({ number: z.number().int().positive() }).nullish(),
+})
+
+const stackSchema = z.object({
+  /** Bottom first, merged and closed ones included. */
+  pull_requests: z.array(z.object({ number: z.number().int().positive(), state: z.string(), merged_at: z.string().nullable() })),
+})
+const OPEN_STATE = "open"
+const PULLS_PER_PAGE = 100
 
 const issueCommentSchema = z.object({ id: z.number().int(), body: z.string().nullable() })
 
@@ -219,6 +247,36 @@ export class GitHubHost implements GitHost {
     return downloaded.flatMap(({ name, zip }) => (zip === undefined ? [] : [{ name, zip }]))
   }
 
+  /**
+   * A stack made with GitHub's own stacks comes from the host. Many teams stack with other tools,
+   * so a PR outside one is still checked by following branches.
+   */
+  async fetchStack(): Promise<PullRequestStack | undefined> {
+    const repoApi = this.#repoApi()
+    const pull = await this.#get(`${repoApi}/pulls/${this.#ref.number}`, stackedPullSchema)
+    if (pull.stack != null) return this.#hostStack(repoApi, pull.stack.number)
+    return walkStack({ pullRequest: stackCandidate(pull), defaultBranch: pull.base.repo.default_branch }, this.#openPullRequests(repoApi))
+  }
+
+  async #hostStack(repoApi: string, stackNumber: number): Promise<PullRequestStack | undefined> {
+    const stack = await this.#get(`${repoApi}/stacks/${stackNumber}`, stackSchema)
+    const open = stack.pull_requests.filter((pull) => pull.state === OPEN_STATE && pull.merged_at === null).map((pull) => pull.number)
+    // Only the members kept are read, so a long stack costs no more requests than the limit.
+    const kept = keptAround(open, open.indexOf(this.#ref.number))
+    const pulls = await Promise.all(kept.map((number) => this.#get(`${repoApi}/pulls/${number}`, listedPullSchema)))
+    return stackFromHost(pulls.map((pull) => stackCandidate(pull).member), this.#ref.number)
+  }
+
+  #openPullRequests(repoApi: string): OpenPullRequests {
+    const list = async (filter: string): Promise<readonly StackCandidate[]> =>
+      (await this.#get(`${repoApi}/pulls?state=${OPEN_STATE}&per_page=${PULLS_PER_PAGE}&${filter}`, z.array(listedPullSchema))).map(stackCandidate)
+    return {
+      // GitHub names a head branch by its repository's owner, as `owner:branch`.
+      withHead: (branch) => list(`head=${encodeURIComponent(`${this.#ref.owner}:${branch}`)}`),
+      withBase: (branch) => list(`base=${encodeURIComponent(branch)}`),
+    }
+  }
+
   async #graphql<T>(query: string, variables: Readonly<Record<string, string | number>>, schema: z.ZodType<T>): Promise<T> {
     const url = graphqlUrl(this.#ref.webOrigin)
     const response = await writeJson({ method: "POST", url, body: { query, variables }, headers: this.#headers(), schema: graphqlResponseSchema, authHint: this.#authHint })
@@ -270,6 +328,14 @@ const GRAPHQL_FAILURE_STATUS = 502
 function withUnplacedComments(review: SubmitReview): string {
   const unplaced = review.comments.filter((comment: ReviewComment) => !isPlacedComment(comment)).map((comment) => `**\`${comment.label}\`** in \`${comment.path}\`\n\n${comment.body}`)
   return [review.body, ...unplaced].filter((part) => part !== "").join("\n\n---\n\n")
+}
+
+function stackCandidate(pull: ListedPull): StackCandidate {
+  return {
+    member: { number: pull.number, title: pull.title, author: pull.user?.login ?? DELETED_USER_LOGIN, headRef: pull.head.ref, baseRef: pull.base.ref },
+    // GitHub matches repository names without regard to case.
+    headInRepository: pull.head.repo?.full_name.toLowerCase() === pull.base.repo.full_name.toLowerCase(),
+  }
 }
 
 function graphqlUrl(webOrigin: string): string {
