@@ -8,6 +8,7 @@ import { BINARY_PINS, installScanners, SEMGREP_REQUIREMENTS, SEMGREP_VERSION } f
 import type { BinaryPin, InstallDependencies } from "./installScanners.ts"
 import { OSV_SCANNER_BINARY } from "../dependencies/osvScanner.ts"
 import { RUFF_BINARY } from "./ruff.ts"
+import { POUTINE_BINARY } from "./poutine.ts"
 import { ZIZMOR_BINARY } from "./zizmor.ts"
 
 const BYTES = Buffer.from("fake scanner")
@@ -113,7 +114,7 @@ describe("installScanners", () => {
 
 describe("the pins", () => {
   it("use the names scanners are run by", () => {
-    expect(BINARY_PINS.map((pin) => pin.binary)).toEqual([GITLEAKS_BINARY, OSV_SCANNER_BINARY, RUFF_BINARY, ZIZMOR_BINARY])
+    expect(BINARY_PINS.map((pin) => pin.binary)).toEqual([GITLEAKS_BINARY, OSV_SCANNER_BINARY, RUFF_BINARY, ZIZMOR_BINARY, POUTINE_BINARY])
   })
 
   it("lock the Semgrep version the installer names, and hash every package", async () => {

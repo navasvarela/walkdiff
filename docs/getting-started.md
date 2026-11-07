@@ -81,7 +81,7 @@ A report you attach or name has to come from the PR's latest commit, or the line
 
 ## Security scanners
 
-Walkdiff installs Semgrep, gitleaks, osv-scanner, Ruff and zizmor on its first run, or with `walkdiff setup`, at pinned versions and just for Walkdiff, in `~/.cache/walkdiff/scanners`, on macOS and Linux. Semgrep needs Python 3.10 or later. If one can't be installed, Walkdiff still runs, and reports list it as not run.
+Walkdiff installs Semgrep, gitleaks, osv-scanner, Ruff, zizmor and poutine on its first run, or with `walkdiff setup`, at pinned versions and just for Walkdiff, in `~/.cache/walkdiff/scanners`, on macOS and Linux. Semgrep needs Python 3.10 or later. If one can't be installed, Walkdiff still runs, and reports list it as not run.
 
 On other systems, install them yourself and Walkdiff finds them on your `PATH`.
 

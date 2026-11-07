@@ -27,6 +27,7 @@ jobs:
           ./semgrep --version
           ./ruff --version
           ./zizmor --version
+          ./poutine version
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test

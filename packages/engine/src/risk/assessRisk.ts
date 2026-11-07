@@ -1,5 +1,5 @@
 import { extname } from "node:path"
-import { AnalysisStep, CheckId, RiskCategory, RiskSeverity, isSecurityFinding, securityFindings } from "@walkdiff/review-model"
+import { AnalysisStep, CheckId, RiskSeverity, isSecurityFinding, securityFindings } from "@walkdiff/review-model"
 import type { ChangedFile, CheckRun, CommitSha, Risk, RiskAssessment, SkippedCheck, StepReporter } from "@walkdiff/review-model"
 import { scanBreakingChanges } from "./breaking/scanBreakingChanges.ts"
 import { scanDangerousApis } from "./dangerousApis.ts"
@@ -8,9 +8,13 @@ import { scanFunctionMetrics } from "./functionMetrics.ts"
 import { reviewSignals } from "./reviewSignals.ts"
 import { isIgnored, readWalkdiffConfig, WALKDIFF_CONFIG_PATH } from "../config/walkdiffConfig.ts"
 import type { WalkdiffConfig } from "../config/walkdiffConfig.ts"
+import { readBlobs } from "../blobs.ts"
 import type { FileVersions } from "../syntax/compareUnits.ts"
 import type { FunctionQuality } from "../syntax/functionQuality.ts"
 import type { ScannedFile } from "./scannedFile.ts"
+import { scanGitlabCi } from "./pipelines/gitlabCiRules.ts"
+import { readPipelineFiles } from "./pipelines/pipelineFiles.ts"
+import { withoutRepeatedFindings } from "./repeatedFindings.ts"
 import { scanSecrets } from "./secrets.ts"
 import { runCodeScanners } from "./scanners/runCodeScanners.ts"
 import { runQualityScanners } from "./scanners/runQualityScanners.ts"
@@ -47,7 +51,7 @@ const UNCOVERED_CODE_EXTENSIONS: ReadonlySet<string> = new Set([
   ".go", ".java", ".kt", ".rb", ".php", ".cs", ".c", ".cc", ".cpp", ".h", ".hpp", ".swift", ".scala", ".sh",
 ])
 
-const BUILT_IN_CHECK: CheckRun = { name: "Built-in rules", detail: "secrets, risky APIs and sensitive paths" }
+const BUILT_IN_CHECK: CheckRun = { name: "Built-in rules", detail: "secrets, risky APIs, sensitive paths and GitLab CI" }
 const BREAKING_CHANGE_CHECK: CheckRun = { name: "Breaking changes", detail: "public APIs, database migrations, environment variables and config keys" }
 const FUNCTION_METRICS_CHECK: CheckRun = { name: "Function metrics", detail: "complexity, nesting, length and parameters" }
 const QUALITY_TURNED_OFF: SkippedCheck = { check: "Code quality checks", reason: `turned off in ${WALKDIFF_CONFIG_PATH}` }
@@ -72,7 +76,8 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
     allowedLicenses: config.dependencies.allowedLicenses ?? undefined,
   })
   request.reportStep(AnalysisStep.ScanningCode)
-  const codeScan = await runCodeScanners({ files: scanned, semgrepRules: config.scanners.semgrep.rules, network: request.network, run: request.runScanner, disabled: request.disabledChecks })
+  const pipelineFiles = await readPipelineFiles(scanned, (paths) => readHeadTexts(request, paths))
+  const codeScan = await runCodeScanners({ files: scanned, semgrepRules: config.scanners.semgrep.rules, network: request.network, run: request.runScanner, disabled: request.disabledChecks, pipelineFiles })
   request.reportStep(AnalysisStep.CheckingQuality)
   const quality = config.quality.enabled ? await assessQuality(request, scanned, config) : { findings: [], checksRun: [], notChecked: [QUALITY_TURNED_OFF] }
   request.reportStep(AnalysisStep.CheckingBreakingChanges)
@@ -84,10 +89,11 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
     scanned,
     versions: request.versions,
   })
-  const findings = withoutRepeatedSecrets([
+  const findings = withoutRepeatedFindings([
     ...scanSecrets(scanned),
     ...(await scanDangerousApis(scanned)),
     ...scanSensitivePaths(scanned, config),
+    ...scanGitlabCi(scanned, pipelineFiles),
     ...codeScan.findings,
     ...dependencies.findings,
     ...reviewSignals(request.files),
@@ -119,17 +125,9 @@ async function assessQuality(request: RiskAssessmentRequest, scanned: readonly S
   return { ...scanners, findings: [...scanFunctionMetrics(functions), ...scanners.findings], checksRun: [FUNCTION_METRICS_CHECK, ...scanners.checksRun] }
 }
 
-// Our rules, gitleaks and Semgrep can all flag one secret; one finding per line is enough.
-// The built-in rules come first, so theirs is the one kept.
-function withoutRepeatedSecrets(findings: readonly Risk[]): Risk[] {
-  const seen = new Set<string>()
-  return findings.filter((finding) => {
-    if (finding.category !== RiskCategory.Secret || finding.location === null) return true
-    const key = `${finding.location.path}\0${finding.location.line}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+async function readHeadTexts(request: RiskAssessmentRequest, paths: readonly string[]): Promise<(string | undefined)[]> {
+  const blobs = await readBlobs(request.repoDir, paths.map((path) => ({ commit: request.head, path })))
+  return blobs.map((blob) => blob?.toString("utf8"))
 }
 
 // Kept for sorting and colour. People read securitySummary instead, as a grade would claim too much.

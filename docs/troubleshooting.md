@@ -223,7 +223,7 @@ Add the path to `ignore` in `.walkdiff.json` on the target branch. This removes 
 
 ### The same line has two findings
 
-A built-in rule and Semgrep can both flag one line, as with `shell=True`. Walkdiff keeps both, in case they're about different problems. Repeated secrets on a line are merged into one.
+A built-in rule and Semgrep can both flag one line, as with `shell=True`. Walkdiff keeps both, in case they're about different problems. Ruff's security rules are different: they overlap so much with the built-in rules and Semgrep's that where either flags a line, Ruff's finding is left out. Repeated secrets on a line are merged into one.
 
 ## AI review
 

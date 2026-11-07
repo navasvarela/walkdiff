@@ -80,6 +80,20 @@ export const BINARY_PINS: readonly BinaryPin[] = [
       "linux-x64": { file: "zizmor-x86_64-unknown-linux-gnu.tar.gz", sha256: "d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99" },
     },
   },
+  {
+    // The checksums file is also signed by poutine's release workflow (sigstore); check that too
+    // when updating, as the hashes are only as trustworthy as the file they're copied from.
+    binary: "poutine",
+    version: "1.1.6",
+    baseUrl: "https://github.com/boostsecurityio/poutine/releases/download/v1.1.6",
+    archive: ArchiveKind.TarGz,
+    assets: {
+      "darwin-arm64": { file: "poutine_Darwin_arm64.tar.gz", sha256: "9384f02eeefb4d0778fc61ee4c675e15898b9b01c9cf821dc854d702c4e8a6b2" },
+      "darwin-x64": { file: "poutine_Darwin_x86_64.tar.gz", sha256: "27c9b86bd12db19e27c05c22a42dc44492dd00ed2ab7287900b28cd2effb94d3" },
+      "linux-arm64": { file: "poutine_Linux_arm64.tar.gz", sha256: "460c90300c6329106b551c150682d12e457365f6436a6cbbd08fe79eb9a98131" },
+      "linux-x64": { file: "poutine_Linux_x86_64.tar.gz", sha256: "abde716599a65608b023a69ed9316e5f083a7bca48612151c2720835883757ea" },
+    },
+  },
 ]
 
 // Keep in step with semgrep-requirements.txt, which holds this version and the hash of everything
