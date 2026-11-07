@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { commitShaSchema } from "@walkdiff/review-model"
 import type { ReviewSummary, StackMemberStatus, StackOffer } from "@walkdiff/review-model"
-import { doneState, EntryKind, listEntries, memberStateLabels, newToList, siblingUrl, stackHeadline } from "./stackList.ts"
+import type { ReviewProgress } from "./progress.ts"
+import { approvalCheck, doneState, EntryKind, isWebLink, listEntries, memberStateLabels, newToList, siblingUrl, stackHeadline } from "./stackList.ts"
 
 const HEAD = commitShaSchema.parse("a".repeat(40))
 
@@ -23,6 +24,7 @@ const review = (id: number, stack: { readonly id: number; readonly position: num
   untouchedReferences: 0,
   findings: 0,
   coverageSource: null,
+  reportHead: { headSha: HEAD, baseRef: "b1" },
   stack,
   stackOffer: null,
   createdAt: "2026-11-06T00:00:00.000Z",
@@ -104,5 +106,36 @@ describe("done members", () => {
     ["unchecked", undefined, undefined],
   ])("reads a %s member", (_case, status, expected) => {
     expect(doneState(status)).toBe(expected)
+  })
+})
+
+describe("whether a member can be approved with the rest", () => {
+  const done: ReviewProgress = { stage: "done", drafts: 0 }
+
+  it.each([
+    ["not checked yet", undefined, done, "Still checking"],
+    ["unreachable", { check: "failed", reviewId: 1, error: "Token expired" } satisfies StackMemberStatus, done, "Token expired"],
+    ["pushed to", checked(1, { reportChange: "newCommits" }), done, "new commits"],
+    ["retargeted", checked(1, { reportChange: "retargeted", status: { state: "open", headSha: HEAD, baseRef: "main" } }), done, "merges into main"],
+    ["never analyzed", checked(1, { reportChange: "noReport" }), done, "no report"],
+  ])("blocks a member %s", (_case, status, progress, blocker) => {
+    expect(approvalCheck(status, progress)).toEqual({ ready: false, blocker: expect.stringContaining(blocker) })
+  })
+
+  it.each([
+    ["fully reviewed", done, []],
+    ["with unposted comments", { ...done, drafts: 2 }, ["It has 2 comments you haven't posted. Open it to post them, or approve without them."]],
+    ["part reviewed", { stage: "partly", reviewed: 1, total: 4, drafts: 0 } satisfies ReviewProgress, ["You've reviewed 1 of 4 changes."]],
+    ["not started", { stage: "notStarted", drafts: 0 } satisfies ReviewProgress, ["You haven't started reviewing it."]],
+    ["changed since it was reviewed, with a draft", { stage: "changed", drafts: 1 } satisfies ReviewProgress, ["It has a comment you haven't posted. Open it to post it, or approve without it.", "It changed since you reviewed it. Open it to see what's new."]],
+  ])("lets through a member %s, with what to watch for", (_case, progress, warnings) => {
+    expect(approvalCheck(checked(1), progress)).toEqual({ ready: true, headSha: HEAD, warnings })
+  })
+
+  it.each([
+    ["https://gitlab.com/a/-/merge_requests/1#note_1", true],
+    ["javascript:alert(1)", false],
+  ])("links %s only if it is a web address", (url, expected) => {
+    expect(isWebLink(url)).toBe(expected)
   })
 })

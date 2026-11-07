@@ -232,8 +232,7 @@ describe("stacks in the app", () => {
     old.exec("PRAGMA user_version = 4")
     old.close()
     harness = { ...harness, store: new ReviewStore(path, () => new Date()) }
-    expect(harness.store.list()).toMatchObject([{ displayName: "acme/app!4", stack: null }])
-    expect(harness.store.analyzedHeadOf(1)).toBeUndefined()
+    expect(harness.store.list()).toMatchObject([{ displayName: "acme/app!4", stack: null, reportHead: null }])
   })
 })
 
@@ -245,6 +244,10 @@ describe("the stack endpoints", () => {
   let analyzed: number[] = []
   /** What each MR's host says now; a missing one fails, as an expired token would. */
   let statuses: Map<number, PullRequestStatus>
+  /** Approvals posted, as `number:headSha:body`. */
+  let posted: string[] = []
+  /** MRs whose host refuses an approval, as for your own MR. */
+  let refusing = new Set<number>()
   const headers = { [API_KEY_HEADER]: KEY, "Content-Type": "application/json" }
 
   const hostFor = async (ref: PullRequestRef): Promise<GitHost> => ({
@@ -258,7 +261,11 @@ describe("the stack endpoints", () => {
     },
     upsertComment: async () => undefined,
     fetchConversation: async () => ({ reviewers: [{ name: "ana", state: "approved" }], threads: [], truncated: false }),
-    submitReview: async () => ({ url: "" }),
+    submitReview: async (review) => {
+      if (refusing.has(ref.number)) throw new HostApiError(403, url(ref.number), "You can't approve your own merge request")
+      posted.push(`${ref.number}:${review.event}:${review.headSha.slice(0, 1)}:${review.body}`)
+      return { url: `${url(ref.number)}#approved` }
+    },
     replyToThread: async () => undefined,
     setThreadResolved: async () => undefined,
     fetchCoverageArchives: async () => [],
@@ -268,6 +275,8 @@ describe("the stack endpoints", () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), "walkdiff-stack-api-"))
     analyzed = []
+    posted = []
+    refusing = new Set()
     store = new ReviewStore(join(dir, "walkdiff.db"), () => new Date("2026-11-06T10:00:00.000Z"))
     service = new ReviewService(store, {
       generate: async ({ ref }) => {
@@ -350,5 +359,79 @@ describe("the stack endpoints", () => {
     expect((await call(`stacks/${stackId}`, "DELETE")).status).toBe(200)
     expect((await call(`stacks/${stackId}`, "GET")).status).toBe(404)
     expect(store.list().map((review) => review.stack)).toEqual([null, null, null])
+  })
+
+  describe("approving the whole stack", () => {
+    const everyone = async (): Promise<{ readonly stackId: number; readonly ids: readonly number[] }> => {
+      const stackId = await grouped()
+      return { stackId, ids: store.stackMembers(stackId).map((member) => member.id) }
+    }
+    const approve = (stackId: number, ids: readonly number[], body = "", headSha: string = HEAD): Promise<Response> =>
+      call(`stacks/${stackId}/approve`, "POST", { body, members: ids.map((reviewId) => ({ reviewId, headSha })) })
+
+    it("posts one approval per MR, bottom first, on the commit that was read", async () => {
+      const { stackId, ids } = await everyone()
+      const response = await approve(stackId, [...ids].reverse(), "Reviewed as a stack")
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ results: ids.map((reviewId) => ({ outcome: "posted", reviewId })) })
+      expect(posted).toEqual(["3:approve:a:Reviewed as a stack", "4:approve:a:Reviewed as a stack", "5:approve:a:Reviewed as a stack"])
+    })
+
+    it("keeps going after a refusal, and says which was refused", async () => {
+      const { stackId, ids } = await everyone()
+      refusing.add(4)
+      const results: unknown = await (await approve(stackId, ids)).json()
+      expect(results).toMatchObject({ results: [{ outcome: "posted" }, { outcome: "refused", error: expect.stringContaining("your own") }, { outcome: "posted" }] })
+      expect(posted.map((entry) => entry.split(":")[0])).toEqual(["3", "5"])
+    })
+
+    it.each([
+      ["has new commits", (): void => void statuses.set(4, { state: "open", headSha: NEWER, baseRef: "b3" }), "new commits"],
+      ["was retargeted", (): void => void statuses.set(4, { state: "open", headSha: HEAD, baseRef: "master" }), "merges into master"],
+      ["was merged", (): void => void statuses.set(4, { state: "merged", headSha: HEAD, baseRef: "b3" }), "merged"],
+      ["can't be checked", (): void => void statuses.delete(4), "Token expired"],
+    ])("posts nothing when one MR %s", async (_case, change, reason) => {
+      const { stackId, ids } = await everyone()
+      change()
+      const response = await approve(stackId, ids)
+      expect(response.status).toBe(409)
+      expect(await response.json()).toMatchObject({ blocked: [{ reviewId: ids[1], reason: expect.stringContaining(reason) }] })
+      expect(posted).toEqual([])
+    })
+
+    it("posts nothing when the reviewer saw an older report", async () => {
+      const { stackId, ids } = await everyone()
+      expect((await approve(stackId, ids, "", NEWER)).status).toBe(409)
+      expect(posted).toEqual([])
+    })
+
+    it("checks every MR without posting, so the page can then post them one at a time", async () => {
+      const { stackId, ids } = await everyone()
+      const check = (headSha: string): Promise<Response> => call(`stacks/${stackId}/approve/check`, "POST", { body: "", members: ids.map((reviewId) => ({ reviewId, headSha })) })
+      const passed = await check(HEAD)
+      expect(passed.status).toBe(200)
+      expect(await passed.json()).toEqual({ ready: ids })
+      statuses.set(4, { state: "open", headSha: NEWER, baseRef: "b3" })
+      const blocked = await check(HEAD)
+      expect(blocked.status).toBe(409)
+      expect(await blocked.json()).toMatchObject({ blocked: [{ reviewId: ids[1], reason: expect.stringContaining("new commits") }] })
+      expect(posted).toEqual([])
+    })
+
+    it("approves only the MRs asked for, as when retrying one that failed", async () => {
+      const { stackId, ids } = await everyone()
+      expect((await approve(stackId, [ids[1] ?? 0])).status).toBe(200)
+      expect(posted.map((entry) => entry.split(":")[0])).toEqual(["4"])
+    })
+
+    it("refuses a review from outside the stack, and a stack that doesn't exist", async () => {
+      const { stackId, ids } = await everyone()
+      const { id: outsider } = service.add({ url: url(9), ai: false })
+      await service.idle()
+      expect((await approve(stackId, [...ids, outsider])).status).toBe(409)
+      expect((await approve(999, ids)).status).toBe(404)
+      expect((await call(`stacks/${stackId}/approve`, "POST", { body: "", members: [] })).status).toBe(400)
+      expect(posted).toEqual([])
+    })
   })
 })

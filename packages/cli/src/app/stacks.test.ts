@@ -69,9 +69,9 @@ describe("why a member's report is out of date", () => {
     ["has new commits", analyzed, status({ headSha: NEWER }), "newCommits"],
     ["was retargeted after the member below merged", analyzed, status({ baseRef: "main" }), "retargeted"],
     ["was rebased onto its new base", analyzed, status({ baseRef: "main", headSha: NEWER }), "retargeted"],
-    ["has no report yet", undefined, status({}), "noReport"],
+    ["has no report yet", null, status({}), "noReport"],
     ["is merged, whatever changed", analyzed, status({ state: "merged", baseRef: "main" }), "none"],
-    ["is closed", undefined, status({ state: "closed" }), "none"],
+    ["is closed", null, status({ state: "closed" }), "none"],
   ])("tells when it %s", (_case, before, now, expected) => {
     expect(reportChange(before, now)).toBe(expected)
   })

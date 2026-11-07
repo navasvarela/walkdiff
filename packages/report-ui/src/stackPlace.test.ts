@@ -20,6 +20,7 @@ const review = (id: number, stack: { readonly id: number; readonly position: num
   untouchedReferences: 0,
   findings: 0,
   coverageSource: null,
+  reportHead: null,
   stack,
   stackOffer: null,
   createdAt: "2026-11-06T00:00:00.000Z",
