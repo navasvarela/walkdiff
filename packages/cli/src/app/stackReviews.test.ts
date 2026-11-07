@@ -232,8 +232,7 @@ describe("stacks in the app", () => {
     old.exec("PRAGMA user_version = 4")
     old.close()
     harness = { ...harness, store: new ReviewStore(path, () => new Date()) }
-    expect(harness.store.list()).toMatchObject([{ displayName: "acme/app!4", stack: null }])
-    expect(harness.store.analyzedHeadOf(1)).toBeUndefined()
+    expect(harness.store.list()).toMatchObject([{ displayName: "acme/app!4", stack: null, reportHead: null }])
   })
 })
 
@@ -403,6 +402,19 @@ describe("the stack endpoints", () => {
     it("posts nothing when the reviewer saw an older report", async () => {
       const { stackId, ids } = await everyone()
       expect((await approve(stackId, ids, "", NEWER)).status).toBe(409)
+      expect(posted).toEqual([])
+    })
+
+    it("checks every MR without posting, so the page can then post them one at a time", async () => {
+      const { stackId, ids } = await everyone()
+      const check = (headSha: string): Promise<Response> => call(`stacks/${stackId}/approve/check`, "POST", { body: "", members: ids.map((reviewId) => ({ reviewId, headSha })) })
+      const passed = await check(HEAD)
+      expect(passed.status).toBe(200)
+      expect(await passed.json()).toEqual({ ready: ids })
+      statuses.set(4, { state: "open", headSha: NEWER, baseRef: "b3" })
+      const blocked = await check(HEAD)
+      expect(blocked.status).toBe(409)
+      expect(await blocked.json()).toMatchObject({ blocked: [{ reviewId: ids[1], reason: expect.stringContaining("new commits") }] })
       expect(posted).toEqual([])
     })
 

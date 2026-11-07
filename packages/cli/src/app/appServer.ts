@@ -8,7 +8,7 @@ import type { GitHost, PullRequestRef } from "@walkdiff/providers"
 import { AI_API_KEY_VARIABLE, AiUnavailableError, CoverageFileError, createAiProvider, describeChecks, firstExisting } from "@walkdiff/engine"
 import { acceptStackRequestSchema, addReviewRequestSchema, approveStackRequestSchema, anthropicBaseUrlFrom, appSettingsSchema, attachCoverageRequestSchema, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
 import { MemberCheck, ReportChange, ReviewStatus } from "@walkdiff/review-model"
-import type { AiConnectionResult, SettingsView, CheckStatus, StackView } from "@walkdiff/review-model"
+import type { AiConnectionResult, ApproveStackRequest, SettingsView, CheckStatus, StackView } from "@walkdiff/review-model"
 import { readHostTokens } from "../environment.ts"
 import { REPORT_FILE_POLICY_TAG, REPORT_PAGE_FILE, writeReport } from "../report.ts"
 import { addressOf, BASE_POLICY, listen, LOOPBACK_HOST, REPORT_PAGE_POLICY, respond, SECURITY_HEADERS } from "../server.ts"
@@ -16,7 +16,8 @@ import { attachCoverage } from "./attachCoverage.ts"
 import type { ReportWriter } from "./attachCoverage.ts"
 import type { ReviewService } from "./reviewService.ts"
 import type { ReviewStore } from "./reviewStore.ts"
-import { ApproveKind, approveStack } from "./approveStack.ts"
+import { ApproveKind, approveStack, checkApproval } from "./approveStack.ts"
+import type { ApproveResult, CheckResult } from "./approveStack.ts"
 import { readStackView } from "./stackStatus.ts"
 import type { HostResolver } from "./stackStatus.ts"
 
@@ -194,9 +195,11 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, pat
     await handleStack(response, method, Number(stack[1]), context)
     return
   }
-  const stackApprove = /^\/api\/stacks\/(\d+)\/approve$/.exec(pathname)
+  const stackApprove = /^\/api\/stacks\/(\d+)\/approve(\/check)?$/.exec(pathname)
   if (stackApprove !== null && method === "POST") {
-    await approveAll(request, response, Number(stackApprove[1]), context)
+    const stackId = Number(stackApprove[1])
+    const run = stackApprove[2] === undefined ? approveStack : checkApproval
+    await answerApproval(request, response, (approval) => run(context.store, stackId, approval, context.hostFor))
     return
   }
   const stackRefresh = /^\/api\/stacks\/(\d+)\/refresh$/.exec(pathname)
@@ -270,20 +273,27 @@ async function refreshStack(response: ServerResponse, id: number, context: AppCo
   sendJson(response, 202, view)
 }
 
-/** Posts an approval to each member asked for, after checking every one is still what the reviewer saw. */
-async function approveAll(request: IncomingMessage, response: ServerResponse, id: number, context: AppContext): Promise<void> {
+/**
+ * Answers an approval of stack members: posting them (`/approve`), or only checking that every one
+ * is still what the reviewer saw (`/approve/check`), so the page can then post them one at a time
+ * and show each result as it comes.
+ */
+async function answerApproval(request: IncomingMessage, response: ServerResponse, run: (approval: ApproveStackRequest) => Promise<ApproveResult | CheckResult>): Promise<void> {
   const parsed = approveStackRequestSchema.safeParse(await readJsonBody(request))
   if (!parsed.success) {
     sendJson(response, 400, { error: parsed.error.issues.at(0)?.message ?? "This approval isn't valid" })
     return
   }
-  const result = await approveStack(context.store, id, parsed.data, context.hostFor)
+  const result = await run(parsed.data)
   switch (result.kind) {
     case ApproveKind.NoStack:
       sendJson(response, 404, { error: "No such stack" })
       return
     case ApproveKind.Blocked:
       sendJson(response, 409, { error: "Nothing was posted: some PRs aren't as you saw them.", blocked: result.blocked })
+      return
+    case ApproveKind.Ready:
+      sendJson(response, 200, { ready: result.checked.map(({ member }) => member.id) })
       return
     case ApproveKind.Done:
       sendJson(response, 200, { results: result.results })

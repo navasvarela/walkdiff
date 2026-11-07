@@ -75,10 +75,20 @@ export async function refreshStack(id: number): Promise<StackView> {
 
 const CONFLICT_STATUS = 409
 
-export const ApprovalAnswerKind = { Done: "done", Blocked: "blocked" } as const
+export const ApprovalAnswerKind = { Ready: "ready", Done: "done", Blocked: "blocked" } as const
 
 /** Either every approval was tried, each with its result, or a member stopped them all before any was posted. */
 export type ApprovalAnswer = { readonly kind: typeof ApprovalAnswerKind.Done; readonly result: ApproveStackResult } | { readonly kind: typeof ApprovalAnswerKind.Blocked; readonly blocked: ApprovalBlocked }
+
+/** Whether every member can be approved now, or which stop them all; nothing is posted. */
+export type CheckAnswer = { readonly kind: typeof ApprovalAnswerKind.Ready } | { readonly kind: typeof ApprovalAnswerKind.Blocked; readonly blocked: ApprovalBlocked }
+
+export async function checkStackApproval(id: number, request: ApproveStackRequest): Promise<CheckAnswer> {
+  const answer = await send(`/api/stacks/${id}/approve/check`, "POST", request)
+  if (answer.status === CONFLICT_STATUS) return { kind: ApprovalAnswerKind.Blocked, blocked: approvalBlockedSchema.parse(answer.payload) }
+  if (answer.status >= 400) throw new Error(errorMessage(answer.payload) ?? `The app answered ${answer.status}`)
+  return { kind: ApprovalAnswerKind.Ready }
+}
 
 export async function approveStack(id: number, request: ApproveStackRequest): Promise<ApprovalAnswer> {
   const answer = await send(`/api/stacks/${id}/approve`, "POST", request)
