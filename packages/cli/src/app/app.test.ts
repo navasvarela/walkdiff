@@ -17,6 +17,7 @@ import type { GeneratedReport } from "./reviewService.ts"
 import { ReviewStore } from "./reviewStore.ts"
 
 const SHA = commitShaSchema.parse("a".repeat(40))
+const standsAlone = async (): Promise<undefined> => undefined
 const PR_URL = "https://github.com/acme/app/pull/7"
 
 function fakeModel(title: string): ReviewModel {
@@ -39,14 +40,14 @@ describe("ReviewStore and ReviewService", () => {
   let outcome: (url: string) => Promise<GeneratedReport> = async () => ({ model: fakeModel("Cap retries"), reportDir: "/tmp/report" })
 
   const service = (): ReviewService =>
-    new ReviewService(
-      store,
-      ({ ref, ai }) => {
+    new ReviewService(store, {
+      generate: ({ ref, ai }) => {
         calls.push(`${ref.number}:${ai}`)
         return outcome(ref.webOrigin)
       },
-      () => undefined,
-    )
+      findStack: standsAlone,
+      log: () => undefined,
+    })
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), "walkdiff-store-"))
@@ -135,16 +136,16 @@ describe("ReviewStore and ReviewService", () => {
     const scanning = new Promise<void>((resolve) => {
       started = resolve
     })
-    const stepping = new ReviewService(
-      store,
-      async ({ reportStep }) => {
+    const stepping = new ReviewService(store, {
+      generate: async ({ reportStep }) => {
         reportStep(AnalysisStep.ScanningCode)
         started()
         await finished
         return { model: fakeModel("Cap retries"), reportDir: "/tmp/report" }
       },
-      () => undefined,
-    )
+      findStack: standsAlone,
+      log: () => undefined,
+    })
     const { id } = stepping.add({ url: "https://github.com/acme/app/pull/7", ai: false })
     await scanning
     expect(stepping.list().find((review) => review.id === id)).toMatchObject({ status: "analyzing", step: "scanningCode" })
@@ -173,7 +174,7 @@ describe("the app server", () => {
     dir = await mkdtemp(join(tmpdir(), "walkdiff-app-"))
     store = new ReviewStore(join(dir, "walkdiff.db"), () => new Date("2026-10-30T10:00:00.000Z"))
     await writeFile(join(dir, "index.html"), "<html><head></head><body>report page</body></html>")
-    const service = new ReviewService(store, async () => ({ model: fakeModel("Cap retries"), reportDir: dir }), () => undefined)
+    const service = new ReviewService(store, { generate: async () => ({ model: fakeModel("Cap retries"), reportDir: dir }), findStack: standsAlone, log: () => undefined })
     server = await startAppServer(store, service, { port: 0, apiKey: KEY, log: () => undefined, describeChecks: async () => [] })
     base = server.url
   })
@@ -278,14 +279,14 @@ describe("the app server", () => {
       reportDir = await mkdtemp(join(tmpdir(), "walkdiff-attach-"))
       const model = reviewModelSchema.parse({ ...fakeModel("x"), files: [changedFile] })
       await saveModel(model, reportDir)
-      const service = new ReviewService(
-        store,
-        async ({ attachedCoverage }) => {
+      const service = new ReviewService(store, {
+        generate: async ({ attachedCoverage }) => {
           attachedSeen = attachedCoverage
           return { model, reportDir }
         },
-        () => undefined,
-      )
+        findStack: standsAlone,
+        log: () => undefined,
+      })
       attachServer = await startAppServer(store, service, { port: 0, apiKey: KEY, log: () => undefined, writeReport: saveModel })
       attachId = service.add({ url: "https://github.com/acme/app/pull/88", ai: false }).id
       await service.idle()
@@ -341,6 +342,7 @@ describe("the app server", () => {
       replyToThread: async (id, body) => void calls.push(`reply ${id} ${body}`),
       setThreadResolved: async (id, resolved) => void calls.push(`resolve ${id} ${resolved}`),
       fetchCoverageArchives: async () => [],
+      fetchStatus: async () => ({ state: "open", headSha: commitShaSchema.parse(HEAD), baseRef: "main" }),
       fetchStack: async () => undefined,
     }
     let hostServer: AppServer
@@ -349,7 +351,7 @@ describe("the app server", () => {
     const requested: string[] = []
 
     beforeAll(async () => {
-      const service = new ReviewService(store, async () => ({ model: fakeModel("x"), reportDir: dir }), () => undefined)
+      const service = new ReviewService(store, { generate: async () => ({ model: fakeModel("x"), reportDir: dir }), findStack: standsAlone, log: () => undefined })
       hostServer = await startAppServer(store, service, {
         port: 0,
         apiKey: KEY,
@@ -449,7 +451,7 @@ describe("the app server", () => {
   it("keeps unexpected error details out of the response and logs them", async () => {
     const brokenStore = new ReviewStore(join(dir, "broken.db"), () => new Date("2026-10-30T10:00:00.000Z"))
     const logged: string[] = []
-    const service = new ReviewService(brokenStore, async () => ({ model: fakeModel("x"), reportDir: dir }), () => undefined)
+    const service = new ReviewService(brokenStore, { generate: async () => ({ model: fakeModel("x"), reportDir: dir }), findStack: standsAlone, log: () => undefined })
     const broken = await startAppServer(brokenStore, service, { port: 0, apiKey: KEY, log: (message) => logged.push(message) })
     brokenStore.close()
     const response = await fetch(`${broken.url}api/reviews`, { headers: { [API_KEY_HEADER]: KEY } })

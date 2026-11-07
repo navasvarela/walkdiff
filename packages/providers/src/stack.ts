@@ -1,11 +1,5 @@
-import { StackSource } from "@walkdiff/review-model"
+import { MAX_STACK_SIZE, StackSource } from "@walkdiff/review-model"
 import type { PullRequestStack, StackMember } from "@walkdiff/review-model"
-
-/**
- * GitLab shows stacks of up to 20, and Walkdiff keeps to the same limit on both hosts. It bounds
- * the requests one detection makes, and how many analyses accepting one stack can queue.
- */
-export const MAX_STACK_SIZE = 20
 
 /** An open PR as the walk sees it. */
 export interface StackCandidate {

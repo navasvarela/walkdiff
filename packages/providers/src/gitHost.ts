@@ -1,4 +1,4 @@
-import type { Conversation, PullRequest, PullRequestStack, SubmitResult, SubmitReview } from "@walkdiff/review-model"
+import type { Conversation, PullRequest, PullRequestStack, PullRequestStatus, SubmitResult, SubmitReview } from "@walkdiff/review-model"
 import type { MarkedComment } from "./markedComment.ts"
 import type { TrustedOrigins } from "./trustedHosts.ts"
 
@@ -28,6 +28,8 @@ export const MAX_COVERAGE_ARCHIVE_BYTES = 200 * 1024 * 1024
 
 export interface GitHost {
   fetchPullRequest(): Promise<PullRequestSnapshot>
+  /** Whether it's still open, and its head and base now. One request, unlike `fetchPullRequest`. */
+  fetchStatus(): Promise<PullRequestStatus>
   /** Posts the comment, or replaces the earlier one carrying the same marker. */
   upsertComment(comment: MarkedComment): Promise<void>
   /** The review threads and who has approved, as the host has them now. */

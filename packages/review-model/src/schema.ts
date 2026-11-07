@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { AnalysisStep } from "./analysisSteps.ts"
+import { stackOfferSchema, stackPlaceSchema } from "./stack.ts"
 
 /**
  * The review model is the contract between the analysis engine and every consumer
@@ -530,6 +531,10 @@ export const reviewSummarySchema = z.object({
   findings: z.number().int().nonnegative().nullable(),
   /** Where the report's test coverage came from; null when none was found. */
   coverageSource: z.string().nullable(),
+  /** Null unless the reviewer grouped this review with others in its stack. */
+  stack: stackPlaceSchema.nullable(),
+  /** A stack found for it that the reviewer can accept; null when there's nothing new to offer. */
+  stackOffer: stackOfferSchema.nullable().default(null),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 })
