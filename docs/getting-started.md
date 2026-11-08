@@ -66,7 +66,7 @@ A stack is a chain of PRs, each built on the one below it: `add-schema` into `ma
 - **What's found:** the app uses GitHub's and GitLab's own stacks where the PR is in one. Otherwise it follows branches, so stacks made with other tools are found too. Only open PRs from the same repository count, up to 20. Where two PRs build on the same one, the chain stops there, and the app names the PRs it left out.
 - **AI review:** the offer has its own AI box, starting from the choice you made for the PR you added. It applies only to the PRs the stack adds to your list.
 - **Each report is the PR's own change**, from where it branched off the PR below it, so you don't see the lower PRs' code again. A strip at the top of each report links to the PRs below and above it.
-- **The card asks the host when it opens:** which PRs have new commits or were retargeted (as when the one below merged), who approved, and which merged or closed. **Refresh changed** analyzes again only the PRs that changed. Your progress in each report carries over, so only changed code comes back unreviewed.
+- **The card asks the host when it opens:** which PRs have new commits or were retargeted (as when the one below merged), who approved, and which merged or closed. **Refresh changed** analyzes again only the PRs that changed. Your progress in each report carries over, so only changed code comes back unreviewed. Until you open a refreshed report, the list says it changed since you reviewed it.
 - **Ungroup** turns the card back into separate reviews and doesn't offer the stack again.
 
 ## Post your review

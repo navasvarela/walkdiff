@@ -13,6 +13,8 @@ import type { OpenPullRequests, StackCandidate } from "./stack.ts"
 
 // GitLab requires this username when a personal access token is used as the git password.
 const GITLAB_GIT_USERNAME = "oauth2"
+// GitLab's answer to an approval it won't take, whatever the reason.
+const APPROVAL_REFUSED_STATUS = 401
 const AUTH_HINT = "Set GITLAB_TOKEN to a token with the read_api and read_repository scopes; posting comments needs the api scope."
 
 const mergeRequestSchema = z.object({
@@ -114,6 +116,8 @@ const discussionSchema = z.object({
 })
 
 const approvalsSchema = z.object({ approved_by: z.array(z.object({ user: userSchema })) })
+/** Only `user_has_approved`: on GitLab Free, `user_can_approve` reads false for merge requests the user can approve. */
+const ownApprovalSchema = z.object({ user_has_approved: z.boolean() })
 const reviewersSchema = z.array(z.object({ user: userSchema, state: z.string().nullable().optional() }))
 
 const REVIEWER_STATES: ReadonlyMap<string, ReviewerState> = new Map([
@@ -271,8 +275,25 @@ export class GitLabHost implements GitHost {
     if (text !== "") await this.#write("POST", `${api}/draft_notes`, { note: text })
     const reviewerState = REVIEWER_PUBLISH_STATES[review.event]
     await this.#write("POST", `${api}/draft_notes/bulk_publish`, reviewerState === undefined ? {} : { reviewer_state: reviewerState })
-    if (review.event === ReviewEvent.Approve) await this.#write("POST", `${api}/approve`, { sha: review.headSha })
+    if (review.event === ReviewEvent.Approve) await this.#approve(api, review.headSha)
     return { url: mergeRequest.web_url }
+  }
+
+  /**
+   * GitLab answers 401 to any approval it won't take, which reads as a token problem. By now the
+   * token has posted the comments, so a 401 is GitLab refusing the approval itself. One case is
+   * avoided: a second approval from the same user, since the first still stands and a retried
+   * stack approval asks again.
+   */
+  async #approve(api: string, headSha: string): Promise<void> {
+    const { user_has_approved: approved } = await this.#get(`${api}/approvals`, ownApprovalSchema)
+    if (approved) return
+    try {
+      await this.#write("POST", `${api}/approve`, { sha: headSha })
+    } catch (error: unknown) {
+      if (!(error instanceof HostApiError) || error.status !== APPROVAL_REFUSED_STATUS) throw error
+      throw new HostApiError(error.status, error.url, "GitLab didn't take the approval. The project may not let you approve this merge request, for example as its author or as someone who added commits to it.")
+    }
   }
 
   async replyToThread(threadId: string, body: string): Promise<void> {

@@ -3,6 +3,7 @@ import type { ReactElement } from "react"
 import { numberLabel } from "@walkdiff/review-model"
 import type { AiDestination, ReviewSummary, StackMemberStatus, StackView } from "@walkdiff/review-model"
 import { loadStack, refreshStack, ungroupStack } from "./api.ts"
+import { ApproveStackDialog } from "./ApproveStackDialog.tsx"
 import { ReviewRow } from "./ReviewRow.tsx"
 import type { ReviewActions } from "./ReviewRow.tsx"
 import { doneState, isDone, isWorking, memberStateLabels, stackHeadline } from "./stackList.ts"
@@ -26,6 +27,7 @@ export function StackCard({ id, members, reviews, destination, actionsFor, act }
   const [view, setView] = useState<StackView>()
   const [problem, setProblem] = useState<string>()
   const [refreshing, setRefreshing] = useState(false)
+  const [approving, setApproving] = useState(false)
 
   // Read again once analyses finish, since they change what's out of date.
   const busy = members.some(isWorking)
@@ -69,6 +71,9 @@ export function StackCard({ id, members, reviews, destination, actionsFor, act }
         </h2>
         <span className="stack-headline">{stackHeadline(members, view)}</span>
         <div className="review-actions">
+          <button type="button" disabled={view === undefined || busy || open.length === 0} onClick={() => setApproving(true)} title="Posts an approval to each open PR in the stack, after a confirmation">
+            Approve all…
+          </button>
           <button type="button" disabled={busy || refreshing} onClick={refreshChanged} title="Asks the host what changed, and analyzes again only the PRs whose reports are out of date">
             Refresh changed
           </button>
@@ -78,6 +83,16 @@ export function StackCard({ id, members, reviews, destination, actionsFor, act }
         </div>
       </div>
       {problem !== undefined && <p className="problem">{problem}</p>}
+      {approving && view !== undefined && (
+        <ApproveStackDialog
+          stackId={id}
+          members={open}
+          view={view}
+          onClose={() => setApproving(false)}
+          // Read again, so the card shows the new approvals.
+          onPosted={() => void loadStack(id).then(setView, (error: unknown) => setProblem(error instanceof Error ? error.message : String(error)))}
+        />
+      )}
       <ol className="stack-members">
         {open.map((member) => (
           <li key={member.id}>

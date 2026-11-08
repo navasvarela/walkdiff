@@ -40,9 +40,10 @@ export function ReviewStateProvider({ review, children }: ReviewStateProviderPro
   const changedAtOpen = useMemo(() => changedSinceReview(review.files, stateAtOpen), [review.files, stateAtOpen])
   // Saved on open too, so the app's list catches up with a report re-made after a push.
   useEffect(() => {
-    const progress: ProgressRecord = overallProgress(review.files, state)
-    writeStorage(progressKey(review.pullRequest.url), JSON.stringify(progress))
-  }, [review.files, review.pullRequest.url, state])
+    const { url, headSha, baseRef } = review.pullRequest
+    const progress: ProgressRecord = { ...overallProgress(review.files, state), drafts: state.comments.size, head: { headSha, baseRef } }
+    writeStorage(progressKey(url), JSON.stringify(progress))
+  }, [review.files, review.pullRequest, state])
   const update = useCallback(
     (change: (current: ReviewState) => ReviewState): void => {
       setState((current) => {

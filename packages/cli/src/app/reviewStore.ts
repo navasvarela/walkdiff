@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite"
-import { appSettingsSchema, commitShaSchema, DEFAULT_APP_SETTINGS, GitHostKind, pullRequestStackSchema, ReviewStatus, reviewSummarySchema, testCoverageSchema } from "@walkdiff/review-model"
-import type { AppSettings, CommitSha, PullRequestStack, ReviewSummary } from "@walkdiff/review-model"
+import { appSettingsSchema, DEFAULT_APP_SETTINGS, GitHostKind, pullRequestStackSchema, ReviewStatus, reviewSummarySchema, testCoverageSchema } from "@walkdiff/review-model"
+import type { AppSettings, PullRequestStack, ReportHead, ReviewSummary } from "@walkdiff/review-model"
 import { parsePullRequestUrl } from "@walkdiff/providers"
 import { z } from "zod"
 import type { AttachedCoverage } from "../reviewCommand.ts"
@@ -92,13 +92,7 @@ export interface CompletedAnalysis {
   readonly untouchedReferences: number
   readonly findings: number
   readonly coverageSource: string | null
-  readonly head: AnalyzedHead
-}
-
-/** The commit a report was made from, and the branch it was compared with. */
-export interface AnalyzedHead {
-  readonly headSha: CommitSha
-  readonly baseRef: string
+  readonly head: ReportHead
 }
 
 /** The last stack found from a review, and the members the reviewer turned down. */
@@ -188,14 +182,6 @@ export class ReviewStore {
         this.#timestamp(),
         id,
       )
-  }
-
-  /** Undefined until an analysis succeeds. */
-  analyzedHeadOf(id: number): AnalyzedHead | undefined {
-    const row = this.#parsedRow(id)
-    const headSha = row?.head_sha ?? null
-    const baseRef = row?.base_ref ?? null
-    return headSha === null || baseRef === null ? undefined : { headSha: commitShaSchema.parse(headSha), baseRef }
   }
 
   /** Records what the last detection found; undefined clears it, for a PR that now stands alone. */
@@ -368,6 +354,7 @@ function toSummary(row: unknown): ReviewSummary {
     untouchedReferences: parsed.untouched_references,
     findings: parsed.findings,
     coverageSource: parsed.coverage_source,
+    reportHead: parsed.head_sha === null || parsed.base_ref === null ? null : { headSha: parsed.head_sha, baseRef: parsed.base_ref },
     stack: parsed.stack_id === null || parsed.stack_position === null ? null : { id: parsed.stack_id, position: parsed.stack_position },
     createdAt: parsed.created_at,
     updatedAt: parsed.updated_at,
