@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0
+
+- **Review a stack together:** when a PR or MR builds on others, the app offers to add the whole stack. It reads GitHub's and GitLab's own stacks where they exist, and otherwise follows the branches. A grouped stack is one card on the review list, bottom first, with each PR's progress and what its host says now: new commits, a new base after the PR below merged, approved, or changes requested. **Refresh changed** re-runs only the PRs whose reports are out of date, and each report links to its neighbours in the stack.
+- **Approve a whole stack:** **Approve all…** lists every open PR with the commit its report shows, and won't post while any has new commits or a new base. It warns about comments not posted and reviews not finished, then approves each PR bottom first and shows each result as it comes. A refused approval doesn't stop the others.
+- **Progress on every review:** the review list shows how far you got in each report, and says when the code changed since you reviewed it.
+- **GitLab CI checks:** poutine now scans the GitLab CI, Azure Pipelines and Tekton files a change touches. Walkdiff's own rules flag MR titles, descriptions, branch names or commit messages run as commands, remote includes without `integrity`, project includes and components not pinned to a release, and images on `latest` or with no tag. An MR that edits only an included file is checked along with the `.gitlab-ci.yml` that includes it.
+- **Python security rules:** Ruff now also runs its security rules, ported from Bandit, on changed Python, so insecure code is caught offline when Semgrep can't run. Where another check already flagged the line, Ruff's finding is left out.
+- **Approving a GitLab MR you'd already approved** no longer fails with advice to fix your token.
+- **GitLab numbers** show as `!4` rather than `#4` in the report's top bar.
+
 ## 0.7.2
 
 - **`walkdiff --version`:** shows which Walkdiff runs, and every error now ends with the version, such as `(walkdiff 0.7.2)`, so a pasted error says which release it came from. The troubleshooting guide covers "transport 'ssh' not allowed" and how to find which Walkdiff runs when several are installed.
