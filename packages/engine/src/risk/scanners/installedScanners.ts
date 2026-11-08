@@ -7,9 +7,10 @@ import { RUFF_BINARY } from "./ruff.ts"
 import { runScannerProcess } from "./scannerProcess.ts"
 import type { ScannerProcessRunner } from "./scannerProcess.ts"
 import { SEMGREP_BINARY } from "./semgrep.ts"
+import { POUTINE_BINARY } from "./poutine.ts"
 import { ZIZMOR_BINARY } from "./zizmor.ts"
 
-const SCANNER_BINARIES: readonly string[] = [SEMGREP_BINARY, GITLEAKS_BINARY, OSV_SCANNER_BINARY, RUFF_BINARY, ZIZMOR_BINARY, OXLINT_BINARY, JSCPD_BINARY]
+const SCANNER_BINARIES: readonly string[] = [SEMGREP_BINARY, GITLEAKS_BINARY, OSV_SCANNER_BINARY, RUFF_BINARY, ZIZMOR_BINARY, POUTINE_BINARY, OXLINT_BINARY, JSCPD_BINARY]
 
 export interface ScannerAvailability {
   readonly installed: readonly string[]

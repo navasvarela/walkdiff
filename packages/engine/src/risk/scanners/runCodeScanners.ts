@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { CheckId } from "@walkdiff/review-model"
 import type { CheckRun, Risk, SkippedCheck } from "@walkdiff/review-model"
+import type { PipelineFile } from "../pipelines/pipelineFiles.ts"
 import { isThirdParty } from "../scannedFile.ts"
 import type { ScannedFile } from "../scannedFile.ts"
 import { GITLEAKS_BINARY, gitleaksArgs, parseGitleaksReport } from "./gitleaks.ts"
@@ -11,6 +12,9 @@ import type { ScanOutcome } from "./scanWorkspace.ts"
 import { firstErrorLine } from "./scannerProcess.ts"
 import type { ScannerProcessRunner } from "./scannerProcess.ts"
 import { parseZizmorOutput, ZIZMOR_BINARY, ZIZMOR_CONFIG_FILE, zizmorArgs } from "./zizmor.ts"
+import { parsePoutineOutput, POUTINE_BINARY, POUTINE_CONFIG_FILE, poutineArgs } from "./poutine.ts"
+import { RUFF_BINARY } from "./ruff.ts"
+import { parseRuffSecurityOutput, ruffSecurityArgs } from "./ruffSecurity.ts"
 import { parseSemgrepOutput, SEMGREP_BINARY, semgrepArgs } from "./semgrep.ts"
 
 export interface CodeScanRequest {
@@ -22,6 +26,8 @@ export interface CodeScanRequest {
   readonly run: ScannerProcessRunner
   /** Checks the person turned off. */
   readonly disabled?: ReadonlySet<CheckId>
+  /** CI files at the head, when the change touches one; see `readPipelineFiles`. */
+  readonly pipelineFiles?: readonly PipelineFile[]
 }
 
 export interface CodeScanResult {
@@ -37,6 +43,12 @@ const ZIZMOR_CHECK = "zizmor GitHub Actions scan"
 const ZIZMOR_INSTALL = "not installed. Run `walkdiff setup`, or use `brew install zizmor`"
 const WORKFLOW_FILE = /(^|\/)(\.github\/workflows\/[^/]+\.ya?ml|action\.ya?ml)$/
 const GITLEAKS_INSTALL = "not installed. Run `walkdiff setup`, or use `brew install gitleaks`"
+const RUFF_SECURITY_CHECK = "Ruff security rules"
+const RUFF_INSTALL = "not installed. Run `walkdiff setup`, or use `brew install ruff`"
+const PYTHON_FILE = /\.pyi?$/
+const POUTINE_CHECK = "poutine CI pipeline scan"
+const POUTINE_INSTALL = "not installed. Run `walkdiff setup`, or use `brew install poutine`"
+const PIPELINE_ROOT_DIR = "pipelines"
 const SEMGREP_SUCCESS_EXIT_CODE = 0
 const GITLEAKS_REPORT_FILE = "gitleaks-report.json"
 const SCAN_ROOT_DIR = "files"
@@ -47,7 +59,7 @@ const SCAN_ROOT_DIR = "files"
  * directories.
  * They are never copied into the scan folder.
  */
-const SCANNER_CONTROL_FILES: ReadonlySet<string> = new Set([".gitleaks.toml", ".gitleaksignore", ".gitleaks.baseline", ".semgrepignore", ".semgrep.yml", ".semgrep.yaml", ".semgrepconfig.yml", "zizmor.yml", ".gitignore"])
+const SCANNER_CONTROL_FILES: ReadonlySet<string> = new Set([".gitleaks.toml", ".gitleaksignore", ".gitleaks.baseline", ".semgrepignore", ".semgrep.yml", ".semgrep.yaml", ".semgrepconfig.yml", "zizmor.yml", ".poutine.yml", "poutine.yml", ".gitignore"])
 // Semgrep's built-in ignore list skips tests and more when no ignore file exists; an empty
 // one means every copied file is scanned.
 const EMPTY_IGNORE_FILE = ".semgrepignore"
@@ -62,13 +74,15 @@ export async function runCodeScanners(request: CodeScanRequest): Promise<CodeSca
     return { findings: [], checksRun: [], notChecked: [] }
   }
 
-  const workspace = await mkdtemp(join(tmpdir(), "walkdiff-scan-"))
+  // Resolved, because Ruff reports absolute paths with symlinks resolved, and the temporary folder is
+  // behind one on macOS (/var is /private/var). Unresolved, none of its paths match a changed file.
+  const workspace = await realpath(await mkdtemp(join(tmpdir(), "walkdiff-scan-")))
   try {
     const root = join(workspace, SCAN_ROOT_DIR)
     await mkdir(root, { recursive: true })
     await copyFiles(root, candidates)
     await writeFile(join(root, EMPTY_IGNORE_FILE), "")
-    const outcomes = await Promise.all([runSemgrep(request, root), runGitleaks(request, root, workspace), runZizmor(request, root, workspace)])
+    const outcomes = await Promise.all([runSemgrep(request, root), runGitleaks(request, root, workspace), runZizmor(request, root, workspace), runRuffSecurity(request, root), runPoutine(request, workspace)])
     return {
       findings: toRisks(outcomes.flatMap((outcome) => outcome.findings), candidates),
       checksRun: outcomes.flatMap((outcome) => outcome.checksRun),
@@ -116,6 +130,44 @@ async function runZizmor(request: CodeScanRequest, root: string, workspace: stri
     return { findings: parseZizmorOutput(result.stdout, root), checksRun: [{ name: "zizmor", detail: "GitHub Actions workflows" }], notChecked: [] }
   } catch (error: unknown) {
     return notRun(ZIZMOR_CHECK, `its output could not be read: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+/**
+ * poutine gets its own folder: it needs the GitLab CI files the change includes, not only the
+ * changed ones, and none of GitHub's workflows, which zizmor checks in more depth.
+ */
+async function runPoutine(request: CodeScanRequest, workspace: string): Promise<ScanOutcome> {
+  const pipeline = request.pipelineFiles ?? []
+  if (pipeline.length === 0) return { findings: [], checksRun: [], notChecked: [] }
+  if (request.disabled?.has(CheckId.Poutine)) return notRun(POUTINE_CHECK, TURNED_OFF_IN_SETTINGS)
+  const root = join(workspace, PIPELINE_ROOT_DIR)
+  await mkdir(root, { recursive: true })
+  await writeScanFiles(root, pipeline)
+  const configPath = join(workspace, POUTINE_CONFIG_FILE)
+  await writeFile(configPath, "{}\n")
+  const result = await request.run(POUTINE_BINARY, poutineArgs(configPath), root)
+  if (result === undefined) return notRun(POUTINE_CHECK, POUTINE_INSTALL)
+  if (result.exitCode !== 0) return notRun(POUTINE_CHECK, `it failed: ${firstErrorLine(result)}`)
+  try {
+    const texts = new Map(pipeline.map((file) => [file.path, file.text]))
+    return { findings: parsePoutineOutput(result.stdout, root, texts), checksRun: [{ name: "poutine", detail: "GitLab CI, Azure Pipelines and Tekton" }], notChecked: [] }
+  } catch (error: unknown) {
+    return notRun(POUTINE_CHECK, `its output could not be read: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+async function runRuffSecurity(request: CodeScanRequest, root: string): Promise<ScanOutcome> {
+  if (!request.files.some((file) => PYTHON_FILE.test(file.diff.path) && file.after !== undefined)) return { findings: [], checksRun: [], notChecked: [] }
+  // One switch for both Ruff runs: someone turning Ruff off means the tool, not one rule set.
+  if (request.disabled?.has(CheckId.Ruff)) return notRun(RUFF_SECURITY_CHECK, TURNED_OFF_IN_SETTINGS)
+  const result = await request.run(RUFF_BINARY, ruffSecurityArgs(), root)
+  if (result === undefined) return notRun(RUFF_SECURITY_CHECK, RUFF_INSTALL)
+  if (result.exitCode !== 0) return notRun(RUFF_SECURITY_CHECK, `it failed: ${firstErrorLine(result)}`)
+  try {
+    return { findings: parseRuffSecurityOutput(result.stdout, root), checksRun: [{ name: RUFF_SECURITY_CHECK, detail: "Bandit's rules for Python, outside tests" }], notChecked: [] }
+  } catch (error: unknown) {
+    return notRun(RUFF_SECURITY_CHECK, `its output could not be read: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 

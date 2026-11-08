@@ -22,12 +22,14 @@ const CHECK_BY_RULE_PREFIX: ReadonlyMap<string, string> = new Map([
   ["gitleaks.", "gitleaks"],
   ["oxlint.", "oxlint"],
   ["ruff.", "Ruff"],
+  ["ruff-security.", "Ruff security rules"],
   ["jscpd.", "jscpd"],
   ["quality.", "Function metrics"],
   ["breaking.", "Breaking changes"],
   ["trust.", "Dependency trust"],
   ["license.", "Licences"],
   ["zizmor.", "zizmor"],
+  ["poutine.", "poutine"],
 ])
 
 /**

@@ -19,7 +19,7 @@ const SEVERITY_LABELS: Readonly<Record<RiskSeverity, string>> = {
 const SEVERITY_ORDER: readonly RiskSeverity[] = [RiskSeverity.High, RiskSeverity.Medium, RiskSeverity.Low]
 const MAX_FINDINGS_SHOWN = 5
 // The checks that look for security problems, as opposed to code quality or breaking changes.
-const SECURITY_CHECKS: ReadonlySet<string> = new Set(["Built-in rules", "Semgrep", "gitleaks", "OSV database", "osv-scanner", "Dependency trust", "zizmor"])
+const SECURITY_CHECKS: ReadonlySet<string> = new Set(["Built-in rules", "Semgrep", "gitleaks", "OSV database", "osv-scanner", "Dependency trust", "zizmor", "poutine", "Ruff security rules"])
 
 const AlertKind = { Note: "NOTE", Warning: "WARNING", Caution: "CAUTION" } as const
 type AlertKind = (typeof AlertKind)[keyof typeof AlertKind]

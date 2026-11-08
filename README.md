@@ -112,7 +112,8 @@ sent. A repository can forbid AI review entirely with `"ai": { "allowed": false 
 
 Walkdiff installs pinned versions of [Semgrep](https://semgrep.dev),
 [gitleaks](https://github.com/gitleaks/gitleaks), [osv-scanner](https://github.com/google/osv-scanner),
-[Ruff](https://docs.astral.sh/ruff/) and [zizmor](https://docs.zizmor.sh/) on its first run, or when you run
+[Ruff](https://docs.astral.sh/ruff/), [zizmor](https://docs.zizmor.sh/) and
+[poutine](https://github.com/boostsecurityio/poutine) on its first run, or when you run
 `walkdiff setup`, checked against hashes in this repository, on macOS and Linux. They live in
 `~/.cache/walkdiff/scanners`, just for Walkdiff. Semgrep needs Python 3.10 or later. If one can't be
 installed, Walkdiff still runs, and the Risks tab lists it under "Not checked". Copies on your `PATH`
@@ -122,12 +123,22 @@ are used only when Walkdiff has none of its own. `--offline` skips installing th
 | --- | --- | --- |
 | Semgrep | Risky code patterns, using the `p/default` rules | Downloads rules; your code is not uploaded |
 | gitleaks | Secrets | None |
+| Ruff security rules | Insecure Python, using Bandit's rules: `shell=True`, `pickle`, `yaml.load`, `verify=False`, SQL built from strings and more. Test files are skipped | None |
 | osv-scanner | Known vulnerabilities in `pnpm-lock.yaml`, `yarn.lock` and `bun.lock` | Sends package names and versions to OSV |
+| zizmor | Security problems in GitHub Actions workflows | None |
+| poutine | Security problems in GitLab CI, Azure Pipelines and Tekton: `curl \| sh`, debug tracing that prints secrets into job logs, injection through CI component inputs | None |
 
 Only findings on lines the PR added are reported, and `--offline` skips Semgrep and osv-scanner.
+Ruff's security rules still run offline. Where the built-in rules or Semgrep already flag a line,
+Ruff's finding is left out.
 Scanners read a temporary copy of the changed files, without your tokens in their environment. A PR
 cannot silence them: `# nosemgrep` and `gitleaks:allow` comments are ignored, and scanner config files
-in the PR (`.gitleaks.toml`, `.semgrepignore` and others) are not used. Those files are not scanned either.
+in the PR (`.gitleaks.toml`, `.semgrepignore`, `.poutine.yml` and others) are not used. Those files are not scanned either.
+
+For GitLab CI, Walkdiff's built-in rules add what poutine doesn't check: merge request titles, branch
+names or commit messages run through `eval` or `sh -c`, remote includes without `integrity`, project
+includes without `ref`, components on `~latest` or a branch, and images with no version. Both follow
+the local includes of `.gitlab-ci.yml`, so an MR that only edits an included file is still checked.
 
 Choose Semgrep's rules in `.walkdiff.json`; an empty list turns Semgrep off:
 
