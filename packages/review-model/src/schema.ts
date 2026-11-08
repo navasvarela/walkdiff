@@ -515,6 +515,7 @@ export const reviewSummarySchema = z.object({
   host: z.enum(GitHostKind),
   /** `owner/repo#12` or `group/project!12`, known before the analysis finishes. */
   displayName: z.string(),
+  number: z.number().int().positive(),
   status: z.enum(ReviewStatus),
   /** The step a running analysis is on; null unless analyzing. Kept in memory, not stored. */
   step: z.enum(AnalysisStep).nullable().default(null),

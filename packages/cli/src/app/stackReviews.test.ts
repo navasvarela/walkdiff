@@ -321,9 +321,9 @@ describe("the stack endpoints", () => {
     expect(await response.json()).toMatchObject({
       trunk: "master",
       members: [
-        { check: "checked", status: { state: "merged" }, needsRefresh: false, reviewers: [{ name: "ana", state: "approved" }] },
-        { check: "checked", status: { headSha: NEWER }, needsRefresh: true },
-        { check: "checked", needsRefresh: false },
+        { check: "checked", status: { state: "merged" }, reportChange: "none", reviewers: [{ name: "ana", state: "approved" }] },
+        { check: "checked", status: { headSha: NEWER }, reportChange: "newCommits" },
+        { check: "checked", reportChange: "none" },
       ],
     })
   })

@@ -1,29 +1,19 @@
 import { useCallback, useEffect, useState } from "react"
 import type { FormEvent, ReactElement } from "react"
-import { aiDestination, ReviewStatus, RiskSeverity, stepPosition } from "@walkdiff/review-model"
 import type { AiDestination, ReviewSummary } from "@walkdiff/review-model"
-import { addReview, attachCoverage, listReviews, loadCurrentSettings, refreshReview, removeReview } from "./api.ts"
+import { aiOptionLabel, useAiChoice } from "./aiChoice.ts"
+import { acceptStack, addReview, attachCoverage, dismissStackOffer, listReviews, refreshReview, removeReview } from "./api.ts"
 import logoUrl from "../../../docs/assets/walkdiff-logo.svg"
+import { ReviewRow, TROUBLESHOOTING_URL } from "./ReviewRow.tsx"
+import type { ReviewActions } from "./ReviewRow.tsx"
 import { Settings } from "./Settings.tsx"
+import { StackCard } from "./StackCard.tsx"
+import { EntryKind, isWorking, listEntries } from "./stackList.ts"
 
 const DOCS_URL = "https://github.com/navasvarela/walkdiff/blob/main/docs/README.md"
-const TROUBLESHOOTING_URL = "https://github.com/navasvarela/walkdiff/blob/main/docs/troubleshooting.md"
 
 // Often enough that an analysis finishing feels immediate; only while one is running.
 const POLL_INTERVAL_MS = 1500
-
-const STATUS_LABELS: Readonly<Record<ReviewStatus, string>> = {
-  [ReviewStatus.Queued]: "Queued",
-  [ReviewStatus.Analyzing]: "Analyzing…",
-  [ReviewStatus.Ready]: "Ready",
-  [ReviewStatus.Failed]: "Failed",
-}
-
-const LEVEL_LABELS: Readonly<Record<RiskSeverity, string>> = {
-  [RiskSeverity.High]: "High severity finding",
-  [RiskSeverity.Medium]: "Medium severity finding",
-  [RiskSeverity.Low]: "Low severity finding",
-}
 
 const SETTINGS_HASH = "#settings"
 const HOME_HASH = "#"
@@ -82,7 +72,8 @@ function ReviewList(): ReactElement {
     void reload()
   }, [reload])
 
-  const busy = reviews?.some((review) => review.status === ReviewStatus.Queued || review.status === ReviewStatus.Analyzing) ?? false
+  const aiChoice = useAiChoice()
+  const busy = reviews?.some(isWorking) ?? false
   useEffect(() => {
     if (!busy) return undefined
     const timer = window.setInterval(() => void reload(), POLL_INTERVAL_MS)
@@ -94,25 +85,35 @@ function ReviewList(): ReactElement {
       .then(reload)
       .catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)))
   }
+  const actionsFor = (review: ReviewSummary): ReviewActions => ({
+    refresh: () => act(() => refreshReview(review.id)),
+    attachCoverage: (files) => act(() => attachCoverage(review.id, files)),
+    remove: () => act(() => removeReview(review.id)),
+    acceptStack: (ai) => act(() => acceptStack(review.id, { ai })),
+    dismissStack: () => act(() => dismissStackOffer(review.id)),
+  })
 
   return (
     <main className="page">
       <h1>Reviews</h1>
-      <AddReviewForm onAdded={reload} />
+      <AddReviewForm onAdded={reload} destination={aiChoice.destination} enabledByDefault={aiChoice.enabledByDefault} />
+      {aiChoice.problem !== undefined && <p className="problem">{aiChoice.problem}</p>}
       {problem !== undefined && <p className="problem">{problem}</p>}
       {reviews === undefined ? null : reviews.length === 0 ? (
         <p className="empty">Nothing here yet. Paste a pull request or merge request link above to start a review.</p>
       ) : (
         <ul className="reviews">
-          {reviews.map((review) => (
-            <ReviewRow
-              key={review.id}
-              review={review}
-              onRefresh={() => act(() => refreshReview(review.id))}
-              onAttachCoverage={(files) => act(() => attachCoverage(review.id, files))}
-              onRemove={() => act(() => removeReview(review.id))}
-            />
-          ))}
+          {listEntries(reviews).map((entry) =>
+            entry.kind === EntryKind.Review ? (
+              <li key={`review-${entry.review.id}`}>
+                <ReviewRow review={entry.review} reviews={reviews} destination={aiChoice.destination} actions={actionsFor(entry.review)} />
+              </li>
+            ) : (
+              <li key={`stack-${entry.id}`}>
+                <StackCard id={entry.id} members={entry.members} reviews={reviews} destination={aiChoice.destination} actionsFor={actionsFor} act={act} />
+              </li>
+            ),
+          )}
         </ul>
       )}
       <footer className="page-footer">
@@ -129,22 +130,17 @@ function ReviewList(): ReactElement {
 
 interface AddReviewFormProps {
   readonly onAdded: () => Promise<void>
+  readonly destination: AiDestination | undefined
+  readonly enabledByDefault: boolean
 }
 
-function AddReviewForm({ onAdded }: AddReviewFormProps): ReactElement {
+function AddReviewForm({ onAdded, destination, enabledByDefault }: AddReviewFormProps): ReactElement {
   const [url, setUrl] = useState("")
   const [ai, setAi] = useState(false)
-  const [destination, setDestination] = useState<AiDestination>()
   const [problem, setProblem] = useState<string>()
 
-  useEffect(() => {
-    loadCurrentSettings()
-      .then(({ settings, anthropicBaseUrl }) => {
-        setAi(settings.ai.enabledByDefault)
-        setDestination(aiDestination(settings.ai, anthropicBaseUrl ?? undefined))
-      })
-      .catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)))
-  }, [])
+  // The saved default arrives after the first render.
+  useEffect(() => setAi(enabledByDefault), [enabledByDefault])
 
   const submit = (event: FormEvent): void => {
     event.preventDefault()
@@ -177,121 +173,5 @@ function AddReviewForm({ onAdded }: AddReviewFormProps): ReactElement {
       </label>
       {problem !== undefined && <p className="problem">{problem}</p>}
     </form>
-  )
-}
-
-function aiOptionLabel(destination: AiDestination | undefined): string {
-  if (destination === undefined) return "Include AI review"
-  if (destination.isLocal) return "Include AI review (uses a model on this machine; your code stays here)"
-  return `Include AI review (sends the changed code to ${destination.label}, and may cost money)`
-}
-
-interface ReviewRowProps {
-  readonly review: ReviewSummary
-  readonly onRefresh: () => void
-  readonly onAttachCoverage: (files: readonly File[]) => void
-  readonly onRemove: () => void
-}
-
-/**
- * Which step an analysis is on, as a bar. It moves a step at a time rather than by a made-up
- * percentage: steps take very different times, and scanning is usually the longest.
- */
-function AnalysisProgress({ review }: { readonly review: ReviewSummary }): ReactElement {
-  if (review.step === null) {
-    return <div className="progress progress-starting" role="progressbar" aria-label="Starting the analysis" />
-  }
-  const { number, total, label } = stepPosition(review.step, review.ai)
-  return (
-    <div className="analysis-progress">
-      <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={number - 1} aria-valuetext={`Step ${number} of ${total}: ${label}`}>
-        <div className="progress-done" style={{ width: `${((number - 1) / total) * 100}%` }} />
-        <div className="progress-current" style={{ left: `${((number - 1) / total) * 100}%`, width: `${100 / total}%` }} />
-      </div>
-      <p className="progress-label">
-        Step {number} of {total}: {label}…
-      </p>
-    </div>
-  )
-}
-
-function ReviewRow({ review, onRefresh, onAttachCoverage, onRemove }: ReviewRowProps): ReactElement {
-  const working = review.status === ReviewStatus.Queued || review.status === ReviewStatus.Analyzing
-  return (
-    <li className="review">
-      <div className="review-main">
-        {review.securityLevel !== null && review.securityLevel !== RiskSeverity.Low && <span className={`level level-${review.securityLevel}`}>{LEVEL_LABELS[review.securityLevel]}</span>}
-        {review.hasReport ? (
-          <a className="review-title" href={`/reviews/${review.id}/`}>
-            {review.title ?? review.displayName}
-          </a>
-        ) : (
-          <span className="review-title">{review.title ?? review.displayName}</span>
-        )}
-        {review.status !== ReviewStatus.Ready && <span className={`status status-${review.status}`}>{STATUS_LABELS[review.status]}</span>}
-      </div>
-      {review.status === ReviewStatus.Analyzing && <AnalysisProgress review={review} />}
-      <p className="review-meta">
-        <a href={review.url} target="_blank" rel="noreferrer">
-          {review.displayName}
-        </a>
-        {review.author !== null && <> by {review.author}</>}
-        {review.unitsToReview !== null && <> · {review.unitsToReview} to review</>}
-        {review.untouchedReferences !== null && review.untouchedReferences > 0 && <> · {review.untouchedReferences} untouched callers</>}
-        {review.findings !== null && (
-          <>
-            {" "}
-            · {review.findings} {review.findings === 1 ? "finding" : "findings"}
-          </>
-        )}
-        {review.ai && <> · AI</>}
-        {review.hasReport && <> · {coverageLabel(review.coverageSource)}</>}
-        <> · updated {new Date(review.updatedAt).toLocaleString()}</>
-      </p>
-      {review.error !== null && (
-        <p className="problem">
-          {review.error}{" "}
-          <a href={TROUBLESHOOTING_URL} target="_blank" rel="noreferrer">
-            How to fix this
-          </a>
-        </p>
-      )}
-      <div className="review-actions">
-        <button type="button" disabled={working} onClick={onRefresh}>
-          Refresh
-        </button>
-        {review.hasReport && !working && <AttachCoverageButton hasCoverage={review.coverageSource !== null} onAttach={onAttachCoverage} />}
-        <button type="button" onClick={onRemove}>
-          Remove
-        </button>
-      </div>
-    </li>
-  )
-}
-
-function coverageLabel(source: string | null): string {
-  return source === null ? "no coverage found" : `coverage from ${source}`
-}
-
-interface AttachCoverageButtonProps {
-  readonly hasCoverage: boolean
-  readonly onAttach: (files: readonly File[]) => void
-}
-
-function AttachCoverageButton({ hasCoverage, onAttach }: AttachCoverageButtonProps): ReactElement {
-  return (
-    <label className="file-button" title="An LCOV or Cobertura report from this PR's latest commit. Applies to this PR only.">
-      {hasCoverage ? "Replace coverage" : "Attach coverage"}
-      <input
-        type="file"
-        multiple
-        accept=".info,.lcov,.xml"
-        onChange={(event) => {
-          onAttach([...(event.target.files ?? [])])
-          // Cleared so that picking the same file again, after regenerating it, still fires.
-          event.target.value = ""
-        }}
-      />
-    </label>
   )
 }

@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite"
 import { appSettingsSchema, commitShaSchema, DEFAULT_APP_SETTINGS, GitHostKind, pullRequestStackSchema, ReviewStatus, reviewSummarySchema, testCoverageSchema } from "@walkdiff/review-model"
 import type { AppSettings, CommitSha, PullRequestStack, ReviewSummary } from "@walkdiff/review-model"
+import { parsePullRequestUrl } from "@walkdiff/providers"
 import { z } from "zod"
 import type { AttachedCoverage } from "../reviewCommand.ts"
 
@@ -355,6 +356,7 @@ function toSummary(row: unknown): ReviewSummary {
     url: parsed.url,
     host: parsed.host,
     displayName: parsed.display_name,
+    number: parsePullRequestUrl(parsed.url).number,
     status: parsed.status,
     error: parsed.error,
     hasReport: parsed.report_dir !== null,
