@@ -1,7 +1,8 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import type { ReactElement, ReactNode } from "react"
-import type { ReviewModel } from "@walkdiff/review-model"
-import { changedSinceReview, EMPTY_REVIEW_STATE, parseSavedState, serializeState, withComment, withReviewed } from "./reviewProgress.ts"
+import { progressKey } from "@walkdiff/review-model"
+import type { ProgressRecord, ReviewModel } from "@walkdiff/review-model"
+import { changedSinceReview, EMPTY_REVIEW_STATE, overallProgress, parseSavedState, serializeState, withComment, withReviewed } from "./reviewProgress.ts"
 import type { ReviewItem, ReviewState } from "./reviewProgress.ts"
 
 const STORAGE_KEY_PREFIX = "walkdiff-review:"
@@ -37,6 +38,12 @@ export function ReviewStateProvider({ review, children }: ReviewStateProviderPro
   const [stateAtOpen] = useState(() => parseSavedState(readStorage(key)))
   const [state, setState] = useState(stateAtOpen)
   const changedAtOpen = useMemo(() => changedSinceReview(review.files, stateAtOpen), [review.files, stateAtOpen])
+  // Saved on open too, so the app's list catches up with a report re-made after a push.
+  useEffect(() => {
+    const { url, headSha, baseRef } = review.pullRequest
+    const progress: ProgressRecord = { ...overallProgress(review.files, state), drafts: state.comments.size, head: { headSha, baseRef } }
+    writeStorage(progressKey(url), JSON.stringify(progress))
+  }, [review.files, review.pullRequest, state])
   const update = useCallback(
     (change: (current: ReviewState) => ReviewState): void => {
       setState((current) => {

@@ -11,6 +11,7 @@
   --medium-bg: #fff8c5;
   --low-text: #59636e;
   --low-bg: #eaeef2;
+  --good-text: #1a7f37;
   color-scheme: light dark;
 }
 
@@ -28,6 +29,7 @@
     --medium-bg: #2b2111;
     --low-text: #9198a1;
     --low-bg: #262c36;
+    --good-text: #3fb950;
   }
 }
 
@@ -164,6 +166,105 @@ button:disabled {
 .review-actions .file-button {
   padding: 2px 8px;
   font-size: 12px;
+}
+
+.stack-offer {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  font-size: 13px;
+}
+
+.stack-offer p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.stack-offer .stack-offer-note {
+  margin-top: 6px;
+  color: var(--text-muted);
+}
+
+/* A stack reads as one item of the list, with its members' rows inside it. */
+.stack-card {
+  margin-bottom: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+}
+
+.stack-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+
+.stack-header h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.stack-header .review-actions {
+  margin: 0 0 0 auto;
+}
+
+.stack-headline {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.stack-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stack-members .review {
+  background: var(--bg);
+}
+
+.stack-position {
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--low-bg);
+  color: var(--low-text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.member-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.member-state-good {
+  color: var(--good-text);
+}
+
+.member-state-attention {
+  color: var(--medium-text);
+}
+
+.member-state-muted {
+  color: var(--text-muted);
+}
+
+.member-state-problem {
+  color: var(--high-text);
+}
+
+.stack-done {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 .level {
@@ -390,7 +491,8 @@ button:disabled {
   gap: 12px;
 }
 
-.settings-actions .primary {
+.settings-actions .primary,
+.approve-dialog .primary {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--bg);
@@ -497,4 +599,71 @@ button:disabled {
   background: var(--border);
   color: var(--text);
   font-weight: 600;
+}
+
+.approve-dialog {
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.approve-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.approve-dialog h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.approve-lede {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.approve-members {
+  margin: 0 0 12px;
+  padding: 0 0 0 20px;
+}
+
+.approve-members li {
+  margin-bottom: 8px;
+}
+
+.approve-members p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.approve-member {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.approve-sha {
+  margin-left: 8px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.approve-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.approve-body textarea {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
 }

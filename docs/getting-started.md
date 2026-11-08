@@ -55,6 +55,20 @@ walkdiff app
 
 This opens a list at `http://127.0.0.1:4317/` in your browser. Use `--no-open` to leave your browser alone. Paste a link to add a review. If you're signed in with the GitHub CLI, the app uses that login for GitHub. For GitLab, set `GITLAB_TOKEN` before starting it.
 
+### Review a stack together
+
+A stack is a chain of PRs, each built on the one below it: `add-schema` into `main`, `add-parser` into `add-schema`, and so on. When you add one PR from a stack, the app notices while it analyzes it, and offers the rest:
+
+> **Part of a stack of 3** into `main`: #11 Add schema → **#12 Add parser (this one)** → #13 Wire CLI
+
+**Review the whole stack** adds the missing PRs and shows the stack as one card, bottom first. PRs already on your list join it without being analyzed again. **Not now** hides the offer. A PR that joins the stack later is offered on its own.
+
+- **What's found:** the app uses GitHub's and GitLab's own stacks where the PR is in one. Otherwise it follows branches, so stacks made with other tools are found too. Only open PRs from the same repository count, up to 20. Where two PRs build on the same one, the chain stops there, and the app names the PRs it left out.
+- **AI review:** the offer has its own AI box, starting from the choice you made for the PR you added. It applies only to the PRs the stack adds to your list.
+- **Each report is the PR's own change**, from where it branched off the PR below it, so you don't see the lower PRs' code again. A strip at the top of each report links to the PRs below and above it.
+- **The card asks the host when it opens:** which PRs have new commits or were retargeted (as when the one below merged), who approved, and which merged or closed. **Refresh changed** analyzes again only the PRs that changed. Your progress in each report carries over, so only changed code comes back unreviewed. Until you open a refreshed report, the list says it changed since you reviewed it.
+- **Ungroup** turns the card back into separate reviews and doesn't offer the stack again.
+
 ## Post your review
 
 In the app, the finish screen posts your comments and your decision to the PR: Comment, Approve or Request changes. The Conversation tab shows existing threads, where you can reply and resolve them. Nothing is posted until you press the button.

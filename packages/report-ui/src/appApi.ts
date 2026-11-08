@@ -1,5 +1,5 @@
-import { conversationSchema, submitResultSchema } from "@walkdiff/review-model"
-import type { Conversation, SubmitResult, SubmitReview } from "@walkdiff/review-model"
+import { conversationSchema, reviewSummarySchema, submitResultSchema } from "@walkdiff/review-model"
+import type { Conversation, ReviewSummary, SubmitResult, SubmitReview } from "@walkdiff/review-model"
 
 const API_KEY_HEADER = "X-Walkdiff-Key"
 const API_KEY_META = "walkdiff-api-key"
@@ -14,8 +14,18 @@ export function isConnectedToApp(): boolean {
   return meta(API_KEY_META) !== null && meta(REVIEW_ID_META) !== null
 }
 
-async function call(path: string, method: string, body?: unknown): Promise<unknown> {
-  const response = await fetch(`/api/reviews/${meta(REVIEW_ID_META) ?? ""}${path}`, {
+/** This report's review id in the app; undefined outside it. */
+export function reviewId(): number | undefined {
+  const id = Number(meta(REVIEW_ID_META))
+  return Number.isInteger(id) && id > 0 ? id : undefined
+}
+
+function call(path: string, method: string, body?: unknown): Promise<unknown> {
+  return callApp(`/api/reviews/${meta(REVIEW_ID_META) ?? ""}${path}`, method, body)
+}
+
+async function callApp(path: string, method: string, body?: unknown): Promise<unknown> {
+  const response = await fetch(path, {
     method,
     headers: { [API_KEY_HEADER]: meta(API_KEY_META) ?? "", ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -25,6 +35,11 @@ async function call(path: string, method: string, body?: unknown): Promise<unkno
     throw new Error(typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string" ? payload.error : `The app answered ${response.status}`)
   }
   return payload
+}
+
+/** The app's whole review list, to find this PR's neighbours in its stack. */
+export async function loadReviewList(): Promise<readonly ReviewSummary[]> {
+  return reviewSummarySchema.array().parse(await callApp("/api/reviews", "GET"))
 }
 
 export async function loadConversation(): Promise<Conversation> {

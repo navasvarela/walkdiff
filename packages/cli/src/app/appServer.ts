@@ -6,9 +6,9 @@ import { join, resolve } from "node:path"
 import { gitHostFor, HostApiError, InvalidPullRequestUrlError, parsePullRequestUrl } from "@walkdiff/providers"
 import type { GitHost, PullRequestRef } from "@walkdiff/providers"
 import { AI_API_KEY_VARIABLE, AiUnavailableError, CoverageFileError, createAiProvider, describeChecks, firstExisting } from "@walkdiff/engine"
-import { acceptStackRequestSchema, addReviewRequestSchema, anthropicBaseUrlFrom, appSettingsSchema, attachCoverageRequestSchema, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
-import { MemberCheck, ReviewStatus } from "@walkdiff/review-model"
-import type { AiConnectionResult, SettingsView, CheckStatus, StackView } from "@walkdiff/review-model"
+import { acceptStackRequestSchema, addReviewRequestSchema, approveStackRequestSchema, anthropicBaseUrlFrom, appSettingsSchema, attachCoverageRequestSchema, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
+import { MemberCheck, ReportChange, ReviewStatus } from "@walkdiff/review-model"
+import type { AiConnectionResult, ApproveStackRequest, SettingsView, CheckStatus, StackView } from "@walkdiff/review-model"
 import { readHostTokens } from "../environment.ts"
 import { REPORT_FILE_POLICY_TAG, REPORT_PAGE_FILE, writeReport } from "../report.ts"
 import { addressOf, BASE_POLICY, listen, LOOPBACK_HOST, REPORT_PAGE_POLICY, respond, SECURITY_HEADERS } from "../server.ts"
@@ -16,6 +16,8 @@ import { attachCoverage } from "./attachCoverage.ts"
 import type { ReportWriter } from "./attachCoverage.ts"
 import type { ReviewService } from "./reviewService.ts"
 import type { ReviewStore } from "./reviewStore.ts"
+import { ApproveKind, approveStack, checkApproval } from "./approveStack.ts"
+import type { ApproveResult, CheckResult } from "./approveStack.ts"
 import { readStackView } from "./stackStatus.ts"
 import type { HostResolver } from "./stackStatus.ts"
 
@@ -193,6 +195,13 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, pat
     await handleStack(response, method, Number(stack[1]), context)
     return
   }
+  const stackApprove = /^\/api\/stacks\/(\d+)\/approve(\/check)?$/.exec(pathname)
+  if (stackApprove !== null && method === "POST") {
+    const stackId = Number(stackApprove[1])
+    const run = stackApprove[2] === undefined ? approveStack : checkApproval
+    await answerApproval(request, response, (approval) => run(context.store, stackId, approval, context.hostFor))
+    return
+  }
   const stackRefresh = /^\/api\/stacks\/(\d+)\/refresh$/.exec(pathname)
   if (stackRefresh !== null && method === "POST") {
     await refreshStack(response, Number(stackRefresh[1]), context)
@@ -264,10 +273,37 @@ async function refreshStack(response: ServerResponse, id: number, context: AppCo
   sendJson(response, 202, view)
 }
 
+/**
+ * Answers an approval of stack members: posting them (`/approve`), or only checking that every one
+ * is still what the reviewer saw (`/approve/check`), so the page can then post them one at a time
+ * and show each result as it comes.
+ */
+async function answerApproval(request: IncomingMessage, response: ServerResponse, run: (approval: ApproveStackRequest) => Promise<ApproveResult | CheckResult>): Promise<void> {
+  const parsed = approveStackRequestSchema.safeParse(await readJsonBody(request))
+  if (!parsed.success) {
+    sendJson(response, 400, { error: parsed.error.issues.at(0)?.message ?? "This approval isn't valid" })
+    return
+  }
+  const result = await run(parsed.data)
+  switch (result.kind) {
+    case ApproveKind.NoStack:
+      sendJson(response, 404, { error: "No such stack" })
+      return
+    case ApproveKind.Blocked:
+      sendJson(response, 409, { error: "Nothing was posted: some PRs aren't as you saw them.", blocked: result.blocked })
+      return
+    case ApproveKind.Ready:
+      sendJson(response, 200, { ready: result.checked.map(({ member }) => member.id) })
+      return
+    case ApproveKind.Done:
+      sendJson(response, 200, { results: result.results })
+  }
+}
+
 /** Re-runs the members whose reports are out of date, leaving alone those already waiting or running. */
 function refreshChanged(view: StackView, context: AppContext): void {
   for (const member of view.members) {
-    if (member.check !== MemberCheck.Checked || !member.needsRefresh) continue
+    if (member.check !== MemberCheck.Checked || member.reportChange === ReportChange.None) continue
     const status = context.store.get(member.reviewId)?.status
     if (status !== ReviewStatus.Queued && status !== ReviewStatus.Analyzing) context.service.refresh(member.reviewId)
   }
@@ -354,8 +390,7 @@ async function submitReview(request: IncomingMessage, response: ServerResponse, 
     return
   }
   // A review only speaks for the code that was read, so approving must not reach newer commits.
-  const { pullRequest } = await host.fetchPullRequest()
-  if (pullRequest.headSha !== parsed.data.headSha) {
+  if ((await host.fetchStatus()).headSha !== parsed.data.headSha) {
     sendJson(response, 409, { error: "This PR has new commits since this report was made. Nothing was posted. Refresh the review, and your comments will still be here." })
     return
   }

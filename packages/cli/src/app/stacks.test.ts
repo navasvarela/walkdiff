@@ -2,7 +2,7 @@ import { parsePullRequestUrl } from "@walkdiff/providers"
 import { commitShaSchema } from "@walkdiff/review-model"
 import type { PullRequestStack, PullRequestStatus } from "@walkdiff/review-model"
 import { describe, expect, it } from "vitest"
-import { needsRefresh } from "./stackStatus.ts"
+import { reportChange } from "./stackStatus.ts"
 import { canonicalUrl, memberUrl, mergedOrder, stackOfferFor } from "./stacks.ts"
 
 const github = parsePullRequestUrl("https://github.com/acme/app/pull/2/files")
@@ -58,19 +58,21 @@ describe("ordering a stack after a new detection", () => {
   })
 })
 
-describe("whether a member needs a refresh", () => {
+describe("why a member's report is out of date", () => {
   const HEAD = commitShaSchema.parse("a".repeat(40))
+  const NEWER = commitShaSchema.parse("b".repeat(40))
   const analyzed = { headSha: HEAD, baseRef: "b1" }
   const status = (change: Partial<PullRequestStatus>): PullRequestStatus => ({ state: "open", headSha: HEAD, baseRef: "b1", ...change })
 
   it.each([
-    ["is unchanged", analyzed, status({}), false],
-    ["has new commits", analyzed, status({ headSha: commitShaSchema.parse("b".repeat(40)) }), true],
-    ["was retargeted after the member below merged", analyzed, status({ baseRef: "main" }), true],
-    ["has no report yet", undefined, status({}), true],
-    ["is merged, whatever changed", analyzed, status({ state: "merged", baseRef: "main" }), false],
-    ["is closed", undefined, status({ state: "closed" }), false],
-  ])("says so when it %s", (_case, before, now, expected) => {
-    expect(needsRefresh(before, now)).toBe(expected)
+    ["is unchanged", analyzed, status({}), "none"],
+    ["has new commits", analyzed, status({ headSha: NEWER }), "newCommits"],
+    ["was retargeted after the member below merged", analyzed, status({ baseRef: "main" }), "retargeted"],
+    ["was rebased onto its new base", analyzed, status({ baseRef: "main", headSha: NEWER }), "retargeted"],
+    ["has no report yet", null, status({}), "noReport"],
+    ["is merged, whatever changed", analyzed, status({ state: "merged", baseRef: "main" }), "none"],
+    ["is closed", null, status({ state: "closed" }), "none"],
+  ])("tells when it %s", (_case, before, now, expected) => {
+    expect(reportChange(before, now)).toBe(expected)
   })
 })

@@ -2148,6 +2148,31 @@ button.guide-button-primary:hover {
   white-space: nowrap;
 }
 
+/* Under the top bar, and not sticky: it is for moving between reports, not for reading one. */
+.stack-strip {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 20px;
+  padding: 6px 24px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.stack-strip-place {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.stack-strip a,
+.stack-strip span {
+  overflow: hidden;
+  max-width: 40ch;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .guide-heading-block {
   margin-bottom: 28px;
   padding-bottom: 24px;
