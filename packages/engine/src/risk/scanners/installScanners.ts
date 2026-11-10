@@ -3,7 +3,9 @@ import { chmod, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 
 import { existsSync } from "node:fs"
 import { execFile } from "node:child_process"
 import { join, relative, resolve } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
 import { firstExisting } from "../../locate.ts"
+import { downloadWithRetries } from "./downloadWithRetries.ts"
 import { MANAGED_SCANNERS_ROOT } from "./scannerProcess.ts"
 
 const ArchiveKind = { TarGz: "tarGz", RawBinary: "rawBinary" } as const
@@ -107,7 +109,6 @@ const SEMGREP_UNSUPPORTED_PLATFORMS: ReadonlySet<string> = new Set(["win32"])
 const HAS_SUPPORTED_PYTHON = "import sys; sys.exit(sys.version_info < (3, 10))"
 const NEEDS_PYTHON = "it needs Python 3.10 or later, with the venv module"
 
-const DOWNLOAD_TIMEOUT_MS = 2 * 60 * 1000
 // Installing Semgrep's dependencies on a slow connection can take several minutes.
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000
 const EXECUTABLE_MODE = 0o755
@@ -229,12 +230,6 @@ async function installSemgrep(tools: string, deps: InstallDependencies): Promise
   return executable
 }
 
-async function download(url: string): Promise<Buffer> {
-  const response = await fetch(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) })
-  if (!response.ok) throw new Error(`${url} responded ${response.status}`)
-  return Buffer.from(await response.arrayBuffer())
-}
-
 function run(command: string, args: readonly string[]): Promise<void> {
   return new Promise((resolvePromise, reject) => {
     execFile(command, [...args], { timeout: COMMAND_TIMEOUT_MS, encoding: "utf8" }, (error, _stdout, stderr) => {
@@ -246,5 +241,6 @@ function run(command: string, args: readonly string[]): Promise<void> {
 
 /** Installs for this machine, into the folder scanners are run from. Quick when they're all there. */
 export function installScannersHere(log: (message: string) => void = console.log): Promise<void> {
+  const download = (url: string): Promise<Buffer> => downloadWithRetries(url, { fetch, wait: async (ms) => void (await sleep(ms)), log })
   return installScanners(MANAGED_SCANNERS_ROOT, { download, run, log, platform: `${process.platform}-${process.arch}`, pins: BINARY_PINS })
 }
