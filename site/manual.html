@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Walkdiff manual</title>
+  <meta name="description" content="A short manual for Walkdiff: install it, review a pull request, read the report, and set it up in CI.">
+  <link rel="icon" href="assets/walkdiff-logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="assets/walkdiff-logo.svg" alt="">Walkdiff</a>
+      <nav aria-label="Site">
+        <a href="./">Vision</a>
+        <a href="manual.html" aria-current="page">Manual</a>
+        <a href="example/" class="optional">Example report</a>
+        <a href="https://github.com/navasvarela/walkdiff">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap manual">
+    <nav class="toc" aria-label="Manual contents">
+      <p>Contents</p>
+      <ol>
+        <li><a href="#first-report">Your first report</a></li>
+        <li><a href="#reading">Reading a report</a></li>
+        <li><a href="#units">Changed units</a></li>
+        <li><a href="#impact">Impact</a></li>
+        <li><a href="#risks">Risks and security</a></li>
+        <li><a href="#dependencies">Dependencies</a></li>
+        <li><a href="#breaking">Breaking changes</a></li>
+        <li><a href="#quality">Code quality</a></li>
+        <li><a href="#coverage">Test coverage</a></li>
+        <li><a href="#ai">AI review</a></li>
+        <li><a href="#app">The app</a></li>
+        <li><a href="#private">Private repositories</a></li>
+        <li><a href="#ci">In CI</a></li>
+        <li><a href="#team-rules">Team rules</a></li>
+        <li><a href="#privacy">What leaves your machine</a></li>
+      </ol>
+    </nav>
+
+    <article>
+      <h1>Manual</h1>
+      <p class="section-lede">Everything Walkdiff does, briefly. The <a href="https://github.com/navasvarela/walkdiff/tree/main/docs">guides on GitHub</a> have the details.</p>
+
+      <section id="first-report">
+        <h2>Your first report</h2>
+        <p>You need Node.js 22.18 or newer, and git. Run Walkdiff with <code>npx</code>, or install it once:</p>
+        <pre><code>npm install --global walkdiff
+walkdiff review https://github.com/owner/repo/pull/123</code></pre>
+        <p>
+          Walkdiff fetches the change, analyzes it, and prints a local address to open. GitLab works the same
+          way with a merge request link. GitHub Enterprise and self-managed GitLab work by URL too.
+        </p>
+        <p>
+          The first review also installs the security scanners Walkdiff runs, at pinned versions checked
+          against their hashes. <code>walkdiff setup</code> installs them in advance.
+        </p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Option</th><th>Does</th></tr></thead>
+            <tbody>
+              <tr><td><code>--out &lt;dir&gt;</code></td><td>Writes the report to a folder instead of the cache</td></tr>
+              <tr><td><code>--no-serve</code></td><td>Writes the report and exits. The HTML file also opens straight from disk</td></tr>
+              <tr><td><code>--offline</code></td><td>Skips everything that uses the network besides the host: vulnerability lookups, registry checks and Semgrep's rule download</td></tr>
+              <tr><td><code>--ai</code></td><td>Adds an <a href="#ai">AI review</a></td></tr>
+              <tr><td><code>--coverage &lt;file&gt;</code></td><td>Shows which changed lines ran in tests, from an LCOV or Cobertura report</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="reading">
+        <h2>Reading a report</h2>
+        <p>The report opens on a <strong>brief</strong>: what to check, how many changes need attention, and where to start.</p>
+        <ol>
+          <li><strong>Start the review.</strong> The review path takes you through the changes that matter most, one at a time, and says why each one is there.</li>
+          <li><strong>Mark what you've reviewed</strong> and leave comments as you go: on a whole change, or on exact lines by clicking a line number. Shift-click picks several lines.</li>
+          <li><strong>Finish.</strong> The last screen shows what you reviewed, what's left, and what Walkdiff couldn't check. In the app you can post your review from here.</li>
+        </ol>
+        <p>Everything else is under <strong>All changes</strong>, in tabs you can link to, as in <code>#risks</code>:</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Tab</th><th>Shows</th></tr></thead>
+            <tbody>
+              <tr><td>Changes</td><td>The files, a map of each file, and every changed unit, whole, before and after</td></tr>
+              <tr><td>Impact</td><td>Where other code uses what changed, and which of those callers the PR didn't touch</td></tr>
+              <tr><td>Risks</td><td>Each finding, a summary of security findings, and the checks that ran and that didn't</td></tr>
+              <tr><td>AI review</td><td>A reading order, an intent check and questions, when you ask for them</td></tr>
+              <tr><td>Conversation</td><td>The PR's threads, in the app, where you can reply and resolve them</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">"No security findings" means the checks that ran found nothing on the lines the PR adds. It isn't a security audit, so check which checks ran.</p>
+      </section>
+
+      <section id="units">
+        <h2>Changed units</h2>
+        <p>
+          In Rust, TypeScript, JavaScript, Python, Go, Java, C and C++, Walkdiff parses both versions of each file and
+          compares them unit by unit: functions, methods, classes, types and macros.
+        </p>
+        <ul>
+          <li><strong>Whole, before and after.</strong> Each changed unit appears once, with edited words marked. A class shows only its own code, and its methods get their own cards.</li>
+          <li><strong>Change facts.</strong> Each modified function lists parameters added, removed or changed, a new return type, calls added or removed, and more or fewer error paths and branches.</li>
+          <li><strong>Noise folded away.</strong> Formatting-only and comment-only edits, renames with unchanged bodies, and moves between files or classes are collapsed. A function moved and edited shows as one "moved and edited" change. Lockfiles and generated files are grouped as skippable.</li>
+          <li><strong>Tests as units.</strong> Each JavaScript and TypeScript <code>describe</code>, <code>it</code>/<code>test</code> and hook is named by its title, as <code>parser › reads includes</code>, and so is each GoogleTest or Boost.Test case in C++.</li>
+          <li><strong>A map of each file.</strong> When a file has several changed units, an outline shows which ones changed among its definitions, their size, and which changed function calls which.</li>
+        </ul>
+        <p>Other languages get a line diff, which is also there on demand for every file.</p>
+      </section>
+
+      <section id="impact">
+        <h2>Impact</h2>
+        <p>
+          For every function, method or type a PR changes, removes or renames, Walkdiff lists where the rest of the
+          repository still uses it, linked to the host, and flags the callers the PR didn't touch. A removed or renamed
+          unit shows the references left behind.
+        </p>
+        <p>References are found by name and syntax, not by type checking, so each carries a confidence:</p>
+        <ul>
+          <li><strong>Exact</strong>: qualified with the unit's type, as <code>Size::new</code> or <code>this.parse()</code>.</li>
+          <li><strong>Likely</strong>: a direct use of the name, as <code>parse(x)</code>.</li>
+          <li><strong>Possible</strong>: a method called on a value of unknown type, as <code>x.parse()</code>.</li>
+        </ul>
+        <p>Parameters and locals that shadow the name are ignored. A name used in more than 200 files is reported as too common to trace.</p>
+      </section>
+
+      <section id="risks">
+        <h2>Risks and security</h2>
+        <p>Built-in rules read the lines a PR adds, and only code counts, not comments or strings:</p>
+        <ul>
+          <li><strong>Secrets</strong>, redacted in the report.</li>
+          <li><strong>Risky APIs</strong>, such as <code>eval</code>, <code>shell=True</code>, raw HTML, <code>unsafe</code>, disabled TLS checks, SQL built from strings, Java deserialization, or C's <code>strcpy</code>.</li>
+          <li><strong>Sensitive areas</strong>: auth, payments, migrations, CI, and paths your team marks.</li>
+          <li><strong>CI pipelines</strong>: injection through PR titles and branch names, unpinned includes and images in GitLab CI.</li>
+          <li><strong>Review signals</strong>: large PRs, code changes without test changes, and removed units that untouched code still uses.</li>
+        </ul>
+        <p>Pinned security scanners add more when they're installed:</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Scanner</th><th>Finds</th></tr></thead>
+            <tbody>
+              <tr><td>Semgrep</td><td>Risky code patterns, with the <code>p/default</code> rules</td></tr>
+              <tr><td>gitleaks</td><td>Secrets</td></tr>
+              <tr><td>Ruff</td><td>Insecure Python, with Bandit's rules</td></tr>
+              <tr><td>osv-scanner</td><td>Known vulnerabilities in <code>pnpm-lock.yaml</code>, <code>yarn.lock</code> and <code>bun.lock</code></td></tr>
+              <tr><td>zizmor</td><td>Security problems in GitHub Actions workflows</td></tr>
+              <tr><td>poutine</td><td>Security problems in GitLab CI, Azure Pipelines and Tekton</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          A PR can't silence a scanner: suppression comments such as <code># nosemgrep</code> are ignored, and scanner
+          config files in the PR aren't used. A scanner that can't run is listed under "Not checked".
+        </p>
+      </section>
+
+      <section id="dependencies">
+        <h2>Dependencies</h2>
+        <p>When a PR changes <code>package.json</code>, <code>Cargo.toml</code>, <code>pyproject.toml</code>, requirements files or their lockfiles:</p>
+        <ul>
+          <li><strong>New dependencies</strong> are noted where they're declared.</li>
+          <li><strong>Known vulnerabilities</strong> in versions new to a lockfile are looked up in <a href="https://osv.dev">OSV</a>.</li>
+          <li><strong>Trust:</strong> a new direct dependency is flagged if it's known malicious, isn't on its registry, was first published in the last 30 days, or is one character away from a popular package's name.</li>
+          <li><strong>Licences:</strong> list the licences your team accepts, and anything else is flagged.</li>
+        </ul>
+      </section>
+
+      <section id="breaking">
+        <h2>Breaking changes</h2>
+        <p>Walkdiff flags changes that could break other code or a deployment, and puts them on the review path:</p>
+        <ul>
+          <li><strong>Public APIs</strong> in Rust, TypeScript, JavaScript, Python and Go libraries: removed or renamed functions and types, lost visibility, new required or removed parameters, and changed types. Only code other projects can reach counts, such as a crate's public modules or a package's entry point.</li>
+          <li><strong>Database migrations</strong> that drop or rename tables and columns, or change column types, in SQL and the common migration frameworks.</li>
+          <li><strong>Configuration</strong>: renamed or removed environment variables and config keys that code still reads.</li>
+        </ul>
+        <p>These rules read syntax rather than types, so they say "may break" and would rather stay quiet than raise a false alarm.</p>
+      </section>
+
+      <section id="quality">
+        <h2>Code quality</h2>
+        <p>A function is flagged when a PR adds it over a limit, pushes it over one, or makes one that's over a limit at least 20% worse. Test code is left out.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Metric</th><th>Limit</th></tr></thead>
+            <tbody>
+              <tr><td>Complexity (decision points)</td><td>15</td></tr>
+              <tr><td>Nesting depth</td><td>4</td></tr>
+              <tr><td>Lines</td><td>80</td></tr>
+              <tr><td>Parameters</td><td>6</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Ruff, oxlint and jscpd add likely bugs in Python and JavaScript, and new code copied from elsewhere. Turn these checks off for a repository with <code>{ "quality": { "enabled": false } }</code> in <code>.walkdiff.json</code>.</p>
+      </section>
+
+      <section id="coverage">
+        <h2>Test coverage</h2>
+        <p>
+          With a coverage report for the PR's latest commit, in LCOV or Cobertura format, each change shows whether its
+          lines ran in tests, and changes that didn't run rank higher on the review path. Walkdiff finds reports in CI
+          artifacts, in files the PR adds, or one you attach in the app or pass with <code>--coverage</code>.
+        </p>
+      </section>
+
+      <section id="ai">
+        <h2>AI review</h2>
+        <p>With <code>--ai</code>, or the app's AI option, Walkdiff asks a model for:</p>
+        <ul>
+          <li>a suggested reading order that groups the changes into chapters,</li>
+          <li>a check of the PR description against the code: matches, contradicts, not described, or not found,</li>
+          <li>specific questions to answer before approving.</li>
+        </ul>
+        <p>
+          Every statement must cite lines of the change, and citations that don't match what the model was shown are
+          discarded. Claude is the default. Any OpenAI-compatible service works too, and so does a local model such as
+          Ollama, in which case nothing leaves your machine. A repository can forbid AI review in <code>.walkdiff.json</code>.
+        </p>
+      </section>
+
+      <section id="app">
+        <h2>The app</h2>
+        <pre><code>walkdiff app</code></pre>
+        <p>A local page at <code>http://127.0.0.1:4317/</code> that keeps track of several reviews.</p>
+        <ul>
+          <li><strong>A review list.</strong> Paste PR or MR links. Each one shows its status, counts and your progress, and says when the code changed since you reviewed it.</li>
+          <li><strong>Post your review.</strong> The finish screen posts your comments and your decision to the host: Comment, Approve or Request changes. Nothing is posted until you press the button.</li>
+          <li><strong>Conversation.</strong> Read the PR's threads beside the code, reply and resolve them.</li>
+          <li><strong>Stacks.</strong> Add one PR from a stack and the app offers the rest. A stack is one card, bottom first, with each PR's progress and what the host says now. <strong>Refresh changed</strong> re-runs only the PRs that changed, and <strong>Approve all…</strong> approves the stack bottom first.</li>
+          <li><strong>Settings</strong> turn optional checks on or off, choose the AI provider, and show what leaves your machine.</li>
+        </ul>
+        <p>The server listens only on your machine, and its API needs a key created each run.</p>
+      </section>
+
+      <section id="private">
+        <h2>Private repositories</h2>
+        <p>Set a token that can read the repository. With the GitHub CLI:</p>
+        <pre><code>GH_TOKEN=$(gh auth token) walkdiff review https://github.com/owner/repo/pull/123</code></pre>
+        <p>For GitLab, use a token with the <code>read_api</code> and <code>read_repository</code> scopes (<code>api</code> to post reviews):</p>
+        <pre><code>GITLAB_TOKEN=&lt;token&gt; walkdiff review https://gitlab.com/group/project/-/merge_requests/45</code></pre>
+        <p>Tokens stay out of the command line and the cached repository's config. Self-hosted instances receive a token only once you list them as trusted.</p>
+      </section>
+
+      <section id="ci">
+        <h2>In CI</h2>
+        <p>Each PR gets one comment, updated on every push, with a summary, the top findings linked into the diff, and a link to the report, kept as a job artifact.</p>
+        <h3>GitHub Actions</h3>
+        <pre><code>name: Walkdiff
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: navasvarela/walkdiff@v0.9.0</code></pre>
+        <h3>GitLab CI</h3>
+        <pre><code>include:
+  - remote: https://raw.githubusercontent.com/navasvarela/walkdiff/v0.9.0/ci/gitlab-ci.yml</code></pre>
+        <p>Set <code>GITLAB_TOKEN</code> as a masked, unprotected CI/CD variable with the <code>api</code> scope. The <a href="https://github.com/navasvarela/walkdiff/blob/main/docs/pilot.md">pilot guide</a> covers coverage, AI review and running a trial with your team.</p>
+      </section>
+
+      <section id="team-rules">
+        <h2>Team rules</h2>
+        <p>A <code>.walkdiff.json</code> at the repository root sets rules for everyone. Every setting is optional:</p>
+        <pre><code>{
+  "riskPaths": [{ "pattern": "src/ledger/**", "severity": "high", "reason": "Moves customer funds" }],
+  "ignore": ["tests/fixtures/**"],
+  "ai": { "allowed": true },
+  "dependencies": { "private": ["@acme/*"], "allowedLicenses": ["MIT", "Apache-2.0"] }
+}</code></pre>
+        <p>
+          A PR can't change its own rules: Walkdiff reads this file from the PR's merge base, and reports an edit to it
+          as a finding. The <a href="https://github.com/navasvarela/walkdiff/blob/main/docs/configuration.md#team-rules-walkdiffjson">configuration guide</a> lists every setting.
+        </p>
+      </section>
+
+      <section id="privacy">
+        <h2>What leaves your machine</h2>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Destination</th><th>What is sent</th><th>When</th></tr></thead>
+            <tbody>
+              <tr><td>The PR's host</td><td>Your token, to read the PR and its code</td><td>Always</td></tr>
+              <tr><td>OSV</td><td>Names and versions of dependencies</td><td>Unless <code>--offline</code></td></tr>
+              <tr><td>Package registries</td><td>Names of new direct dependencies, except your private ones</td><td>When a PR adds one, unless <code>--offline</code></td></tr>
+              <tr><td>Semgrep registry</td><td>A rule download; your code isn't uploaded</td><td>Unless <code>--offline</code></td></tr>
+              <tr><td>Your AI provider</td><td>The changed code, the PR's title and description, with credentials redacted</td><td>Only with <code>--ai</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </article>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>Walkdiff is source-available under the <a href="https://github.com/navasvarela/walkdiff/blob/main/LICENSE.md">Functional Source License</a>; each version becomes Apache 2.0 two years after its release.</span>
+      <span><a href="https://github.com/navasvarela/walkdiff/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://www.npmjs.com/package/walkdiff">npm</a> · <a href="https://github.com/navasvarela/walkdiff/blob/main/SECURITY.md">Security</a></span>
+    </div>
+  </footer>
+</body>
+</html>
