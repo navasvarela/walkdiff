@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.0
+
+- **Go, Java, C and C++:** files in these languages now get what Rust, TypeScript and Python files get. That means changed functions, methods and types as units with change facts, callers traced across the repository, function metrics, risky-API rules and syntax highlighting.
+  - Go also gets breaking-change detection, for exported names in a module package that isn't `main` or `internal`.
+  - Go methods are named by their type, as `Server.Start`.
+  - C++ methods defined outside their class are named by it, inside any namespace, as `net::Server::start`.
+  - GoogleTest and Boost.Test cases show as tests, as `TEST(parser, reads)`.
+  - `.h` headers are read as C++, which also reads C.
+- **Each JavaScript and TypeScript test is its own unit:** `describe`, `it`/`test` and hooks such as `beforeEach` are named by their title, as `parser › reads includes`. A test added to a suite shows on its own, and a suite or class that is new as a whole shows with everything in it.
+- **More callers found:** a Java or C++ method calling another method of its class by bare name now counts as a caller.
+- **Go and C/C++ test files** (`_test.go`, `_test.cc`) no longer get function-metric findings.
+- **Scanner downloads retry:** a failed download of a security scanner is tried again after a server error or a dropped connection, instead of failing the setup.
+- **GitHub releases are published by the Release workflow,** with the version's changelog section as their notes.
+
 ## 0.8.0
 
 - **Review a stack together:** when a PR or MR builds on others, the app offers to add the whole stack. It reads GitHub's and GitLab's own stacks where they exist, and otherwise follows the branches. A grouped stack is one card on the review list, bottom first, with each PR's progress and what its host says now: new commits, a new base after the PR below merged, approved, or changes requested. **Refresh changed** re-runs only the PRs whose reports are out of date, and each report links to its neighbours in the stack.
