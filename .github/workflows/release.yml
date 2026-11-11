@@ -1,6 +1,7 @@
 name: Release
 
-# Publishes the npm package when a version tag is pushed. npm's trusted publishing checks this
+# Publishes the npm package when a version tag is pushed, then the GitHub release with the
+# version's changelog section as its notes. npm's trusted publishing checks this
 # workflow's identity through OIDC, so no npm token is stored in the repository, and the package
 # carries provenance linking it to this commit. Set it up once on npmjs.com; see docs/releasing.md.
 on:
@@ -26,6 +27,8 @@ jobs:
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
+          # A release is built from the lockfile alone, never from a cache another run could have filled.
+          package-manager-cache: false
       # Trusted publishing needs npm 11.5.1 or later; this pins one rather than trusting whatever ships.
       - run: npm install --global npm@11.21.1
       - run: corepack enable
@@ -41,5 +44,38 @@ jobs:
         run: |
           version="v$(node -p "require('./dist-package/package.json').version")"
           if [ "$version" != "$TAG" ]; then echo "Tag $TAG doesn't match package version $version"; exit 1; fi
+      # Fails when the changelog has no section for this version, before anything reaches npm.
+      - name: Check the changelog has this version's notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: node scripts/releaseNotes.ts "$TAG" > /dev/null
       - run: npm publish --provenance --access public
         working-directory: dist-package
+
+  # A separate job, so the one that can write to the repository can't publish to npm, and the one
+  # that publishes can't write to the repository. It runs only once npm has the package.
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      # A release someone already wrote by hand keeps its notes.
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "A release for $TAG already exists; leaving its notes as they are."
+            exit 0
+          fi
+          node scripts/releaseNotes.ts "$TAG" > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Walkdiff ${TAG#v}" --notes-file "$RUNNER_TEMP/notes.md"
