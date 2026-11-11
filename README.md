@@ -32,8 +32,9 @@ All changes has five tabs, including **Conversation** in the app: **Changes** (f
   such as `eval`, `shell=True`, raw HTML, `unsafe`, Go's `InsecureSkipVerify`, Java deserialization or C's
   `strcpy` (only in code, not comments or strings), sensitive
   areas such as auth, payments, migrations and CI, new dependencies, and known vulnerabilities in
-  dependency versions new to `package-lock.json`, `Cargo.lock`, `poetry.lock`, `uv.lock` or pinned
-  requirements (via [OSV](https://osv.dev); `--offline` skips it). Review signals add large PRs, missing
+  dependency versions new to `package-lock.json`, `Cargo.lock`, `poetry.lock`, `uv.lock`, pinned
+  requirements, `go.mod`, `pom.xml`, Gradle build files and version catalogs, or `gradle.lockfile`
+  (via [OSV](https://osv.dev); `--offline` skips it). Review signals add large PRs, missing
   test changes and removed or renamed units that untouched code still uses. The report says what was
   found rather than grading the change, and lists the checks that ran and those that did not. These are
   pattern and secret scans of added lines, not a security audit. [Security scanners](#security-scanners) add more when installed.

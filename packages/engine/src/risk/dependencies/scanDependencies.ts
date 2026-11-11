@@ -39,6 +39,8 @@ export interface DependencyScan {
   readonly notChecked: SkippedCheck[]
 }
 
+// Maven names a package `group:artifact`.
+const MAVEN_SEPARATOR = ":"
 const OSV_DATABASE_CHECK: CheckRun = { name: "OSV database", detail: "package versions new to lockfiles" }
 
 const VULNERABILITY_CHECK = "Known vulnerabilities in new dependency versions"
@@ -243,15 +245,26 @@ function vulnerabilityFinding(found: VulnerablePackage, lockfile: string, text: 
 }
 
 /**
- * First line naming the package, so a finding links to where it is declared or locked:
- * a quoted name (JSON, TOML values) or the name at the start of a line (TOML keys,
- * requirements files), never as part of a longer name.
+ * First line naming the package, so a finding links to where it is declared or locked, never
+ * as part of a longer name:
+ * - a quoted name, in JSON and TOML values, or a quoted Maven coordinate in a Gradle script,
+ *   `"group:artifact:1.0"`;
+ * - the name at the start of a line, in TOML keys, requirements files, go.mod's `require`
+ *   lines and gradle.lockfile;
+ * - for a Maven `group:artifact`, a pom's `<artifactId>` element.
  */
 function lineMentioning(text: string, name: string): number | null {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  const pattern = new RegExp(`"${escaped}"|^\\s*${escaped}(?![\\w.-])`)
+  const escaped = escapeRegExp(name)
+  const alternatives = [`["']${escaped}["':]`, `^\\s*(?:require\\s+)?${escaped}(?![\\w./-])`]
+  const artifact = name.includes(MAVEN_SEPARATOR) ? name.split(MAVEN_SEPARATOR).at(-1) : undefined
+  if (artifact !== undefined) alternatives.push(`<artifactId>\\s*${escapeRegExp(artifact)}\\s*</artifactId>`)
+  const pattern = new RegExp(alternatives.join("|"))
   const index = text.split("\n").findIndex((line) => pattern.test(line))
   return index === -1 ? null : index + 1
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 function previousPathOf(diff: FileDiff): string {

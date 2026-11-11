@@ -1,18 +1,14 @@
 import { basename } from "node:path"
 import { parse as parseToml } from "smol-toml"
+import { Ecosystem } from "./ecosystem.ts"
+import type { DeclaredDependencies, PackageVersion } from "./ecosystem.ts"
+import { goModLockfile, parseGoMod } from "./goModules.ts"
+import { gradleBuildLockfile, gradleCatalogLockfile, gradleLockfile, parseGradleBuild, parseGradleCatalog } from "./gradle.ts"
+import { field, isRecord, recordOrEmpty, stringField } from "./fields.ts"
+import { parsePom, pomLockfile } from "./maven.ts"
 
-/** OSV's names for the package ecosystems the engine reads. */
-export const Ecosystem = { Npm: "npm", Crates: "crates.io", PyPI: "PyPI" } as const
-export type Ecosystem = (typeof Ecosystem)[keyof typeof Ecosystem]
-
-export interface PackageVersion {
-  readonly ecosystem: Ecosystem
-  readonly name: string
-  readonly version: string
-}
-
-/** What a manifest asks for: package name → version requirement as written. */
-export type DeclaredDependencies = ReadonlyMap<string, string>
+export { Ecosystem } from "./ecosystem.ts"
+export type { DeclaredDependencies, PackageVersion } from "./ecosystem.ts"
 
 interface ManifestFormat {
   readonly ecosystem: Ecosystem
@@ -27,6 +23,12 @@ interface LockfileFormat {
 }
 
 const REQUIREMENTS_FILE = /^requirements.*\.txt$/
+const GO_MOD = "go.mod"
+const POM = "pom.xml"
+const GRADLE_BUILD: ReadonlySet<string> = new Set(["build.gradle", "build.gradle.kts"])
+// Gradle's version catalogs, `gradle/libs.versions.toml` by default.
+const GRADLE_CATALOG = /\.versions\.toml$/
+const GRADLE_LOCKFILE = "gradle.lockfile"
 // `name[extra]==1.2.3 ; marker` → name and the rest of the requirement.
 const PEP508_REQUIREMENT = /^\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*([^;#]*)/
 const PINNED_VERSION = /^==\s*([^\s,;]+)$/
@@ -36,6 +38,10 @@ const MANIFESTS: readonly ManifestFormat[] = [
   { ecosystem: Ecosystem.Crates, matches: (name) => name === "Cargo.toml", parse: parseCargoToml },
   { ecosystem: Ecosystem.PyPI, matches: (name) => name === "pyproject.toml", parse: parsePyproject },
   { ecosystem: Ecosystem.PyPI, matches: (name) => REQUIREMENTS_FILE.test(name), parse: parseRequirements },
+  { ecosystem: Ecosystem.Go, matches: (name) => name === GO_MOD, parse: parseGoMod },
+  { ecosystem: Ecosystem.Maven, matches: (name) => name === POM, parse: parsePom },
+  { ecosystem: Ecosystem.Maven, matches: (name) => GRADLE_BUILD.has(name), parse: parseGradleBuild },
+  { ecosystem: Ecosystem.Maven, matches: (name) => GRADLE_CATALOG.test(name), parse: parseGradleCatalog },
 ]
 
 // pnpm-lock.yaml and yarn.lock are not parsed here; osv-scanner reads them when installed.
@@ -44,6 +50,14 @@ const LOCKFILES: readonly LockfileFormat[] = [
   { ecosystem: Ecosystem.Crates, matches: (name) => name === "Cargo.lock", parse: (text) => tomlPackages(text, Ecosystem.Crates) },
   { ecosystem: Ecosystem.PyPI, matches: (name) => name === "poetry.lock" || name === "uv.lock", parse: (text) => tomlPackages(text, Ecosystem.PyPI) },
   { ecosystem: Ecosystem.PyPI, matches: (name) => REQUIREMENTS_FILE.test(name), parse: pinnedRequirements },
+  // go.mod holds the version of every module the build selects, which is what OSV needs. go.sum
+  // also lists versions the build considered and dropped, which would raise false alarms.
+  { ecosystem: Ecosystem.Go, matches: (name) => name === GO_MOD, parse: goModLockfile },
+  // Maven and Gradle builds mostly name exact versions, so a build file serves as a lockfile too.
+  { ecosystem: Ecosystem.Maven, matches: (name) => name === POM, parse: pomLockfile },
+  { ecosystem: Ecosystem.Maven, matches: (name) => GRADLE_BUILD.has(name), parse: gradleBuildLockfile },
+  { ecosystem: Ecosystem.Maven, matches: (name) => GRADLE_CATALOG.test(name), parse: gradleCatalogLockfile },
+  { ecosystem: Ecosystem.Maven, matches: (name) => name === GRADLE_LOCKFILE, parse: gradleLockfile },
 ]
 
 export const UNREAD_LOCKFILES: ReadonlySet<string> = new Set(["pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"])
@@ -164,23 +178,6 @@ function pinnedRequirements(text: string): PackageVersion[] {
 // PEP 503: names compare case-insensitively with runs of -, _ and . treated alike.
 export function normalizePythonName(name: string): string {
   return name.toLowerCase().replace(/[-_.]+/g, "-")
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-function field(value: unknown, key: string): unknown {
-  return isRecord(value) ? value[key] : undefined
-}
-
-function stringField(value: unknown, key: string): string | undefined {
-  const found = field(value, key)
-  return typeof found === "string" ? found : undefined
-}
-
-function recordOrEmpty(value: unknown): Record<string, unknown> {
-  return isRecord(value) ? value : {}
 }
 
 function stringEntries(value: unknown): [string, string][] {
