@@ -130,6 +130,16 @@ describe("Go and Java manifests", () => {
     ])
   })
 
+  it.each([
+    ["spliced", "<!<!-- x -->-- <dependency><groupId>org.hidden</groupId><artifactId>spliced</artifactId></dependency> -->"],
+    ["unclosed", "<!-- <dependency><groupId>org.hidden</groupId><artifactId>unclosed</artifactId></dependency>"],
+    ["repeated", "<!-- a --><!-- <dependency><groupId>org.hidden</groupId><artifactId>second</artifactId></dependency> -->"],
+  ])("reads nothing inside a %s comment", (_kind, comment) => {
+    const pom = `<project><dependencies>${comment}<dependency><groupId>org.kept</groupId><artifactId>kept</artifactId><version>1</version></dependency></dependencies></project>`
+    const declared = [...(manifestFormatFor("pom.xml")?.parse(pom) ?? [])]
+    expect(declared).toEqual(comment.includes("unclosed") ? [] : [["org.kept:kept", "1"]])
+  })
+
   it("checks only exact pom versions, and not the project's own modules", () => {
     expect(lockfileFormatFor("api/pom.xml")?.parse(POM)).toEqual([
       { ecosystem: Ecosystem.Maven, name: "com.fasterxml.jackson.core:jackson-databind", version: "2.17.1" },

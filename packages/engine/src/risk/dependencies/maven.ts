@@ -8,7 +8,8 @@ export interface MavenCoordinate {
   readonly version: string | undefined
 }
 
-const COMMENT = /<!--[\s\S]*?-->/g
+const COMMENT_OPEN = "<!--"
+const COMMENT_CLOSE = "-->"
 // Sections whose `<dependency>` tags aren't the project's own dependencies: managed versions,
 // build plugins' own dependencies, and what a dependency leaves out.
 const NOT_PROJECT_DEPENDENCIES = [/<dependencyManagement>[\s\S]*?<\/dependencyManagement>/g, /<build>[\s\S]*?<\/build>/g, /<reporting>[\s\S]*?<\/reporting>/g, /<exclusions>[\s\S]*?<\/exclusions>/g]
@@ -59,7 +60,7 @@ interface Pom {
 
 // A pom is XML, but these few elements are plain enough to read without an XML parser.
 function readPom(text: string): Pom {
-  const withoutComments = text.replace(COMMENT, "")
+  const withoutComments = withoutXmlComments(text)
   const properties = readProperties(withoutComments)
   const projectOnly = withoutSections(withoutComments, NOT_PROJECT_DEPENDENCIES)
   const coordinates = [...projectOnly.matchAll(DEPENDENCY)].flatMap((match) => {
@@ -74,6 +75,27 @@ function readPom(text: string): Pom {
   })
   const ownGroup = elementText(withoutSections(projectOnly, PROJECT_SECTIONS), "groupId") ?? elementText(/<parent>([\s\S]*?)<\/parent>/.exec(withoutComments)?.[1] ?? "", "groupId")
   return { coordinates, ownGroup }
+}
+
+// Removing one comment can join the text around it into another, as `<!<!-- x -->-- y -->` leaves
+// `<!-- y -->`, so passes repeat until no comment opens. Each pass removes at least one opening, so
+// it ends. An unclosed comment runs to the end of the file, as an XML parser reads it.
+function withoutXmlComments(xml: string): string {
+  let text = xml
+  while (text.includes(COMMENT_OPEN)) text = withoutCommentsOnce(text)
+  return text
+}
+
+function withoutCommentsOnce(xml: string): string {
+  let kept = ""
+  let position = 0
+  for (let open = xml.indexOf(COMMENT_OPEN); open !== -1; open = xml.indexOf(COMMENT_OPEN, position)) {
+    kept += xml.slice(position, open)
+    const close = xml.indexOf(COMMENT_CLOSE, open + COMMENT_OPEN.length)
+    if (close === -1) return kept
+    position = close + COMMENT_CLOSE.length
+  }
+  return kept + xml.slice(position)
 }
 
 function withoutSections(xml: string, sections: readonly RegExp[]): string {
