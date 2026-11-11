@@ -85,6 +85,21 @@ describe("compareUnits", () => {
     expect(summarize(result.get("a.py"))).toEqual(["class New: added"])
   })
 
+  it("shows a new class or suite whole, since its methods or tests have no cards of their own", async () => {
+    const result = await compare(typescriptSpec, [
+      { path: "a.test.ts", before: "", after: 'describe("parser", () => {\n  it("reads", () => {\n    expect(read()).toBe(1)\n  })\n})\n' },
+    ])
+    expect(summarize(result.get("a.test.ts"))).toEqual(["testSuite parser: added"])
+    expect(result.get("a.test.ts")?.at(0)?.change).toMatchObject({ after: { elidesNestedUnits: false, text: expect.stringContaining("expect(read()).toBe(1)") } })
+  })
+
+  it("lists a test added to an existing suite on its own, with the suite's other tests collapsed", async () => {
+    const before = 'describe("parser", () => {\n  it("reads", () => {})\n})\n'
+    const after = 'describe("parser", () => {\n  it("reads", () => {})\n  it("writes", () => {})\n})\n'
+    const result = await compare(typescriptSpec, [{ path: "a.test.ts", before, after }])
+    expect(summarize(result.get("a.test.ts"))).toEqual(["test parser › writes: added"])
+  })
+
   it("detects a rename with an unchanged body", async () => {
     const result = await compare(typescriptSpec, [
       {

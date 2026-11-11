@@ -109,7 +109,7 @@ describe("extractUnits", () => {
     ])
   })
 
-  it("extracts TypeScript declarations but not locals inside functions or calls", async () => {
+  it("extracts TypeScript declarations and tests, but not locals inside functions, calls or tests", async () => {
     expect(await outline(typescriptSpec, TYPESCRIPT_SOURCE)).toEqual([
       "interface Options",
       "typeAlias Mode",
@@ -119,6 +119,8 @@ describe("extractUnits", () => {
       "method Parser.handle",
       "method Parser.parse",
       "function helper",
+      "testSuite parse",
+      "test parse › works",
       "module Shapes",
       "function Shapes.area",
     ])
@@ -208,5 +210,84 @@ describe("fingerprints", () => {
     const changed = await unitsOf(pythonSpec, "class A:\n    def m(self):\n        return 2\n")
     expect(changed.definitions.at(0)?.fingerprints.ownFull).toBe(units.definitions.at(0)?.fingerprints.ownFull)
     expect(changed.definitions.at(1)?.fingerprints.code).not.toBe(units.definitions.at(1)?.fingerprints.code)
+  })
+})
+
+describe("test callbacks", () => {
+  const TESTS = `import { describe, it } from "vitest"
+
+beforeAll(async () => { await start() })
+
+describe("parser", () => {
+  const input = "x"
+  beforeEach(() => reset())
+
+  function fixture(): string { return input }
+
+  it("reads includes", () => { expect(parse(fixture())).toBe(1) })
+
+  describe.each([1, 2])("with %i workers", (workers) => {
+    test.only(\`runs \${workers} at once\`, async () => {})
+  })
+
+  it.skipIf(slow)("skips when slow", function () {})
+  it.todo("isn't written yet")
+})
+
+test.describe("Playwright", () => {
+  test("opens the page", async ({ page }) => {})
+})
+
+describe("same title", () => {})
+describe("same title", () => {})
+`
+
+  it("makes each suite, test and hook a unit, nested under its suite", async () => {
+    expect(await outline(typescriptSpec, TESTS)).toEqual([
+      "testHook beforeAll",
+      "testSuite parser",
+      "testHook parser › beforeEach",
+      "function parser › fixture",
+      "test parser › reads includes",
+      "testSuite parser › with %i workers",
+      "test parser › with %i workers › runs ${workers} at once",
+      "test parser › skips when slow",
+      "testSuite Playwright",
+      "test Playwright › opens the page",
+      "testSuite same title",
+      "testSuite same title",
+    ])
+  })
+
+  it("keeps two suites with one title apart", async () => {
+    const units = await unitsOf(typescriptSpec, TESTS)
+    const keys = units.definitions.filter((definition) => definition.name === "same title").map((definition) => definition.key)
+    expect(new Set(keys).size).toBe(2)
+  })
+
+  it("leaves a suite's locals and a test without a callback in the suite's own code", async () => {
+    const units = await unitsOf(typescriptSpec, TESTS)
+    const parser = units.definitions.find((definition) => definition.qualifiedName === "parser")
+    expect(parser?.snapshot.text).toContain('const input = "x"')
+    expect(parser?.snapshot.text).toContain('it.todo("isn\'t written yet")')
+    expect(parser?.snapshot.text).toContain('it("reads includes", () => { expect(parse(fixture())).toBe(1) }) ⋯')
+  })
+
+  it("leaves imports and calls that aren't tests in the module scope", async () => {
+    const units = await unitsOf(typescriptSpec, 'import { x } from "y"\nsetup(() => {})\nobj.describe("not a suite", () => {})\n')
+    expect(units.definitions).toEqual([])
+    expect(units.moduleScope.hasOwnTokens).toBe(true)
+  })
+
+  it("doesn't count tests as public API", async () => {
+    const units = await unitsOf(typescriptSpec, 'export { parse }\ndescribe("parse", () => { it("works", () => {}) })\n')
+    expect(units.definitions.map((definition) => definition.isPublic)).toEqual([false, false])
+  })
+
+  it("treats a retitled test with the same body as a rename", async () => {
+    const before = await unitsOf(typescriptSpec, 'it("reads includes", () => { expect(1).toBe(1) })\n')
+    const after = await unitsOf(typescriptSpec, 'it("reads every include", () => { expect(1).toBe(1) })\n')
+    expect(after.definitions.at(0)?.fingerprints.nameAgnosticCode).toBe(before.definitions.at(0)?.fingerprints.nameAgnosticCode)
+    expect(after.definitions.at(0)?.fingerprints.code).not.toBe(before.definitions.at(0)?.fingerprints.code)
   })
 })

@@ -78,7 +78,7 @@ export function compareUnits(files: readonly FileVersions[]): Map<string, Compar
   for (const [from, to] of takeMatches(removed, added, isRename)) {
     report(to.path, {
       ...describe(to.definition),
-      change: { kind: UnitChangeKind.Renamed, previousName: from.definition.name, before: from.definition.snapshot, after: to.definition.snapshot },
+      change: { kind: UnitChangeKind.Renamed, previousName: from.definition.name, before: from.definition.wholeSnapshot, after: to.definition.wholeSnapshot },
     })
   }
   for (const [from, to] of takeMatches(removed, added, isMove)) {
@@ -88,10 +88,10 @@ export function compareUnits(files: readonly FileVersions[]): Map<string, Compar
     reportMove(report, from, to, differsOnlyInVisibility(from.definition, to.definition) ? MoveEdits.None : MoveEdits.Code)
   }
   for (const { path, definition } of added) {
-    report(path, { ...describe(definition), change: { kind: UnitChangeKind.Added, after: definition.snapshot } })
+    report(path, { ...describe(definition), change: { kind: UnitChangeKind.Added, after: definition.wholeSnapshot } })
   }
   for (const { path, definition } of removed) {
-    report(path, { ...describe(definition), change: { kind: UnitChangeKind.Removed, before: definition.snapshot } })
+    report(path, { ...describe(definition), change: { kind: UnitChangeKind.Removed, before: definition.wholeSnapshot } })
   }
 
   for (const units of unitsByPath.values()) {
@@ -111,12 +111,12 @@ function reportMove(report: Report, from: Located, to: Located, edits: MoveEdits
   const after = to.definition
   report(from.path, {
     ...describe(before),
-    change: { kind: UnitChangeKind.MovedOut, to: locationOf(to), edited, before: before.snapshot },
+    change: { kind: UnitChangeKind.MovedOut, to: locationOf(to), edited, before: before.wholeSnapshot },
   })
   report(to.path, {
     ...describe(after),
     facts: edited && before.shape !== undefined && after.shape !== undefined ? factsBetween(before.shape, after.shape) : null,
-    change: { kind: UnitChangeKind.MovedIn, from: locationOf(from), edited, before: before.snapshot, after: after.snapshot },
+    change: { kind: UnitChangeKind.MovedIn, from: locationOf(from), edited, before: before.wholeSnapshot, after: after.wholeSnapshot },
   })
 }
 
