@@ -106,12 +106,14 @@ export const goSpec: LanguageSpec = {
   classifyIdentifier: (leaf) => classifyWithGrammar(leaf, IDENTIFIER_GRAMMAR),
   // Go names its receiver like any parameter (`s`, `srv`), so there's no word for "this type".
   selfReceivers: new Set(),
+  callsMembersByBareName: false,
   functionScopeTypes: new Set(["function_declaration", "method_declaration", "func_literal"]),
   isBindingSite: (leaf) => isBindingWithGrammar(leaf, IDENTIFIER_GRAMMAR),
   // `String()` and `Error()` are often reached through an interface, but they're called by name too.
   isImplicitlyInvoked: () => false,
   shape: {
     functionNode: (definition) => definition,
+    signatureNode: (fn) => fn,
     returnTypeField: "result",
     parameterKind,
     calls: new Map([["call_expression", { calleeField: "function", suffix: "" }]]),

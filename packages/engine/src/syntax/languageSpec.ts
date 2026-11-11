@@ -52,6 +52,8 @@ export interface LanguageSpec {
   classifyIdentifier(leaf: Node): IdentifierUse | undefined
   /** Receivers that mean "the enclosing class or type", such as `self` and `this`. */
   readonly selfReceivers: ReadonlySet<string>
+  /** Whether a method can call its class's other methods by bare name, as `start()` for `this->start()`. */
+  readonly callsMembersByBareName: boolean
   /** Nodes that open a function scope, whose parameters and locals can shadow a unit's name. */
   readonly functionScopeTypes: ReadonlySet<string>
   /** Whether an identifier leaf binds a parameter or local variable. */
@@ -87,6 +89,8 @@ export type ParameterKind = (typeof ParameterKind)[keyof typeof ParameterKind]
 export interface ShapeGrammar {
   /** The node holding the parameters; differs from the definition for `const f = () => {}`. */
   functionNode(definition: Node): Node
+  /** The node whose `parameters` field lists the parameters: the function, or C's declarator inside it. */
+  signatureNode(fn: Node): Node
   /** The function node's field holding its return type: `return_type`, Go's `result`, Java's `type`. */
   readonly returnTypeField: string
   parameterKind(parameter: Node): ParameterKind

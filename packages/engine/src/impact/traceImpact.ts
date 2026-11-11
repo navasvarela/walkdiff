@@ -58,6 +58,8 @@ interface Target {
   readonly searchedName: string
   /** For methods, the type or class they belong to; references must agree with it. */
   readonly container: string | undefined
+  /** The container's template arguments, `<int>` for C++'s `formatter<int>::format`, without spaces. */
+  readonly containerArguments: string | undefined
   /** Lines the unit occupies at head, so its own recursive calls are not reported. */
   readonly ownLines: { readonly first: number; readonly last: number } | undefined
 }
@@ -171,6 +173,7 @@ function targetsIn(file: AnalyzedFile): Target[] {
         spec: file.spec,
         searchedName,
         container: unit.kind === UnitKind.Method ? containerTypeName(unit.qualifiedName, file.spec.separator) : undefined,
+        containerArguments: unit.kind === UnitKind.Method ? templateArguments(containerPath(unit.qualifiedName, file.spec.separator) ?? "") : undefined,
         ownLines: after === undefined ? undefined : { first: after.startLine, last: after.endLine },
       },
     ]
@@ -281,20 +284,39 @@ function referenceConfidence(
           : ReferenceConfidence.Possible
       }
       if (simpleTypeName(qualifier) === container) {
-        return ReferenceConfidence.Exact
+        return isOtherSpecialization(qualifier, target) ? ReferenceConfidence.Possible : ReferenceConfidence.Exact
       }
       if (spec.selfReceivers.has(qualifier)) {
-        const callerContainer = caller === undefined ? undefined : containerTypeName(caller.qualifiedName, spec.separator)
-        return callerContainer === container ? ReferenceConfidence.Exact : undefined
+        return isCalledFromItsContainer(caller, target, spec) ? ReferenceConfidence.Exact : undefined
       }
       // A path names its type explicitly, so a different one is a different item.
       return use.kind === IdentifierUseKind.Path ? undefined : ReferenceConfidence.Possible
     }
     case IdentifierUseKind.Bare:
-      // Methods are never called by bare name in Rust, TypeScript or Python.
-      return container === undefined ? ReferenceConfidence.Likely : undefined
+      if (container === undefined) return ReferenceConfidence.Likely
+      // In C++ and Java a method calls its class's other methods by bare name; elsewhere a bare
+      // name is never a method. A free function of the same name would read the same.
+      return spec.callsMembersByBareName && isCalledFromItsContainer(caller, target, spec) ? ReferenceConfidence.Likely : undefined
   }
 }
+
+function isCalledFromItsContainer(caller: Definition | undefined, target: Target, spec: LanguageSpec): boolean {
+  const callerContainer = caller === undefined ? undefined : containerPath(caller.qualifiedName, spec.separator)
+  return callerContainer !== undefined && simpleTypeName(callerContainer) === target.container && !isOtherSpecialization(callerContainer, target)
+}
+
+// `formatter<std::tm>::format` belongs to another specialization than `formatter<int>::format`.
+// Template parameters, as in `formatter<T>`, read like types, so a mismatch only makes it less certain.
+function isOtherSpecialization(path: string, target: Target): boolean {
+  const pathArguments = templateArguments(path)
+  return pathArguments !== undefined && target.containerArguments !== undefined && pathArguments !== target.containerArguments
+}
+
+function templateArguments(path: string): string | undefined {
+  return TRAILING_TEMPLATE_ARGUMENTS.exec(path)?.[0].replace(/\s+/g, "")
+}
+
+const TRAILING_TEMPLATE_ARGUMENTS = /<.*>$/
 
 // Path roots that stay within the current crate or module rather than naming one.
 const RELATIVE_PATH_ROOTS: ReadonlySet<string> = new Set(["crate", "self", "super"])
@@ -357,8 +379,13 @@ function byReviewPriority(a: Reference, b: Reference): number {
 
 /** `Size::new` → `Size`; `<Size as fmt::Display>::fmt` → `Size`; `Parser.parse` → `Parser`. */
 export function containerTypeName(qualifiedName: string, separator: string): string | undefined {
+  const path = containerPath(qualifiedName, separator)
+  return path === undefined ? undefined : simpleTypeName(path)
+}
+
+function containerPath(qualifiedName: string, separator: string): string | undefined {
   const cut = qualifiedName.lastIndexOf(separator)
-  return cut === -1 ? undefined : simpleTypeName(qualifiedName.slice(0, cut))
+  return cut === -1 ? undefined : qualifiedName.slice(0, cut)
 }
 
 /** Reduces a type path to its bare name: `<Foo as Trait>`, `crate::a::Foo<T>` → `Foo`. */

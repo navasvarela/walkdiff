@@ -84,11 +84,13 @@ export const javaSpec: LanguageSpec = {
   identifierTypes: new Set(["identifier", "type_identifier"]),
   classifyIdentifier: (leaf) => classifyWithGrammar(leaf, IDENTIFIER_GRAMMAR),
   selfReceivers: new Set(["this"]),
+  callsMembersByBareName: true,
   functionScopeTypes: new Set(["method_declaration", "constructor_declaration", "compact_constructor_declaration", "lambda_expression"]),
   isBindingSite: (leaf) => isBindingWithGrammar(leaf, IDENTIFIER_GRAMMAR),
   isImplicitlyInvoked: (methodName) => IMPLICITLY_INVOKED.has(methodName),
   shape: {
     functionNode: (definition) => definition,
+    signatureNode: (fn) => fn,
     returnTypeField: "type",
     parameterKind,
     calls: new Map([

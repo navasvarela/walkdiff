@@ -117,6 +117,33 @@ describe("scanDangerousApis", () => {
     ].join("\n")
     expect(summary(await scanDangerousApis([addedFile("src/main/java/A.java", content)]))).toEqual(["java.exec@3", "java.deserialization@4", "java.sql-concat@5", "java.tls-disabled@6"])
   })
+
+  it("flags risky C in code but not in comments or strings", async () => {
+    const content = [
+      "#include <stdio.h>",
+      "void f(char *dest, const char *input) {",
+      "  strcpy(dest, input);",
+      "  printf(input);",
+      '  system("ls");',
+      "  SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);",
+      '  snprintf(dest, 8, "%s", input);',
+      '  printf("%s", input);',
+      "  // strcpy(dest, input) would overflow",
+      '  const char *note = "system(x)";',
+      "}",
+    ].join("\n")
+    expect(summary(await scanDangerousApis([addedFile("src/copy.c", content)]))).toEqual(["c.unbounded-copy@3", "c.format-string@4", "c.exec@5", "c.tls-disabled@6"])
+  })
+
+  it("flags reinterpret_cast and libcurl without certificate checks in C++", async () => {
+    const content = [
+      "void f(Buffer *buffer) {",
+      "  auto *header = reinterpret_cast<Header *>(buffer->data);",
+      "  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);",
+      "}",
+    ].join("\n")
+    expect(summary(await scanDangerousApis([addedFile("src/net.cpp", content)]))).toEqual(["cpp.reinterpret-cast@2", "c.tls-disabled@3"])
+  })
 })
 
 describe("scanSensitivePaths", () => {

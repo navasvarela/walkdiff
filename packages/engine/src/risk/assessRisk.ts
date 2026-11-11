@@ -1,10 +1,10 @@
-import { extname } from "node:path"
 import { AnalysisStep, CheckId, RiskSeverity, isSecurityFinding, securityFindings } from "@walkdiff/review-model"
 import type { ChangedFile, CheckRun, CommitSha, Risk, RiskAssessment, SkippedCheck, StepReporter } from "@walkdiff/review-model"
 import { scanBreakingChanges } from "./breaking/scanBreakingChanges.ts"
 import { scanDangerousApis } from "./dangerousApis.ts"
 import { scanDependencies } from "./dependencies/scanDependencies.ts"
 import { scanFunctionMetrics } from "./functionMetrics.ts"
+import { languageGaps } from "./languageCoverage.ts"
 import { reviewSignals } from "./reviewSignals.ts"
 import { isIgnored, readWalkdiffConfig, WALKDIFF_CONFIG_PATH } from "../config/walkdiffConfig.ts"
 import type { WalkdiffConfig } from "../config/walkdiffConfig.ts"
@@ -45,11 +45,6 @@ const SEVERITY_RANK: Readonly<Record<RiskSeverity, number>> = {
   [RiskSeverity.Medium]: 1,
   [RiskSeverity.Low]: 2,
 }
-
-// Languages a team might change that the dangerous-API rules do not cover.
-const UNCOVERED_CODE_EXTENSIONS: ReadonlySet<string> = new Set([
-  ".go", ".java", ".kt", ".rb", ".php", ".cs", ".c", ".cc", ".cpp", ".h", ".hpp", ".swift", ".scala", ".sh",
-])
 
 const BUILT_IN_CHECK: CheckRun = { name: "Built-in rules", detail: "secrets, risky APIs, sensitive paths and GitLab CI" }
 const BREAKING_CHANGE_CHECK: CheckRun = { name: "Breaking changes", detail: "public APIs, database migrations, environment variables and config keys" }
@@ -143,12 +138,7 @@ function coverageGaps(files: readonly ChangedFile[], ignoredCount: number): Skip
   if (ignoredCount > 0) {
     gaps.push({ check: `Risk rules on ${ignoredCount} ${ignoredCount === 1 ? "file" : "files"}`, reason: `excluded by "ignore" in ${WALKDIFF_CONFIG_PATH}` })
   }
-  const uncovered = [...new Set(files.map((file) => extname(file.diff.path)).filter((extension) => UNCOVERED_CODE_EXTENSIONS.has(extension)))]
-  if (uncovered.length > 0) {
-    gaps.push({ check: `Dangerous-API rules for ${uncovered.join(", ")} files`, reason: "rules exist only for Rust, TypeScript/JavaScript and Python" })
-    gaps.push({ check: `Public API checks for ${uncovered.join(", ")} files`, reason: "they read syntax, which the engine parses only for Rust, TypeScript/JavaScript and Python" })
-  }
-  return gaps
+  return [...gaps, ...languageGaps(files.map((file) => file.diff.path))]
 }
 
 // Most severe first; at equal severity, security findings before review signals, then by place.

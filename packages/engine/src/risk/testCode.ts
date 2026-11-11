@@ -2,7 +2,7 @@ const TEST_PATHS: readonly RegExp[] = [
   /(^|\/)(tests?|__tests__|spec|specs)\//,
   /\.(test|spec)\.[cm]?[jt]sx?$/,
   /(^|\/)test_[^/]*\.py$/,
-  /_test\.(py|rs)$/,
+  /_test\.(py|rs|go|c|cc|cpp|cxx)$/,
   /(^|\/)tests?\.rs$/,
 ]
 // Rust keeps tests inline in `mod tests`; Python and JS name them test_* or put them in Test classes.

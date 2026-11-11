@@ -1,5 +1,6 @@
 import type { UnitFacts } from "@walkdiff/review-model"
 import type { Node } from "web-tree-sitter"
+import { declaredName } from "./declarators.ts"
 import { ParameterKind } from "./languageSpec.ts"
 import type { ShapeGrammar } from "./languageSpec.ts"
 
@@ -39,12 +40,13 @@ const MAX_CALLEE_TEXT = 40
 const LAST_SEGMENT = /[\p{L}\p{N}_$]+$/u
 // `self`, `&self`, `&mut self` and `cls` are how a method is called, not something a caller passes.
 const RECEIVER_PARAMETER = /\b(self|cls)$|^this$/
+const NO_PARAMETERS = "void"
 
 export function extractShape(grammar: ShapeGrammar, definition: Node): UnitShape {
   const fn = grammar.functionNode(definition)
   const calls = callNames(grammar, fn)
   const bailOuts = calls.list.filter((name) => grammar.errorCalls.has(name)).length
-  const slots = parameterNodesOf(fn).flatMap(parameterSlots)
+  const slots = parameterNodesOf(grammar.signatureNode(fn)).flatMap(parameterSlots)
   const parameters = new Map(slots.map((slot) => [slot.name, slot.text]))
   const branches = fn.descendantsOfType([...grammar.branchTypes]).length
   return {
@@ -113,7 +115,8 @@ function parameterNodesOf(fn: Node): Node[] {
   // `x => x + 1` has a single parameter and no list around it.
   const single = fn.childForFieldName("parameter")
   const nodes = list === null ? (single === null ? [] : [single]) : list.namedChildren
-  return nodes.filter((node): node is Node => node !== null && !node.type.includes("comment"))
+  // C's `int f(void)` takes no parameters.
+  return nodes.filter((node): node is Node => node !== null && !node.type.includes("comment") && node.text !== NO_PARAMETERS)
 }
 
 /** One name a caller passes, with the declaration it's in. */
@@ -142,8 +145,8 @@ function typeText(node: Node | null): string | null {
 }
 
 function parameterName(node: Node): string {
-  // Java's `String... rest` names its parameter in a declarator.
-  const named = node.childForFieldName("pattern") ?? node.childForFieldName("name") ?? declaratorName(node)
+  // Java's `String... rest` names its parameter in a declarator, and C's `char *name` in a chain of them.
+  const named = node.childForFieldName("pattern") ?? node.childForFieldName("name") ?? declaratorName(node) ?? declaredName(node)?.nameNode ?? null
   if (named !== null) return named.text
   // Python's `typed_parameter` has no name field: the name is its first child.
   return node.type.includes("typed") ? (node.firstNamedChild?.text ?? node.text) : node.text
