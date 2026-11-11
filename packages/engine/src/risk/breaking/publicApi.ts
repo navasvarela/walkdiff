@@ -73,9 +73,10 @@ export function scanPublicApi(scan: PublicApiScan): Risk[] {
 }
 
 function apiUnitsOf(file: ChangedFile, versions: FileVersions, surface: LibrarySurface): ApiUnit[] {
-  // Compared units keep the snapshot objects of their definitions, which identifies each side exactly.
-  // Names can't: renames change them, and overloads share them.
-  const bySnapshot = new Map<UnitSnapshot, Definition>([...(versions.before?.definitions ?? []), ...(versions.after?.definitions ?? [])].map((definition) => [definition.snapshot, definition]))
+  // Compared units keep one of the snapshot objects of their definitions, collapsed or whole, which
+  // identifies each side exactly. Names can't: renames change them, and overloads share them.
+  const definitions = [...(versions.before?.definitions ?? []), ...(versions.after?.definitions ?? [])]
+  const bySnapshot = new Map<UnitSnapshot, Definition>(definitions.flatMap((definition) => [[definition.snapshot, definition], [definition.wholeSnapshot, definition]]))
   const beforePath = "previousPath" in file.diff ? file.diff.previousPath : file.diff.path
   return changedUnitsOf(file).flatMap((unit) => {
     if (!KIND_WORDS.has(unit.kind) || isTestUnit(unit.qualifiedName) || !("before" in unit.change)) return []

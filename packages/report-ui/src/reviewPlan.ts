@@ -1,4 +1,4 @@
-import { changedUnitsOf, DiffLineKind, FileContentKind, FileChangeStatus, isBehaviourChange, RiskCategory, RiskSeverity, UnitChangeKind, UnitImpactStatus, UnitKind, untouchedReferences } from "@walkdiff/review-model"
+import { changedUnitsOf, DiffLineKind, FileContentKind, FileChangeStatus, isBehaviourChange, isTestKind, RiskCategory, RiskSeverity, UnitChangeKind, UnitImpactStatus, UnitKind, untouchedReferences } from "@walkdiff/review-model"
 import type { ChangedFile, ChangedUnit, ReviewModel, Risk, TestCoverage, UnitChange } from "@walkdiff/review-model"
 
 /*
@@ -187,7 +187,7 @@ export function isTestPath(path: string): boolean {
 }
 
 export function isTestUnit(unit: ChangedUnit): boolean {
-  return TEST_UNIT.test(unit.qualifiedName)
+  return isTestKind(unit.kind) || TEST_UNIT.test(unit.qualifiedName)
 }
 
 function isOnThePathKind(unit: ChangedUnit, findings: readonly Risk[]): boolean {
@@ -337,7 +337,7 @@ function testFilesMentioning(unit: ChangedUnit, file: ChangedFile, testFiles: re
   const name = unit.name
   const fromTestChanges = name.length < MIN_NAME_LENGTH_TO_MATCH_IN_TESTS ? [] : testFiles.filter((testFile) => addedText(testFile).includes(name)).map((testFile) => testFile.diff.path)
   // Rust and others keep tests in the same file as the code.
-  const inlineTests = changedUnitsOf(file).some((other) => TEST_UNIT.test(other.qualifiedName) && "after" in other.change && other.change.after.text.includes(name))
+  const inlineTests = changedUnitsOf(file).some((other) => isTestUnit(other) && "after" in other.change && other.change.after.text.includes(name))
   return [...new Set([...fromReferences, ...fromTestChanges, ...(inlineTests ? [file.diff.path] : [])])]
 }
 
@@ -352,7 +352,7 @@ function summarizeLowerPriority(files: readonly ChangedFile[], stops: readonly R
   const summary = { newCode: 0, otherCode: 0, quiet: 0, testFiles, otherFiles: 0 }
   for (const file of files) {
     if (isTestPath(file.diff.path) && file.noise === null) continue
-    const units = changedUnitsOf(file).filter((unit) => !onPath.has(unit) && !TEST_UNIT.test(unit.qualifiedName))
+    const units = changedUnitsOf(file).filter((unit) => !onPath.has(unit) && !isTestUnit(unit))
     if (changedUnitsOf(file).length === 0 && !filesOnPath.has(file.diff.path)) summary.otherFiles++
     for (const unit of units) {
       if (!isBehaviourChange(unit.change)) summary.quiet++

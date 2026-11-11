@@ -2,6 +2,7 @@ import { SourceLanguage, UnitKind } from "@walkdiff/review-model"
 import type { Node } from "web-tree-sitter"
 import { classifyWithGrammar, isBindingWithGrammar, namedDefinition, ParameterKind } from "./languageSpec.ts"
 import type { ContainerContext, DefinitionHeader, IdentifierGrammar, LanguageSpec, PublicDefinitionTest } from "./languageSpec.ts"
+import { describeTestStatement, leadsIntoTestSuite } from "./testCalls.ts"
 
 const KIND_BY_NODE_TYPE: ReadonlyMap<string, UnitKind> = new Map([
   ["function_declaration", UnitKind.Function],
@@ -21,7 +22,7 @@ const VARIABLE_DECLARATION_TYPES: ReadonlySet<string> = new Set(["lexical_declar
 // A `const` counts as a unit only at module or namespace level; one inside a callback
 // passed to `describe(...)`, say, is part of that call, not a definition of its own.
 const MODULE_LEVEL_PARENTS: ReadonlySet<string> = new Set(["program", "export_statement", "statement_block"])
-const CONTAINERS: ReadonlySet<UnitKind> = new Set([UnitKind.Class, UnitKind.Module])
+const CONTAINERS: ReadonlySet<UnitKind> = new Set([UnitKind.Class, UnitKind.Module, UnitKind.TestSuite])
 // Function bodies and call arguments hold local code, never module-level definitions.
 const OPAQUE_NODE_TYPES: ReadonlySet<string> = new Set([
   "call_expression",
@@ -55,6 +56,9 @@ const FUNCTION_SCOPE_TYPES: ReadonlySet<string> = new Set([
 ])
 
 function describe(node: Node, container: ContainerContext | undefined): DefinitionHeader | undefined {
+  if (node.type === "expression_statement") {
+    return describeTestStatement(node)
+  }
   if (node.type === "variable_declarator") {
     return describeVariable(node, container)
   }
@@ -104,6 +108,7 @@ const EXPORT_BOUNDARIES: ReadonlySet<string> = new Set(["program", "statement_bl
 function publicDefinitions(root: Node): PublicDefinitionTest {
   const exported = locallyExportedNames(root)
   return (node, name, container) => {
+    if (node.type === "expression_statement") return false
     if (container?.kind === UnitKind.Class) return isPublicMember(node)
     return isInsideExportStatement(node) || (container === undefined && exported.has(name))
   }
@@ -151,8 +156,9 @@ function makeSpec(language: SourceLanguage, grammar: string): LanguageSpec {
     outerNode,
     isAttachedPrefix: (node) => node.type === "decorator",
     isContainer: (kind) => CONTAINERS.has(kind),
-    // A namespace body is a statement_block too, so it stays transparent.
-    isOpaque: (node) => OPAQUE_NODE_TYPES.has(node.type) && node.parent?.type !== "internal_module",
+    // A namespace body is a statement_block too, so it stays transparent, and so does the way into
+    // a test suite's callback, where its tests are.
+    isOpaque: (node) => OPAQUE_NODE_TYPES.has(node.type) && node.parent?.type !== "internal_module" && !leadsIntoTestSuite(node),
     childPrefix: (_header, _node, qualifiedName) => qualifiedName,
     // Prettier and linters flip quote styles wholesale; 'a' and "a" are the same string.
     normalizeLeaf: (leaf) => (STRING_DELIMITERS.has(leaf.type) && leaf.parent?.type === "string" ? '"' : leaf.text),

@@ -4,8 +4,9 @@ import { containerTypeName, simpleTypeName } from "../impact/traceImpact.ts"
 import type { FileUnits } from "./definitions.ts"
 
 // Names of what can be called, used to tell a call to `parse` from a block named `parse`.
-const NOT_CALLABLE: ReadonlySet<UnitKind> = new Set([UnitKind.ModuleScope, UnitKind.Impl, UnitKind.Module])
-const FUNCTION_KINDS: ReadonlySet<UnitKind> = new Set([UnitKind.Function, UnitKind.Method])
+const NOT_CALLABLE: ReadonlySet<UnitKind> = new Set([UnitKind.ModuleScope, UnitKind.Impl, UnitKind.Module, UnitKind.TestSuite, UnitKind.Test, UnitKind.TestHook])
+// Read as code, in file order with helpers first, rather than among the type definitions.
+const CODE_KINDS: ReadonlySet<UnitKind> = new Set([UnitKind.Function, UnitKind.Method, UnitKind.TestSuite, UnitKind.Test, UnitKind.TestHook])
 
 const RUST_PATH_SEPARATOR = "::"
 
@@ -83,7 +84,7 @@ export function orderUnits<Unit extends ComparedUnit>(units: readonly Unit[], ca
 function readingGroup(unit: ComparedUnit): ReadingGroup {
   if (unit.kind === UnitKind.ModuleScope) return ReadingGroup.ModuleScope
   if (!isBehaviourChange(unit.change)) return ReadingGroup.Quiet
-  return FUNCTION_KINDS.has(unit.kind) ? ReadingGroup.Functions : ReadingGroup.Definitions
+  return CODE_KINDS.has(unit.kind) ? ReadingGroup.Functions : ReadingGroup.Definitions
 }
 
 /** `Other::new` is not a call to `Size::new`, though both are named `new`. */
