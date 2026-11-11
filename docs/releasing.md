@@ -19,8 +19,8 @@ No npm token is stored anywhere: npm checks the workflow's identity on each publ
 
 1. Open a PR that bumps `version` in `package.json`, points the docs and templates at the new tag, and adds the version's section to the changelog, written from the PRs merged since the last tag (`git log vPREVIOUS..origin/main`). Other PRs don't edit the changelog: it only describes released versions.
 2. Merge it, then tag the merge commit with a signed tag, such as `git tag -s v0.5.0 -m "Walkdiff 0.5.0"`, and push the tag.
-3. Approve the `npm` environment when the Release workflow asks. It checks the tag matches the version, runs the checks, builds the package and publishes it with provenance.
-4. Publish the GitHub release with notes.
+3. Approve the `npm` environment when the Release workflow asks. It checks the tag matches the version and the changelog has its section, runs the checks, builds the package and publishes it with provenance.
+4. The workflow then publishes the GitHub release, with the version's changelog section as its notes. If you've already written a release for the tag by hand, it's left as it is. To preview the notes, run `node scripts/releaseNotes.ts v0.5.0`.
 
 ## Checking a package
 
