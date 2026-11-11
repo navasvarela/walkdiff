@@ -1,4 +1,4 @@
-import { ModificationWeight, RiskCategory, SyntaxAnalysisStatus, UnitChangeKind, UnitImpactStatus } from "./schema.ts"
+import { ModificationWeight, RiskCategory, SyntaxAnalysisStatus, UnitChangeKind, UnitImpactStatus, UnitKind } from "./schema.ts"
 import type { ChangedFile, ChangedUnit, CheckRun, Reference, Risk, UnitChange } from "./schema.ts"
 
 export function changedUnitsOf(file: ChangedFile): readonly ChangedUnit[] {
@@ -22,6 +22,13 @@ export function isBehaviourChange(change: UnitChange): boolean {
     case UnitChangeKind.MovedOut:
       return false
   }
+}
+
+const TEST_KINDS: ReadonlySet<UnitKind> = new Set([UnitKind.TestSuite, UnitKind.Test, UnitKind.TestHook])
+
+/** Suites, tests and their setup, recognised from the test framework's own calls. */
+export function isTestKind(kind: UnitKind): boolean {
+  return TEST_KINDS.has(kind)
 }
 
 /** Places using this unit that the PR did not change. */

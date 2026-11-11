@@ -98,6 +98,12 @@ export const UnitKind = {
   Constant: "constant",
   Macro: "macro",
   Module: "module",
+  /** A group of tests, such as `describe("parser", () => …)`. Its tests and hooks are units of their own. */
+  TestSuite: "testSuite",
+  /** One test, such as `it("reads includes", () => …)`. */
+  Test: "test",
+  /** Setup or teardown around tests, such as `beforeEach(() => …)`. */
+  TestHook: "testHook",
   /** Everything in a file outside its top-level definitions: imports, top-level statements. */
   ModuleScope: "moduleScope",
 } as const

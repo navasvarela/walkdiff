@@ -32,7 +32,14 @@ export interface Definition {
   readonly hasChildren: boolean
   /** By the language's own rules and its container's; a library may still not expose its file. */
   readonly isPublic: boolean
+  /** Nested units collapsed to their first line, for when each changed one is shown on its own. */
   readonly snapshot: UnitSnapshot
+  /**
+   * Nested units written out, for when the unit is shown alone: added, removed, renamed or moved
+   * with everything in it, so nothing else shows what it holds. The same as `snapshot` without
+   * nested units.
+   */
+  readonly wholeSnapshot: UnitSnapshot
   /** Code tokens in order, without comments, to tell how alike two versions are when their fingerprints differ. */
   readonly codeTokens: readonly string[]
   readonly fingerprints: Fingerprints
@@ -60,6 +67,8 @@ const ELISION_MARKER = "⋯"
 const TOKEN_SEPARATOR = "\u0001"
 const MASKED_NAME = "\u0000name"
 const CLOSING_BRACKETS: ReadonlySet<string> = new Set([")", "]", "}", ">"])
+// Test titles are sentences, so "parser › reads includes" reads better than "parser.reads includes".
+const TEST_TITLE_SEPARATOR = " › "
 
 interface Span {
   readonly start: number
@@ -141,7 +150,8 @@ class DefinitionWalker {
     const outer = this.#spec.outerNode(node)
     const nodes = [...this.#attachedPrefix(outer), outer]
     const first = nodes.at(0) ?? outer
-    const qualifiedName = container === undefined ? header.name : `${container.childPrefix}${this.#spec.separator}${header.name}`
+    const separator = container?.kind === UnitKind.TestSuite ? TEST_TITLE_SEPARATOR : this.#spec.separator
+    const qualifiedName = container === undefined ? header.name : `${container.childPrefix}${separator}${header.name}`
     return {
       header,
       node,
@@ -206,6 +216,7 @@ function toDefinition(spec: LanguageSpec, raw: RawDefinition, lines: readonly st
       text: outline(lines, startLine - 1, endLine - 1, raw.children),
       elidesNestedUnits: raw.children.length > 0,
     },
+    wholeSnapshot: { startLine, endLine, text: lines.slice(startLine - 1, endLine).join("\n"), elidesNestedUnits: false },
     codeTokens: code.map((token) => token.text),
     shape: raw.header.kind === UnitKind.Function || raw.header.kind === UnitKind.Method ? extractShape(spec.shape, raw.node) : undefined,
     fingerprints: {

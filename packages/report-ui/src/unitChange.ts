@@ -69,6 +69,9 @@ export const UNIT_KIND_LABELS: Readonly<Record<UnitKind, string>> = {
   [UnitKind.Constant]: "const",
   [UnitKind.Macro]: "macro",
   [UnitKind.Module]: "module",
+  [UnitKind.TestSuite]: "describe",
+  [UnitKind.Test]: "test",
+  [UnitKind.TestHook]: "hook",
   [UnitKind.ModuleScope]: "imports & top level",
 }
 

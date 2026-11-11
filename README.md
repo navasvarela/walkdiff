@@ -17,7 +17,9 @@ All changes has five tabs, including **Conversation** in the app: **Changes** (f
 
 - **Changed units, not hunks.** For Rust, TypeScript/JavaScript and Python, each changed function, method,
   type or class appears once, whole, before and after, with edited words marked. A class shows only the
-  code it owns; its methods are separate cards.
+  code it owns; its methods are separate cards. In JavaScript and TypeScript tests, each `describe`,
+  `it`/`test` and hook such as `beforeEach` is a unit too, named by its title, such as `parser › reads includes`.
+  A class or suite that is new as a whole is one card with everything in it.
 - **A map of each file.** When a file has several changed units, an outline shows which ones changed among all its definitions, how big they are, and which changed function calls which. Cards are in reading order: types first, then helpers before the code that calls them, with collapsed changes last.
 - **Change facts.** Each modified function lists what changed without reading it, worked out from the syntax: parameters, return type, calls added or removed, and more or fewer error paths and branches.
 - **Noise collapsed.** Formatting-only and comment-only edits, renames with unchanged bodies, and units moved
@@ -48,8 +50,9 @@ qualified with the unit's type, likely for a direct use, possible for `x.method(
 and parameters or locals that shadow the name are ignored. Names in more than 200 files (`new`, `get`)
 are reported as too common to trace.
 
-Known limits: changes inside test callbacks such as `describe(...)`/`it(...)` show under "imports & top
-level"; a unit both moved and edited shows as removed plus added; no syntax highlighting yet.
+Known limits: tests are recognised by the usual names (`describe`, `it`, `test` and their hooks), so a
+test helper with another name shows under "imports & top level"; a unit both moved and edited shows as
+removed plus added; no syntax highlighting yet.
 
 ## Usage
 
