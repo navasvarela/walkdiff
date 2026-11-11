@@ -10,6 +10,7 @@
  *   time stays linear whatever the input. It only knows tokens, not grammar, so it can misjudge
  *   rare cases such as a generic arrow function in TSX. Those only ever cost a colour.
  */
+import { C, CPP, createCStep } from "./c.ts"
 import { goStep } from "./go.ts"
 import { javaStep } from "./java.ts"
 import { createJavaScriptStep, JAVASCRIPT, TSX, TYPESCRIPT } from "./javascript.ts"
@@ -18,7 +19,7 @@ import { rustStep } from "./rust.ts"
 import { Scanner } from "./scanner.ts"
 import type { SyntaxKind, SyntaxSpan } from "./scanner.ts"
 
-export const HighlightLanguage = { Rust: "rust", TypeScript: "typescript", Tsx: "tsx", JavaScript: "javascript", Python: "python", Go: "go", Java: "java" } as const
+export const HighlightLanguage = { Rust: "rust", TypeScript: "typescript", Tsx: "tsx", JavaScript: "javascript", Python: "python", Go: "go", Java: "java", C: "c", Cpp: "cpp" } as const
 export type HighlightLanguage = (typeof HighlightLanguage)[keyof typeof HighlightLanguage]
 
 /** Spans of one line, with offsets relative to the start of that line. */
@@ -50,6 +51,20 @@ const LANGUAGE_BY_EXTENSION: ReadonlyMap<string, HighlightLanguage> = new Map([
   [".pyi", HighlightLanguage.Python],
   [".go", HighlightLanguage.Go],
   [".java", HighlightLanguage.Java],
+  [".c", HighlightLanguage.C],
+  // Headers may be C or C++; C++ colours a C header's code too, short of names such as `new`.
+  [".h", HighlightLanguage.Cpp],
+  [".cc", HighlightLanguage.Cpp],
+  [".cpp", HighlightLanguage.Cpp],
+  [".cxx", HighlightLanguage.Cpp],
+  [".c++", HighlightLanguage.Cpp],
+  [".hh", HighlightLanguage.Cpp],
+  [".hpp", HighlightLanguage.Cpp],
+  [".hxx", HighlightLanguage.Cpp],
+  [".h++", HighlightLanguage.Cpp],
+  [".inl", HighlightLanguage.Cpp],
+  [".ipp", HighlightLanguage.Cpp],
+  [".tpp", HighlightLanguage.Cpp],
 ])
 
 const STEP_FACTORIES: Readonly<Record<HighlightLanguage, () => (scanner: Scanner) => void>> = {
@@ -60,6 +75,8 @@ const STEP_FACTORIES: Readonly<Record<HighlightLanguage, () => (scanner: Scanner
   [HighlightLanguage.Python]: () => pythonStep,
   [HighlightLanguage.Go]: () => goStep,
   [HighlightLanguage.Java]: () => javaStep,
+  [HighlightLanguage.C]: () => createCStep(C),
+  [HighlightLanguage.Cpp]: () => createCStep(CPP),
 }
 
 /**

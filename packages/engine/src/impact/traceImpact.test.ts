@@ -75,6 +75,28 @@ describe("traceImpact", () => {
     await write("web/stale.ts", 'import { oldName } from "./format"\nexport function legacy() {\n  return oldName(1)\n}\n')
     await write("py/money.py", `def convert(amount, rate):\n${CONVERT_BODY}\n\ndef keep_money():\n    pass\n`)
     await write("py/shop.py", "from money import convert\n\ndef checkout(total):\n    return convert(total, 1.2)\n")
+    await write(
+      "cpp/server.h",
+      [
+        "template <typename T> struct codec { int encode(T value) { return 1; } };",
+        "template <> struct codec<int> { int encode(int value) { return 2; } };",
+        "class Server {",
+        " public:",
+        "  void start() { open(); }",
+        "  void restart() { start(); this->start(); }",
+        "};",
+        "",
+      ].join("\n"),
+    )
+    await write(
+      "cpp/main.cc",
+      [
+        '#include "server.h"',
+        "void run(Server &server) { server.start(); }",
+        "int pack(long value) { return codec<long>::encode(value) + codec<int>::encode(1); }",
+        "",
+      ].join("\n"),
+    )
     const base = await commit()
 
     await write(
@@ -93,6 +115,19 @@ describe("traceImpact", () => {
     await write("web/caller.ts", 'import { newName } from "./format"\nexport const twice = (x: number) => newName(x * 1)\n')
     await write("py/money.py", "def keep_money():\n    pass\n")
     await write("py/fx.py", `def convert(amount, rate):\n${CONVERT_BODY.replace("round(value, 2)", "round(value, 4)")}`)
+    await write(
+      "cpp/server.h",
+      [
+        "template <typename T> struct codec { int encode(T value) { return 1; } };",
+        "template <> struct codec<int> { int encode(int value) { return 3; } };",
+        "class Server {",
+        " public:",
+        "  void start() { open(); listen(); }",
+        "  void restart() { start(); this->start(); }",
+        "};",
+        "",
+      ].join("\n"),
+    )
     const head = await commit()
 
     files = (await analyzeChangedFiles(repoDir, base, head, { network: false, runScanner: async () => undefined })).files
@@ -108,6 +143,18 @@ describe("traceImpact", () => {
       "src/size.rs:4 Size::kib exact",
       "src/report.rs:2 show possible",
     ])
+  })
+
+  it("finds C++ method callers by bare name and this inside the class, and by member and path outside it", () => {
+    expect(referencesOf("cpp/server.h", "Server::start")).toEqual([
+      "cpp/server.h:6 Server::restart exact",
+      "cpp/server.h:6 Server::restart likely",
+      "cpp/main.cc:2 run possible",
+    ])
+  })
+
+  it("rates a call through another specialization of a template as possible", () => {
+    expect(referencesOf("cpp/server.h", "codec<int>::encode")).toEqual(["cpp/main.cc:3 pack exact", "cpp/main.cc:3 pack possible"])
   })
 
   it("reports where a removed function is still used", () => {

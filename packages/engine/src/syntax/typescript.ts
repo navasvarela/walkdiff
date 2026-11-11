@@ -166,12 +166,14 @@ function makeSpec(language: SourceLanguage, grammar: string): LanguageSpec {
     identifierTypes: new Set(["identifier", "property_identifier", "type_identifier", "shorthand_property_identifier"]),
     classifyIdentifier: (leaf) => classifyWithGrammar(leaf, IDENTIFIER_GRAMMAR),
     selfReceivers: new Set(["this"]),
+    callsMembersByBareName: false,
     functionScopeTypes: FUNCTION_SCOPE_TYPES,
     isBindingSite: (leaf) => isBindingWithGrammar(leaf, IDENTIFIER_GRAMMAR),
     isImplicitlyInvoked: (methodName) => methodName === "constructor",
     shape: {
       // `const f = () => {}` and class fields keep their parameters on the assigned function.
       functionNode: (definition) => definition.childForFieldName("value") ?? definition,
+      signatureNode: (fn) => fn,
       returnTypeField: "return_type",
       parameterKind,
       calls: new Map([

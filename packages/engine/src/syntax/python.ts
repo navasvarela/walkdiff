@@ -74,11 +74,13 @@ export const pythonSpec: LanguageSpec = {
   identifierTypes: new Set(["identifier"]),
   classifyIdentifier: (leaf) => classifyWithGrammar(leaf, IDENTIFIER_GRAMMAR),
   selfReceivers: new Set(["self", "cls"]),
+  callsMembersByBareName: false,
   functionScopeTypes: new Set(["function_definition", "lambda"]),
   isBindingSite: (leaf) => isBindingWithGrammar(leaf, IDENTIFIER_GRAMMAR),
   isImplicitlyInvoked: (methodName) => DUNDER_METHOD.test(methodName),
   shape: {
     functionNode: (definition) => definition,
+    signatureNode: (fn) => fn,
     returnTypeField: "return_type",
     parameterKind,
     calls: new Map([["call", { calleeField: "function", suffix: "" }]]),

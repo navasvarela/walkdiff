@@ -76,12 +76,14 @@ export const rustSpec: LanguageSpec = {
   identifierTypes: new Set(["identifier", "field_identifier", "type_identifier"]),
   classifyIdentifier: (leaf) => classifyWithGrammar(leaf, IDENTIFIER_GRAMMAR),
   selfReceivers: new Set(["self", "Self"]),
+  callsMembersByBareName: false,
   functionScopeTypes: new Set(["function_item", "closure_expression"]),
   isBindingSite: (leaf) => isBindingWithGrammar(leaf, IDENTIFIER_GRAMMAR),
   // Rust calls only `drop` implicitly, and only through the Drop trait.
   isImplicitlyInvoked: (methodName) => methodName === "drop",
   shape: {
     functionNode: (definition) => definition,
+    signatureNode: (fn) => fn,
     returnTypeField: "return_type",
     parameterKind: (parameter) => (parameter.type === "self_parameter" ? ParameterKind.Receiver : parameter.type === "variadic_parameter" ? ParameterKind.Rest : ParameterKind.Required),
     calls: new Map([

@@ -82,7 +82,7 @@ export const FileChangeStatus = {
 } as const
 export type FileChangeStatus = (typeof FileChangeStatus)[keyof typeof FileChangeStatus]
 
-export const SourceLanguage = { Rust: "rust", TypeScript: "typescript", Tsx: "tsx", Python: "python", Go: "go", Java: "java" } as const
+export const SourceLanguage = { Rust: "rust", TypeScript: "typescript", Tsx: "tsx", Python: "python", Go: "go", Java: "java", C: "c", Cpp: "cpp" } as const
 export type SourceLanguage = (typeof SourceLanguage)[keyof typeof SourceLanguage]
 
 export const UnitKind = {

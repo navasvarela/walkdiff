@@ -19,6 +19,10 @@ describe("languageForPath", () => {
     ["a.b/c.py", HighlightLanguage.Python],
     ["cmd/main.go", HighlightLanguage.Go],
     ["src/main/java/A.java", HighlightLanguage.Java],
+    ["src/store.c", HighlightLanguage.C],
+    ["include/store.h", HighlightLanguage.Cpp],
+    ["src/server.cc", HighlightLanguage.Cpp],
+    ["src/server.HPP", HighlightLanguage.Cpp],
     ["a/README.md", undefined],
     ["Makefile", undefined],
     ["a.py/Makefile", undefined],
@@ -238,6 +242,58 @@ describe("Java", () => {
   })
 })
 
+describe("C", () => {
+  const language = HighlightLanguage.C
+
+  it("colours directives, include paths, types, calls and values", () => {
+    expect(tokens(`#include <stdio.h>\nstatic int count(const char *s) {\n  return printf("%s", s) + NULL; /* done */\n}`, language)).toEqual([
+      "meta:#include",
+      "string: <stdio.h>",
+      "keyword:static",
+      "type:int",
+      "function:count",
+      "keyword:const",
+      "type:char",
+      "keyword:return",
+      "function:printf",
+      'string:"%s"',
+      "constant:NULL",
+      "comment:/* done */",
+    ])
+  })
+
+  it("treats C++ keywords as names", () => {
+    expect(tokens("int new = class;", language)).toEqual(["type:int"])
+  })
+})
+
+describe("C++", () => {
+  const language = HighlightLanguage.Cpp
+
+  it("colours templates, namespaces and literals with prefixes", () => {
+    expect(tokens(`template <typename T> class Box { auto x = nullptr; auto s = u8"hi"; };`, language)).toEqual([
+      "keyword:template",
+      "keyword:typename",
+      "type:T",
+      "keyword:class",
+      "type:Box",
+      "keyword:auto",
+      "constant:nullptr",
+      "keyword:auto",
+      'string:u8"hi"',
+    ])
+  })
+
+  it("reads raw strings to their own closing tag, and digit separators as part of a number", () => {
+    expect(tokens(`auto s = R"sql(a ")" b)sql"; int n = 1'000;`, language)).toEqual([
+      "keyword:auto",
+      'string:R"sql(a ")" b)sql"',
+      "type:int",
+      "constant:1'000",
+    ])
+  })
+})
+
 describe("highlightLines", () => {
   it("returns one entry per line, matching a split on line breaks", () => {
     const text = "a\n\nb\n"
@@ -264,7 +320,7 @@ describe("highlightLines", () => {
   })
 
   // Each of these made Prism or highlight.js take seconds at 100 KB, or targets a lookahead of ours.
-  const HOSTILE_INPUTS = ["<a b=", "<a>", '`${', 'r#"', "/[", "/*", "'", '"""', "foo(", "#[", "{", "<", "\\", "function ", "@"]
+  const HOSTILE_INPUTS = ["<a b=", "<a>", '`${', 'r#"', "/[", "/*", "'", '"""', "foo(", "#[", "{", "<", "\\", "function ", "@", "#include <", 'R"(', "u8'", "1'"]
   const HOSTILE_LANGUAGES = Object.values(HighlightLanguage)
   // Far above the few milliseconds these take, and far below the seconds a backtracking pattern takes.
   const SLOW_MS = 1_000

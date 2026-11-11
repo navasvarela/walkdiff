@@ -18,6 +18,8 @@ const PYTHON: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Python])
 const RUST: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Rust])
 const GO: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Go])
 const JAVA: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Java])
+const C_FAMILY: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.C, SourceLanguage.Cpp])
+const CPP: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Cpp])
 
 function rule(
   id: string,
@@ -65,6 +67,11 @@ const API_RULES: readonly ApiRule[] = [
   rule("java.deserialization", JAVA, RiskSeverity.Medium, /\bnew\s+ObjectInputStream\s*\(/, "Java deserialization", "Reading objects from a stream can run code chosen by whoever wrote it; never deserialize untrusted data."),
   rule("java.sql-concat", JAVA, RiskSeverity.Medium, /\.(?:executeQuery|executeUpdate|execute|prepareStatement|addBatch)\s*\(\s*"[^"]*"\s*\+/, "SQL built by concatenation", SQL_INTERPOLATION),
   rule("java.tls-disabled", JAVA, RiskSeverity.High, /\bNoopHostnameVerifier\b|\bALLOW_ALL_HOSTNAME_VERIFIER\b|\bsetHostnameVerifier\s*\(\s*\([^)]*\)\s*->\s*true\b/, "TLS verification disabled", TLS_DISABLED),
+  rule("c.unbounded-copy", C_FAMILY, RiskSeverity.Medium, /\b(?:strcpy|strcat|stpcpy|wcscpy|wcscat|sprintf|vsprintf|gets)\s*\(/, "Unbounded string copy", "Writes with no length limit, so input longer than the buffer overflows it. Use a bounded form such as snprintf."),
+  rule("c.format-string", C_FAMILY, RiskSeverity.Medium, /\b(?:printf\s*\(|fprintf\s*\(\s*[\w.>-]+\s*,)\s*[A-Za-z_][\w.>-]*\s*\)/, "Format string from a variable", "If the text can come from users, conversions such as %n and %s in it read or write memory. Print it through \"%s\" instead."),
+  rule("c.exec", C_FAMILY, RiskSeverity.Medium, /\b(?:system|popen|exec(?:l|lp|le|v|vp|vpe|ve))\s*\(/, "Spawns processes", SPAWNS_PROCESSES),
+  rule("c.tls-disabled", C_FAMILY, RiskSeverity.High, /\bSSL_(?:CTX_)?set_verify\s*\([^,]+,\s*SSL_VERIFY_NONE\b|\bCURLOPT_SSL_VERIFY(?:PEER|HOST)\s*,\s*0/, "TLS verification disabled", TLS_DISABLED),
+  rule("cpp.reinterpret-cast", CPP, RiskSeverity.Medium, /\breinterpret_cast\s*</, "reinterpret_cast", "Reinterprets memory with no checks; a wrong type or size is undefined behaviour."),
 ]
 
 /**
