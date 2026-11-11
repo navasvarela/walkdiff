@@ -3,7 +3,7 @@
 # walkdiff
 
 A review companion for GitHub pull requests and GitLab merge requests. `walkdiff review <url>` fetches the
-change, analyzes it, and serves a local report. (Working name; the project name is still an open decision.)
+change, analyzes it, and serves a local report.
 
 Status: early release, [v0.8.0](CHANGELOG.md). To run it on your team's PRs, see the [pilot guide](docs/pilot.md).
 
@@ -51,8 +51,10 @@ and parameters or locals that shadow the name are ignored. Names in more than 20
 are reported as too common to trace.
 
 Known limits: tests are recognised by the usual names (`describe`, `it`, `test` and their hooks), so a
-test helper with another name shows under "imports & top level"; a unit both moved and edited shows as
-removed plus added; no syntax highlighting yet.
+test helper with another name shows under "imports & top level"; a unit renamed as well as moved and
+edited, or mostly rewritten, shows as removed plus added (see
+[troubleshooting](docs/troubleshooting.md#a-function-shows-as-removed-and-added)); code is highlighted
+only in Rust, TypeScript/JavaScript and Python.
 
 ## Usage
 
