@@ -82,6 +82,7 @@ export const rustSpec: LanguageSpec = {
   isImplicitlyInvoked: (methodName) => methodName === "drop",
   shape: {
     functionNode: (definition) => definition,
+    returnTypeField: "return_type",
     parameterKind: (parameter) => (parameter.type === "self_parameter" ? ParameterKind.Receiver : parameter.type === "variadic_parameter" ? ParameterKind.Rest : ParameterKind.Required),
     calls: new Map([
       ["call_expression", { calleeField: "function", suffix: "" }],

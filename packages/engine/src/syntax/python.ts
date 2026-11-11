@@ -79,6 +79,7 @@ export const pythonSpec: LanguageSpec = {
   isImplicitlyInvoked: (methodName) => DUNDER_METHOD.test(methodName),
   shape: {
     functionNode: (definition) => definition,
+    returnTypeField: "return_type",
     parameterKind,
     calls: new Map([["call", { calleeField: "function", suffix: "" }]]),
     errorCalls: new Set(),

@@ -150,8 +150,9 @@ class DefinitionWalker {
     const outer = this.#spec.outerNode(node)
     const nodes = [...this.#attachedPrefix(outer), outer]
     const first = nodes.at(0) ?? outer
+    const prefix = container?.childPrefix ?? header.owner
     const separator = container?.kind === UnitKind.TestSuite ? TEST_TITLE_SEPARATOR : this.#spec.separator
-    const qualifiedName = container === undefined ? header.name : `${container.childPrefix}${separator}${header.name}`
+    const qualifiedName = prefix === undefined ? header.name : `${prefix}${separator}${header.name}`
     return {
       header,
       node,

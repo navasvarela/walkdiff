@@ -172,6 +172,7 @@ function makeSpec(language: SourceLanguage, grammar: string): LanguageSpec {
     shape: {
       // `const f = () => {}` and class fields keep their parameters on the assigned function.
       functionNode: (definition) => definition.childForFieldName("value") ?? definition,
+      returnTypeField: "return_type",
       parameterKind,
       calls: new Map([
         ["call_expression", { calleeField: "function", suffix: "" }],

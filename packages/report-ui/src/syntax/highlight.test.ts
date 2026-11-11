@@ -17,6 +17,8 @@ describe("languageForPath", () => {
     ["a/b.js", HighlightLanguage.JavaScript],
     ["a/b.JSX", HighlightLanguage.JavaScript],
     ["a.b/c.py", HighlightLanguage.Python],
+    ["cmd/main.go", HighlightLanguage.Go],
+    ["src/main/java/A.java", HighlightLanguage.Java],
     ["a/README.md", undefined],
     ["Makefile", undefined],
     ["a.py/Makefile", undefined],
@@ -186,6 +188,53 @@ describe("Python", () => {
 
   it("handles string prefixes, and only long strings cross lines", () => {
     expect(tokens(`f"a" rb'b'\n"""c\nd""" 'e\nx`, language)).toEqual([`string:f"a"`, "string:rb'b'", `string:"""c`, `string:d"""`, "string:'e"])
+  })
+})
+
+describe("Go", () => {
+  const language = HighlightLanguage.Go
+
+  it("colours definitions, exported calls, types and values", () => {
+    expect(tokens(`func (s *Server) Start(n int) error {\n  fmt.Println("hi", nil) // done\n  return int(n)\n}`, language)).toEqual([
+      "keyword:func",
+      "type:Server",
+      "function:Start",
+      "type:int",
+      "type:error",
+      "function:Println",
+      'string:"hi"',
+      "constant:nil",
+      "comment:// done",
+      "keyword:return",
+      "type:int",
+    ])
+  })
+
+  it("keeps raw strings literal across lines, and runes on one", () => {
+    expect(tokens("x := `a\\\nb` + 'c'", language)).toEqual(["string:`a\\", "string:b`", "string:'c'"])
+  })
+})
+
+describe("Java", () => {
+  const language = HighlightLanguage.Java
+
+  it("colours annotations, declarations and constructors", () => {
+    expect(tokens(`@Override\npublic List<String> run(int a) { return new Foo(a, null); }`, language)).toEqual([
+      "meta:@Override",
+      "keyword:public",
+      "type:List",
+      "type:String",
+      "function:run",
+      "type:int",
+      "keyword:return",
+      "keyword:new",
+      "type:Foo",
+      "constant:null",
+    ])
+  })
+
+  it("carries text blocks across lines, and treats newer keywords as names unless a value follows", () => {
+    expect(tokens(`String s = """\n  a\n  """; var x = record;`, language)).toEqual(["type:String", 'string:"""', "string:  a", 'string:  """', "keyword:var"])
   })
 })
 

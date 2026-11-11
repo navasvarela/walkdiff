@@ -15,7 +15,7 @@ The report opens on a brief: what to check, how many changes need attention, and
 
 All changes has five tabs, including **Conversation** in the app: **Changes** (files, the map of each file and the changed units), **Impact** (where other code uses what changed), **Risks** (each check's result and every finding) and **AI review**. Each tab shows a count, and its name in the URL lets you link to it, as in `#risks`.
 
-- **Changed units, not hunks.** For Rust, TypeScript/JavaScript and Python, each changed function, method,
+- **Changed units, not hunks.** For Rust, TypeScript/JavaScript, Python, Go and Java, each changed function, method,
   type or class appears once, whole, before and after, with edited words marked. A class shows only the
   code it owns; its methods are separate cards. In JavaScript and TypeScript tests, each `describe`,
   `it`/`test` and hook such as `beforeEach` is a unit too, named by its title, such as `parser › reads includes`.
@@ -29,7 +29,8 @@ All changes has five tabs, including **Conversation** in the app: **Changes** (f
   lists where the rest of the code still uses it, linked to the host at the head commit, and flags the
   callers this PR did not touch. Removed and renamed units show any references left behind.
 - **Risks and security findings.** Built-in rules flag likely secrets (redacted in the report), risky APIs
-  such as `eval`, `shell=True`, raw HTML or `unsafe` (only in code, not comments or strings), sensitive
+  such as `eval`, `shell=True`, raw HTML, `unsafe`, Go's `InsecureSkipVerify` or Java deserialization
+  (only in code, not comments or strings), sensitive
   areas such as auth, payments, migrations and CI, new dependencies, and known vulnerabilities in
   dependency versions new to `package-lock.json`, `Cargo.lock`, `poetry.lock`, `uv.lock` or pinned
   requirements (via [OSV](https://osv.dev); `--offline` skips it). Review signals add large PRs, missing
@@ -54,7 +55,7 @@ Known limits: tests are recognised by the usual names (`describe`, `it`, `test` 
 test helper with another name shows under "imports & top level"; a unit renamed as well as moved and
 edited, or mostly rewritten, shows as removed plus added (see
 [troubleshooting](docs/troubleshooting.md#a-function-shows-as-removed-and-added)); code is highlighted
-only in Rust, TypeScript/JavaScript and Python.
+only in Rust, TypeScript/JavaScript, Python, Go and Java.
 
 ## Usage
 
@@ -163,9 +164,9 @@ because they expose nothing to an attacker.
 The rules read syntax, not types, so they say "may break" unless a required parameter changed and calls
 to the function are left behind. They would rather stay quiet than raise a false alarm.
 
-**Public APIs**, for Rust, TypeScript, JavaScript and Python: a removed or renamed function or type, an
+**Public APIs**, for Rust, TypeScript, JavaScript, Python and Go: a removed or renamed function or type, an
 item that stops being public, removed or newly required parameters, and changed parameter or return types.
-Other changes aren't flagged, such as a renamed parameter in Rust or TypeScript, a new optional parameter,
+Other changes aren't flagged, such as a renamed parameter in Rust, TypeScript or Go, a new optional parameter,
 or a wider parameter type. Being marked public isn't enough, since apps mark their own modules that way too.
 A change also needs someone it can affect:
 
@@ -174,6 +175,9 @@ A change also needs someone it can affect:
 | Rust | A bare `pub` (not `pub(crate)`) | The crate has `src/lib.rs`, isn't `publish = false`, and every module up to the root is `pub mod` or re-exports it |
 | TypeScript, JavaScript | `export` | The package isn't `private` and its entry point exports it, directly or through `export ... from` |
 | Python | No leading underscore | The project has a build backend, no part of the module path starts with an underscore, and `__all__`, if any, lists it |
+| Go | A capitalised name, and for a method, a capitalised type | A `go.mod` is above it, the package isn't `main`, and no folder on its path is `internal` |
+
+Java isn't covered yet, since nothing in a Java project's files reliably tells a published library from an application.
 
 Otherwise it's flagged only if calls this PR didn't touch remain in the repository. Python and TypeScript
 functions under a framework's decorator are skipped, as the decorator can change how they're called. So is a
@@ -203,7 +207,7 @@ without the definition changing, and inputs of a GitHub Action's `action.yml`.
 Walkdiff flags poor implementations and bad practice in the code a PR adds, under the "Code quality"
 category in the Risks tab. These findings never count as security findings.
 
-**Function metrics** are built in and cover Rust, TypeScript and Python. A function is flagged when
+**Function metrics** are built in and cover Rust, TypeScript, Python, Go and Java. A function is flagged when
 the PR adds it over a limit, pushes it over one, or makes one already over the limit at least 20%
 worse. The Changes tab also shows each modified function's complexity change. Test code is left out.
 
