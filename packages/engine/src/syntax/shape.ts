@@ -44,14 +44,14 @@ export function extractShape(grammar: ShapeGrammar, definition: Node): UnitShape
   const fn = grammar.functionNode(definition)
   const calls = callNames(grammar, fn)
   const bailOuts = calls.list.filter((name) => grammar.errorCalls.has(name)).length
-  const parameterNodes = parameterNodesOf(fn)
-  const parameters = new Map(parameterNodes.map((node) => [squeeze(parameterName(node)), squeeze(node.text)]))
+  const slots = parameterNodesOf(fn).flatMap(parameterSlots)
+  const parameters = new Map(slots.map((slot) => [slot.name, slot.text]))
   const branches = fn.descendantsOfType([...grammar.branchTypes]).length
   return {
     parameters,
-    signature: parameterNodes.map((node) => signatureParameter(grammar, node)),
+    signature: slots.map((slot) => signatureParameter(grammar, slot)),
     // TypeScript's return type node includes its leading colon.
-    returnType: typeText(fn.childForFieldName("return_type")),
+    returnType: typeText(fn.childForFieldName(grammar.returnTypeField)),
     calls: new Set(calls.list),
     errorPaths: fn.descendantsOfType([...grammar.errorTypes]).length + bailOuts,
     branches,
@@ -116,10 +116,25 @@ function parameterNodesOf(fn: Node): Node[] {
   return nodes.filter((node): node is Node => node !== null && !node.type.includes("comment"))
 }
 
-function signatureParameter(grammar: ShapeGrammar, node: Node): SignatureParameter {
-  const name = squeeze(parameterName(node)).replace(/^\*+/, "")
-  const kind = RECEIVER_PARAMETER.test(name) ? ParameterKind.Receiver : grammar.parameterKind(node)
-  return { name, kind, type: typeText(node.childForFieldName("type")) }
+/** One name a caller passes, with the declaration it's in. */
+interface ParameterSlot {
+  readonly name: string
+  readonly text: string
+  readonly node: Node
+}
+
+// Go declares `a, b int` once for both names, and each is a parameter of its own to callers.
+function parameterSlots(node: Node): ParameterSlot[] {
+  const names = node.childrenForFieldName("name").filter((name): name is Node => name !== null)
+  if (names.length < 2) return [{ name: squeeze(parameterName(node)), text: squeeze(node.text), node }]
+  const type = node.childForFieldName("type")?.text ?? ""
+  return names.map((name) => ({ name: name.text, text: squeeze(`${name.text} ${type}`), node }))
+}
+
+function signatureParameter(grammar: ShapeGrammar, slot: ParameterSlot): SignatureParameter {
+  const name = slot.name.replace(/^\*+/, "")
+  const kind = RECEIVER_PARAMETER.test(name) ? ParameterKind.Receiver : grammar.parameterKind(slot.node)
+  return { name, kind, type: typeText(slot.node.childForFieldName("type")) }
 }
 
 function typeText(node: Node | null): string | null {
@@ -127,10 +142,15 @@ function typeText(node: Node | null): string | null {
 }
 
 function parameterName(node: Node): string {
-  const named = node.childForFieldName("pattern") ?? node.childForFieldName("name")
+  // Java's `String... rest` names its parameter in a declarator.
+  const named = node.childForFieldName("pattern") ?? node.childForFieldName("name") ?? declaratorName(node)
   if (named !== null) return named.text
   // Python's `typed_parameter` has no name field: the name is its first child.
   return node.type.includes("typed") ? (node.firstNamedChild?.text ?? node.text) : node.text
+}
+
+function declaratorName(node: Node): Node | null {
+  return node.namedChildren.find((child) => child?.type === "variable_declarator")?.childForFieldName("name") ?? null
 }
 
 interface CallNames {
@@ -142,16 +162,19 @@ function callNames(grammar: ShapeGrammar, fn: Node): CallNames {
   const list = fn.descendantsOfType([...grammar.calls.keys()]).flatMap((call) => {
     const syntax = call === null ? undefined : grammar.calls.get(call.type)
     const callee = syntax === undefined ? null : (call?.childForFieldName(syntax.calleeField) ?? null)
-    return syntax === undefined || callee === null ? [] : [`${calleeName(callee)}${syntax.suffix}`]
+    const name = callee === null ? undefined : calleeName(callee)
+    return syntax === undefined || name === undefined ? [] : [`${name}${syntax.suffix}`]
   })
   return { list }
 }
 
-function calleeName(callee: Node): string {
+// Undefined for a function called where it's written, such as Go's `go func() {…}()` or
+// JavaScript's `(() => {…})()`: it has no name, and its own calls are counted already.
+function calleeName(callee: Node): string | undefined {
   // Chained calls span lines; `items\n  .iter` is the callee `items.iter`.
   const text = callee.text.replace(/\s+/g, "")
   if (text.length <= MAX_CALLEE_TEXT && !text.includes("(")) return text
-  return LAST_SEGMENT.exec(text)?.[0] ?? text.slice(0, MAX_CALLEE_TEXT)
+  return LAST_SEGMENT.exec(text)?.[0]
 }
 
 function squeeze(text: string): string {

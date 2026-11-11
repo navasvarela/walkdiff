@@ -6,6 +6,11 @@ export interface DefinitionHeader {
   readonly name: string
   /** The identifier naming the definition; rename detection masks it out. */
   readonly nameNode: Node | null
+  /**
+   * The type a method belongs to when it's declared outside it, as Go's `func (s *Server) Start()`
+   * is. It names the method `Server.Start`, as a method nested in its type would be.
+   */
+  readonly owner?: string
 }
 
 /** The unit a definition is nested in, as seen by its children. */
@@ -82,6 +87,8 @@ export type ParameterKind = (typeof ParameterKind)[keyof typeof ParameterKind]
 export interface ShapeGrammar {
   /** The node holding the parameters; differs from the definition for `const f = () => {}`. */
   functionNode(definition: Node): Node
+  /** The function node's field holding its return type: `return_type`, Go's `result`, Java's `type`. */
+  readonly returnTypeField: string
   parameterKind(parameter: Node): ParameterKind
   /** Call node type → the field naming what is called, and text appended to that name. */
   readonly calls: ReadonlyMap<string, CallSyntax>

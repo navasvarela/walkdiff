@@ -52,6 +52,7 @@ const RUST_BINARY: Files = { "Cargo.toml": '[package]\nname = "app"\n', "src/mai
 const TS_LIBRARY: Files = { "package.json": '{"name":"lib","main":"dist/index.js"}', "src/index.ts": 'export * from "./api"\nexport { picked } from "./other"\n' }
 const TS_APP: Files = { "package.json": '{"name":"app","private":true}' }
 const PY_LIBRARY: Files = { "pyproject.toml": '[build-system]\nrequires = ["hatchling"]\n' }
+const GO_MODULE: Files = { "go.mod": "module example.com/lib\n\ngo 1.22\n" }
 
 interface ApiCase {
   readonly name: string
@@ -88,6 +89,9 @@ const FLAGGED_API: readonly ApiCase[] = [
   { name: "ts: arrow function", project: TS_LIBRARY, path: "src/api.ts", before: "export const parse = (a: string): void => {}\n", after: "export const parse = (a: string, b: number): void => {}\n", expected: ["parse has a new required parameter b"] },
   { name: "ts: class method", project: TS_LIBRARY, path: "src/api.ts", before: "export class Foo {\n  run(a: string): void {}\n}\n", after: "export class Foo {\n  run(): void {}\n}\n", expected: ["Foo.run no longer takes a"] },
   { name: "ts: export removed", project: TS_LIBRARY, path: "src/api.ts", before: "export function parse(): void {}\n", after: "function parse(): void {}\nparse()\n", expected: ["Public function parse is no longer public"] },
+  { name: "go: removed exported function", project: GO_MODULE, path: "api/api.go", before: "package api\n\nfunc Parse(a int) int { return a }\n\nfunc Keep() {}\n", after: "package api\n\nfunc Keep() {}\n", expected: ["Public function Parse was removed"] },
+  { name: "go: new parameter in a grouped declaration", project: GO_MODULE, path: "api/api.go", before: "package api\n\nfunc Parse(a int) int { return a }\n", after: "package api\n\nfunc Parse(a, b int) int { return a }\n", expected: ["Parse has a new required parameter b"] },
+  { name: "go: method of an exported type", project: GO_MODULE, path: "api/api.go", before: "package api\n\ntype Server struct{}\n\nfunc (s *Server) Start(port int) {}\n", after: "package api\n\ntype Server struct{}\n\nfunc (s *Server) Start() {}\n", expected: ["Server.Start no longer takes port"] },
   { name: "python: removed function", project: PY_LIBRARY, path: "pkg/api.py", before: "def parse(a):\n    return a\n\ndef keep():\n    return 1\n", after: "def keep():\n    return 1\n", expected: ["Public function parse was removed"] },
   { name: "python: removed class", project: PY_LIBRARY, path: "pkg/api.py", before: "class Foo:\n    pass\n\ndef keep():\n    return 1\n", after: "def keep():\n    return 1\n", expected: ["Public class Foo was removed"] },
   { name: "python: new required parameter", project: PY_LIBRARY, path: "pkg/api.py", before: "def parse(a):\n    return a\n", after: "def parse(a, b):\n    return a\n", expected: ["parse has a new required parameter b"] },
@@ -160,6 +164,13 @@ const NOT_FLAGGED_API: readonly ApiCase[] = [
   { name: "python: deprecating __getattr__ still serves the name (pallets/werkzeug#3321)", project: PY_LIBRARY, path: "pkg/api.py", before: "def parse(a):\n    return a\n\ndef keep():\n    return 1\n", after: 'def keep():\n    return 1\n\ndef __getattr__(name):\n    if name == "parse":\n        return keep\n    raise AttributeError(name)\n', expected: [] },
   { name: "python: return type restated as Self (pallets/werkzeug#3339)", project: PY_LIBRARY, path: "pkg/api.py", before: "class Response:\n    def copy(self) -> Response:\n        return self\n", after: "class Response:\n    def copy(self) -> t.Self:\n        return self\n", expected: [] },
   { name: "python: test file", project: PY_LIBRARY, path: "tests/test_api.py", before: "def helper(a):\n    return a\n", after: "def helper(a, b):\n    return a\n", expected: [] },
+  { name: "go: unexported function", project: GO_MODULE, path: "api/api.go", before: "package api\n\nfunc parse(a int) {}\n", after: "package api\n\nfunc parse() {}\n", expected: [] },
+  { name: "go: method of an unexported type", project: GO_MODULE, path: "api/api.go", before: "package api\n\ntype server struct{}\n\nfunc (s *server) Start(port int) {}\n", after: "package api\n\ntype server struct{}\n\nfunc (s *server) Start() {}\n", expected: [] },
+  { name: "go: internal package", project: GO_MODULE, path: "internal/api/api.go", before: "package api\n\nfunc Parse(a int) {}\n", after: "package api\n\nfunc Parse() {}\n", expected: [] },
+  { name: "go: package main", project: GO_MODULE, path: "cmd/tool/main.go", before: "package main\n\nfunc Parse(a int) {}\n", after: "package main\n\nfunc Parse() {}\n", expected: [] },
+  { name: "go: test file", project: GO_MODULE, path: "api/api_test.go", before: "package api\n\nfunc Helper(a int) {}\n", after: "package api\n\nfunc Helper() {}\n", expected: [] },
+  { name: "go: no go.mod", project: {}, path: "api/api.go", before: "package api\n\nfunc Parse(a int) {}\n", after: "package api\n\nfunc Parse() {}\n", expected: [] },
+  { name: "go: renamed parameter breaks no one", project: GO_MODULE, path: "api/api.go", before: "package api\n\nfunc Parse(size int) {}\n", after: "package api\n\nfunc Parse(length int) {}\n", expected: [] },
 ]
 
 describe("public API changes", () => {

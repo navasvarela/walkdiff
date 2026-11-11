@@ -10,13 +10,15 @@
  *   time stays linear whatever the input. It only knows tokens, not grammar, so it can misjudge
  *   rare cases such as a generic arrow function in TSX. Those only ever cost a colour.
  */
+import { goStep } from "./go.ts"
+import { javaStep } from "./java.ts"
 import { createJavaScriptStep, JAVASCRIPT, TSX, TYPESCRIPT } from "./javascript.ts"
 import { pythonStep } from "./python.ts"
 import { rustStep } from "./rust.ts"
 import { Scanner } from "./scanner.ts"
 import type { SyntaxKind, SyntaxSpan } from "./scanner.ts"
 
-export const HighlightLanguage = { Rust: "rust", TypeScript: "typescript", Tsx: "tsx", JavaScript: "javascript", Python: "python" } as const
+export const HighlightLanguage = { Rust: "rust", TypeScript: "typescript", Tsx: "tsx", JavaScript: "javascript", Python: "python", Go: "go", Java: "java" } as const
 export type HighlightLanguage = (typeof HighlightLanguage)[keyof typeof HighlightLanguage]
 
 /** Spans of one line, with offsets relative to the start of that line. */
@@ -46,6 +48,8 @@ const LANGUAGE_BY_EXTENSION: ReadonlyMap<string, HighlightLanguage> = new Map([
   [".jsx", HighlightLanguage.JavaScript],
   [".py", HighlightLanguage.Python],
   [".pyi", HighlightLanguage.Python],
+  [".go", HighlightLanguage.Go],
+  [".java", HighlightLanguage.Java],
 ])
 
 const STEP_FACTORIES: Readonly<Record<HighlightLanguage, () => (scanner: Scanner) => void>> = {
@@ -54,6 +58,8 @@ const STEP_FACTORIES: Readonly<Record<HighlightLanguage, () => (scanner: Scanner
   [HighlightLanguage.Tsx]: () => createJavaScriptStep(TSX),
   [HighlightLanguage.JavaScript]: () => createJavaScriptStep(JAVASCRIPT),
   [HighlightLanguage.Python]: () => pythonStep,
+  [HighlightLanguage.Go]: () => goStep,
+  [HighlightLanguage.Java]: () => javaStep,
 }
 
 /**

@@ -39,7 +39,8 @@ export async function readLibrarySurface(repoDir: string, commit: CommitSha, cha
     ecmascriptSurface(repository, pathsIn(SourceLanguage.TypeScript, SourceLanguage.Tsx)),
     pythonSurface(repository, pathsIn(SourceLanguage.Python)),
   ])
-  return (path, name) => rust(path, name) || ecmascript(path, name) || python(path, name)
+  const go = goSurface(repository, pathsIn(SourceLanguage.Go))
+  return (path, name) => rust(path, name) || ecmascript(path, name) || python(path, name) || go(path)
 }
 
 async function readTexts(repository: RepositoryFiles, paths: readonly string[]): Promise<Map<string, string>> {
@@ -263,4 +264,21 @@ async function pythonSurface(repository: RepositoryFiles, paths: readonly string
     const installable = !manifest.endsWith("pyproject.toml") || PYPROJECT_BUILDS.test(texts.get(manifest) ?? "")
     return installable && listedInDunderAll(texts.get(path), name)
   }
+}
+
+// --- Go: an exported name is API when its package is part of a module and isn't `internal`.
+// Whether a name is exported, and whether the package is `main`, is the language spec's to say.
+
+const GO_MODULE_MANIFEST = "go.mod"
+// The Go toolchain refuses imports of an `internal` package from outside the tree its parent roots.
+const GO_INTERNAL_FOLDER = "internal"
+const GO_TEST_FILE = /_test\.go$/
+
+function goSurface(repository: RepositoryFiles, paths: readonly string[]): (path: string) => boolean {
+  const importable = new Set(paths.filter((path) =>
+    !GO_TEST_FILE.test(path) &&
+    !path.split("/").includes(GO_INTERNAL_FOLDER) &&
+    nearestManifest(repository.paths, path, [GO_MODULE_MANIFEST]) !== undefined,
+  ))
+  return (path) => importable.has(path)
 }

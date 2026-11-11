@@ -85,6 +85,38 @@ describe("scanDangerousApis", () => {
     const content = ["fn f() { unsafe { ptr.read() } }", "let c = builder.danger_accept_invalid_certs(true);", 'let s = "unsafe { }";'].join("\n")
     expect(summary(await scanDangerousApis([addedFile("src/net.rs", content)]))).toEqual(["rust.unsafe@1", "rust.tls-disabled@2"])
   })
+
+  it("flags risky Go in code but not in comments or raw strings", async () => {
+    const content = [
+      "package main",
+      "func f() {",
+      '\tcmd := exec.Command("sh", "-c", input)',
+      "\tcfg := &tls.Config{InsecureSkipVerify: true}",
+      "\tpage := template.HTML(comment)",
+      '\trows, _ := db.Query(fmt.Sprintf("SELECT * FROM t WHERE id = %s", id))',
+      "\tp := unsafe.Pointer(&x)",
+      "\t// exec.Command is fine in a comment",
+      "\tdoc := `InsecureSkipVerify: true`",
+      "}",
+    ].join("\n")
+    expect(summary(await scanDangerousApis([addedFile("cmd/main.go", content)]))).toEqual(["go.exec@3", "go.tls-disabled@4", "go.unescaped-template@5", "go.sql-format@6", "go.unsafe@7"])
+  })
+
+  it("flags risky Java in code but not in comments or strings", async () => {
+    const content = [
+      "class A {",
+      "  void f() throws Exception {",
+      "    Runtime.getRuntime().exec(command);",
+      "    ObjectInputStream in = new ObjectInputStream(socket.getInputStream());",
+      '    statement.executeQuery("SELECT * FROM t WHERE id = " + id);',
+      "    client.setHostnameVerifier((host, session) -> true);",
+      '    String note = "new ProcessBuilder(x)";',
+      "    // new ObjectInputStream(stream) would be unsafe here",
+      "  }",
+      "}",
+    ].join("\n")
+    expect(summary(await scanDangerousApis([addedFile("src/main/java/A.java", content)]))).toEqual(["java.exec@3", "java.deserialization@4", "java.sql-concat@5", "java.tls-disabled@6"])
+  })
 })
 
 describe("scanSensitivePaths", () => {

@@ -16,6 +16,8 @@ interface ApiRule extends RuleDescription {
 const ECMASCRIPT: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.TypeScript, SourceLanguage.Tsx])
 const PYTHON: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Python])
 const RUST: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Rust])
+const GO: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Go])
+const JAVA: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Java])
 
 function rule(
   id: string,
@@ -31,6 +33,7 @@ function rule(
 const CODE_EXECUTION = "Runs a string as code. If any part of it can come from users or files, it is a code-injection hole."
 const TLS_DISABLED = "Turns off certificate checks, so anyone on the network path can read or alter the traffic."
 const SQL_INTERPOLATION = "SQL assembled from interpolated values is open to injection. Use bound parameters instead."
+const SPAWNS_PROCESSES = "Check that no user input reaches the command or its arguments unchecked."
 
 const API_RULES: readonly ApiRule[] = [
   rule("js.eval", ECMASCRIPT, RiskSeverity.High, /\beval\s*\(/, "eval()", CODE_EXECUTION),
@@ -51,8 +54,17 @@ const API_RULES: readonly ApiRule[] = [
   rule("python.sql-format", PYTHON, RiskSeverity.Medium, /\.execute(?:many)?\s*\(\s*(?:f["']|["'][^"']*["']\s*(?:%|\.format\())/, "SQL from string formatting", SQL_INTERPOLATION),
   rule("rust.unsafe", RUST, RiskSeverity.Medium, /\bunsafe\s*(?:\{|fn\b|impl\b|trait\b)/, "unsafe code", "The compiler no longer checks memory safety here; review the invariants the code relies on."),
   rule("rust.transmute", RUST, RiskSeverity.Medium, /\b(?:mem::)?transmute\s*(?:::<|\()/, "mem::transmute", "Reinterprets memory with no checks; a wrong type or size is undefined behaviour."),
-  rule("rust.command", RUST, RiskSeverity.Medium, /\bCommand::new\s*\(/, "Spawns processes", "Check that no user input reaches the command or its arguments unchecked."),
+  rule("rust.command", RUST, RiskSeverity.Medium, /\bCommand::new\s*\(/, "Spawns processes", SPAWNS_PROCESSES),
   rule("rust.tls-disabled", RUST, RiskSeverity.High, /\bdanger_accept_invalid_(?:certs|hostnames)\s*\(\s*true/, "TLS verification disabled", TLS_DISABLED),
+  rule("go.unsafe", GO, RiskSeverity.Medium, /\bunsafe\.(?:Pointer|Slice|String|StringData|SliceData|Add)\b/, "unsafe pointer use", "Go no longer checks types or bounds here; review the memory layout the code relies on."),
+  rule("go.exec", GO, RiskSeverity.Medium, /\bexec\.Command(?:Context)?\s*\(/, "Spawns processes", SPAWNS_PROCESSES),
+  rule("go.tls-disabled", GO, RiskSeverity.High, /\bInsecureSkipVerify\s*:\s*true\b/, "TLS verification disabled", TLS_DISABLED),
+  rule("go.unescaped-template", GO, RiskSeverity.Medium, /\btemplate\.(?:HTML|HTMLAttr|JS|JSStr|CSS|URL)\s*\(/, "Marks text as safe for a template", "html/template won't escape it; if any of it comes from users, that's cross-site scripting."),
+  rule("go.sql-format", GO, RiskSeverity.Medium, /\.(?:Query|QueryRow|Exec)(?:Context)?\s*\([^)]*\bfmt\.Sprintf\s*\(/, "SQL from fmt.Sprintf", SQL_INTERPOLATION),
+  rule("java.exec", JAVA, RiskSeverity.Medium, /\bgetRuntime\(\)\s*\.exec\s*\(|\bnew\s+ProcessBuilder\s*\(/, "Spawns processes", SPAWNS_PROCESSES),
+  rule("java.deserialization", JAVA, RiskSeverity.Medium, /\bnew\s+ObjectInputStream\s*\(/, "Java deserialization", "Reading objects from a stream can run code chosen by whoever wrote it; never deserialize untrusted data."),
+  rule("java.sql-concat", JAVA, RiskSeverity.Medium, /\.(?:executeQuery|executeUpdate|execute|prepareStatement|addBatch)\s*\(\s*"[^"]*"\s*\+/, "SQL built by concatenation", SQL_INTERPOLATION),
+  rule("java.tls-disabled", JAVA, RiskSeverity.High, /\bNoopHostnameVerifier\b|\bALLOW_ALL_HOSTNAME_VERIFIER\b|\bsetHostnameVerifier\s*\(\s*\([^)]*\)\s*->\s*true\b/, "TLS verification disabled", TLS_DISABLED),
 ]
 
 /**

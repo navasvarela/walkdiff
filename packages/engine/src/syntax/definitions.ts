@@ -141,7 +141,8 @@ class DefinitionWalker {
     const outer = this.#spec.outerNode(node)
     const nodes = [...this.#attachedPrefix(outer), outer]
     const first = nodes.at(0) ?? outer
-    const qualifiedName = container === undefined ? header.name : `${container.childPrefix}${this.#spec.separator}${header.name}`
+    const prefix = container?.childPrefix ?? header.owner
+    const qualifiedName = prefix === undefined ? header.name : `${prefix}${this.#spec.separator}${header.name}`
     return {
       header,
       node,

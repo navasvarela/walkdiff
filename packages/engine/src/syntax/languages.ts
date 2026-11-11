@@ -1,5 +1,7 @@
 import { extname } from "node:path"
 import { SourceLanguage } from "@walkdiff/review-model"
+import { goSpec } from "./go.ts"
+import { javaSpec } from "./java.ts"
 import type { LanguageSpec } from "./languageSpec.ts"
 import { pythonSpec } from "./python.ts"
 import { rustSpec } from "./rust.ts"
@@ -18,6 +20,8 @@ const SPEC_BY_EXTENSION: ReadonlyMap<string, LanguageSpec> = new Map([
   [".jsx", tsxSpec],
   [".py", pythonSpec],
   [".pyi", pythonSpec],
+  [".go", goSpec],
+  [".java", javaSpec],
 ])
 
 export function languageSpecFor(path: string): LanguageSpec | undefined {

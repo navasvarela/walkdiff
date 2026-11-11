@@ -109,7 +109,7 @@ The repository's own `.walkdiff.json` has a mistake, and the review stops until 
 
 ### The Changes tab shows a line diff instead of functions
 
-Walkdiff only understands Rust, TypeScript, JavaScript and Python. Other languages get a line diff, and so do files over 1 MB and files that aren't text.
+Walkdiff only understands Rust, TypeScript, JavaScript, Python, Go and Java. Other languages get a line diff, and so do files over 1 MB and files that aren't text.
 
 ### A file is collapsed or marked as skippable
 
