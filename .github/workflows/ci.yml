@@ -27,10 +27,12 @@ jobs:
           ./gitleaks version
           ./osv-scanner --version
           ./semgrep --version
-          # Semgrep's environment leaves out packages a scan doesn't load, so check a scan still runs.
+          # Semgrep runs with newer versions of some packages than it pins (semgrep-overrides.txt), so
+          # check a scan still works through both its native CLI and the Python one it falls back to.
           printf 'rules:\n- id: smoke\n  pattern: eval(...)\n  message: smoke\n  languages: [python]\n  severity: ERROR\n' > "$RUNNER_TEMP/smoke.yml"
           printf 'eval(input())\n' > "$RUNNER_TEMP/smoke.py"
           ./semgrep scan --metrics=off --disable-version-check --quiet --json --config "$RUNNER_TEMP/smoke.yml" "$RUNNER_TEMP/smoke.py" | grep -q '"check_id": *"[^"]*smoke"'
+          ./semgrep --legacy scan --metrics=off --disable-version-check --quiet --json --config "$RUNNER_TEMP/smoke.yml" "$RUNNER_TEMP/smoke.py" | grep -q '"check_id": *"[^"]*smoke"'
           ./ruff --version
           ./zizmor --version
           ./poutine version

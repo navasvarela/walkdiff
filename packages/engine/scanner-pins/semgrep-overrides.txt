@@ -1,13 +1,17 @@
-# Semgrep dependencies that Walkdiff leaves out of Semgrep's environment. A marker that is never
-# true is uv's way to drop a requirement; scripts/lockSemgrep.ts then removes them from the lock.
+# Versions Walkdiff installs in place of the ones Semgrep pins, to take security fixes Semgrep
+# hasn't picked up yet. scripts/lockSemgrep.ts resolves the lock with these, and the installer
+# installs exactly the lock (`--no-deps`), so Semgrep's own pins don't get in the way.
 #
-# Walkdiff only runs `semgrep scan`. The MCP SDK, with its HTTP server stack, serves the separate
-# `semgrep mcp` command, and OpenTelemetry sends traces only when tracing is turned on. Neither is
-# loaded by a scan: the same rules find the same results with or without them. Leaving them out
-# keeps their vulnerabilities out of reach, and Semgrep pins both exactly, so they can't be updated.
-mcp ; sys_platform == 'never'
-opentelemetry-api ; sys_platform == 'never'
-opentelemetry-sdk ; sys_platform == 'never'
-opentelemetry-exporter-otlp-proto-http ; sys_platform == 'never'
-opentelemetry-instrumentation-requests ; sys_platform == 'never'
-opentelemetry-instrumentation-threading ; sys_platform == 'never'
+# Semgrep 1.183.0 pins mcp==1.29.0 and the OpenTelemetry 1.37 family. These are minor updates
+# within the same major versions; CI checks a scan still runs through both of Semgrep's CLIs.
+# Drop an override once Semgrep's own pin reaches the fixed version.
+
+# GHSA-w4fh-qvv9-3v23, GHSA-5h93-6whr-6q8j, GHSA-rwrf-2pqf-9j8j, GHSA-84m7-p3x7-pcfv
+mcp>=1.30.0,<2
+
+# GHSA-xcq7-p3pf-p88h. The family is released together, so it moves together.
+opentelemetry-api>=1.45.1,<2
+opentelemetry-sdk>=1.45.1,<2
+opentelemetry-exporter-otlp-proto-http>=1.45.1,<2
+opentelemetry-instrumentation-requests>=0.66b0,<1
+opentelemetry-instrumentation-threading>=0.66b0,<1

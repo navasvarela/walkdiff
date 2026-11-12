@@ -99,7 +99,7 @@ export const BINARY_PINS: readonly BinaryPin[] = [
 ]
 
 // Keep in step with semgrep-requirements.txt, which holds this version and the hash of everything
-// a scan needs. Regenerate that file with `node scripts/lockSemgrep.ts`.
+// it depends on. Regenerate that file with `node scripts/lockSemgrep.ts`.
 export const SEMGREP_VERSION = "1.183.0"
 export const SEMGREP_REQUIREMENTS = firstExisting([resolve(import.meta.dirname, "scanner-pins/semgrep-requirements.txt"), resolve(import.meta.dirname, "../../../scanner-pins/semgrep-requirements.txt")])
 const SEMGREP_BINARY = "semgrep"
@@ -199,9 +199,9 @@ async function moveToTop(folder: string, member: string, binary: string): Promis
  * Semgrep is a Python application with no standalone build, so it gets a private environment
  * that nothing else on the machine shares. `--require-hashes` holds every package to the locked
  * file, and `--only-binary` means no package's setup code runs. `--no-deps` installs exactly that
- * file, which leaves out Semgrep's MCP server and tracing packages (semgrep-overrides.txt says why);
- * pip would otherwise insist on them. A virtual environment records its own path, so unlike the
- * binaries it can't be built elsewhere and renamed; the marker says it's done.
+ * file, which holds newer versions than Semgrep pins for some packages, to take their security fixes
+ * (semgrep-overrides.txt lists them); pip would otherwise refuse them. A virtual environment records
+ * its own path, so unlike the binaries it can't be built elsewhere and renamed; the marker says it's done.
  */
 async function installSemgrep(tools: string, deps: InstallDependencies): Promise<string | undefined> {
   if (SEMGREP_UNSUPPORTED_PLATFORMS.has(deps.platform.split("-").at(0) ?? "")) {
