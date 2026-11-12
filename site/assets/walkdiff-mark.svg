@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Walkdiff">
+  <rect width="64" height="64" rx="14" fill="#161b22"/>
+  <path d="M11 18 L22 46 L32 26 L42 46 L53 18" fill="none" stroke="#e6edf3" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="11" cy="18" r="5.5" fill="#ff7b72"/>
+  <circle cx="53" cy="18" r="5.5" fill="#3fb950"/>
+</svg>

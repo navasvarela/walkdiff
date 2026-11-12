@@ -5,13 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Walkdiff: review the change, not the diff</title>
   <meta name="description" content="Walkdiff is a review companion for GitHub pull requests and GitLab merge requests. It shows each changed function whole, where the rest of the code uses it, and what looks risky, on your own machine.">
-  <link rel="icon" href="assets/walkdiff-logo.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#0d1117">
+  <link rel="icon" href="assets/walkdiff-mark.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
     <div class="wrap">
-      <a class="brand" href="./"><img src="assets/walkdiff-logo.svg" alt="">Walkdiff</a>
+      <a class="brand" href="./"><img src="assets/walkdiff-mark.svg" alt="">Walkdiff</a>
       <nav aria-label="Site">
         <a href="./" aria-current="page">Vision</a>
         <a href="manual.html">Manual</a>
@@ -22,133 +24,174 @@
   </header>
 
   <main>
-    <div class="hero">
-      <div class="wrap">
+    <div class="wrap hero">
+      <div class="hero-text">
+        <p class="eyebrow">Now reads Go, Java, C and C++</p>
         <h1>Review the change, not the diff.</h1>
         <p class="lede">
-          Walkdiff is a review companion for GitHub pull requests and GitLab merge requests. It shows each
-          changed function whole, where the rest of the code uses it, and what looks risky, then walks you
-          through the parts that matter. It runs on your machine.
+          A review companion for GitHub pull requests and GitLab merge requests. It shows each changed function
+          whole, where the rest of the code uses it, and what looks risky, then walks you through the parts that
+          matter. It runs on your machine.
         </p>
         <div class="actions">
           <a class="button primary" href="manual.html#first-report">Get started</a>
-          <a class="button" href="example/">See an example report</a>
-          <a class="button" href="https://github.com/navasvarela/walkdiff">Source on GitHub</a>
+          <a class="button" href="example/">See a real report</a>
         </div>
-        <div class="install">
-          <pre><code>npx walkdiff review https://github.com/owner/repo/pull/123</code></pre>
+        <div class="command">
+          <span aria-hidden="true">$</span>
+          <code>npx walkdiff review https://github.com/owner/repo/pull/123</code>
         </div>
       </div>
+
+      <figure class="unit">
+        <div class="unit-head">
+          <span class="unit-kind">test</span>
+          <span class="unit-name">parser › writes</span>
+          <span class="unit-change">Added</span>
+        </div>
+        <div class="unit-sides">
+          <div aria-label="Before">
+            <span>describe("parser", () =&gt; {</span>
+            <span class="nested">it("reads", () =&gt; {}) ⋯</span>
+            <span>})</span>
+          </div>
+          <div aria-label="After">
+            <span>describe("parser", () =&gt; {</span>
+            <span class="nested">it("reads", () =&gt; {}) ⋯</span>
+            <span class="nested added">it("writes", () =&gt; {})</span>
+            <span>})</span>
+          </div>
+        </div>
+        <figcaption>
+          <span>One unit, whole, before and after</span>
+          <span>The suite's other tests collapsed</span>
+        </figcaption>
+      </figure>
     </div>
 
-    <section id="why">
+    <section class="band alt" id="why">
       <div class="wrap">
-        <h2>Why Walkdiff</h2>
-        <p class="section-lede">
-          A pull request's diff tells you which lines moved. A reviewer needs to know what changed in meaning,
-          who depends on it, and where to look first. Most of that work happens in the reviewer's head, file
-          by file, hunk by hunk. Walkdiff does the legwork so the reviewer's attention goes to judgement.
-        </p>
+        <div class="section-intro">
+          <h2>A diff shows which lines moved. A review needs more.</h2>
+          <p>What changed in meaning, who depends on it, and where to look first. Walkdiff does that legwork, so your attention goes to judgement.</p>
+        </div>
         <div class="contrast">
-          <div class="removed">
-            <header>Reviewing a line diff</header>
+          <div class="before">
+            <h3>Reviewing a line diff</h3>
             <ul>
               <li>Hunks cut functions in half, with three lines of context.</li>
               <li>A renamed or moved function looks like deleted code plus new code.</li>
               <li>Formatting and comment edits look as important as logic changes.</li>
-              <li>Nothing says which callers the change affects, or which of them the PR left alone.</li>
+              <li>Nothing says which callers the change affects, or which the PR left alone.</li>
               <li>Files come in alphabetical order, whatever depends on what.</li>
             </ul>
           </div>
-          <div class="added">
-            <header>Reviewing with Walkdiff</header>
+          <div class="after">
+            <h3>Reviewing with Walkdiff</h3>
             <ul>
               <li>Each changed function, method or type appears once, whole, before and after.</li>
               <li>Renames, moves and formatting-only edits are recognised and folded away.</li>
               <li>Each change lists its facts: parameters, return type, calls and error paths.</li>
               <li>Every changed unit shows where the rest of the code still uses it.</li>
-              <li>A review path takes you through what matters most, one stop at a time.</li>
+              <li>A review path puts the riskiest changes first, one stop at a time.</li>
             </ul>
           </div>
         </div>
       </div>
     </section>
 
-    <section id="principles">
+    <section class="band" id="principles">
       <div class="wrap">
         <h2>What we believe</h2>
-        <p class="section-lede">These ideas shape every feature, and say what Walkdiff will and won't do.</p>
-        <div class="grid">
-          <div class="card">
+        <ol class="principles">
+          <li>
+            <p class="number">01</p>
             <h3>Units, not hunks</h3>
             <p>Code is reviewed as functions, methods and types, read from the syntax tree, so a change is seen the way its author thought about it.</p>
-          </div>
-          <div class="card">
+          </li>
+          <li>
+            <p class="number">02</p>
             <h3>A path through the change</h3>
-            <p>Reviewers shouldn't have to plan their own route. The report opens on a brief and a review path that put the riskiest changes first, and says why each stop is there.</p>
-          </div>
-          <div class="card">
-            <h3>Say what was found, not a grade</h3>
-            <p>Walkdiff reports findings and the checks that ran or didn't. It doesn't score a PR or approve it for you. Rules would rather stay quiet than raise a false alarm.</p>
-          </div>
-          <div class="card">
+            <p>A brief and a review path put the riskiest changes first, and say why each stop is there.</p>
+          </li>
+          <li>
+            <p class="number">03</p>
+            <h3>Findings, not a grade</h3>
+            <p>It reports what it found and which checks ran or didn't. It never scores or approves a PR for you, and its rules would rather stay quiet than raise a false alarm.</p>
+          </li>
+          <li>
+            <p class="number">04</p>
             <h3>Your code stays yours</h3>
-            <p>Analysis runs locally. Code leaves your machine only for the host you review on, and for an AI model if you ask for one. Every other network use is listed and can be switched off with <code>--offline</code>.</p>
-          </div>
-          <div class="card">
+            <p>Analysis runs locally. Code leaves your machine only for the host you review on, and for an AI model if you ask for one. Every other network use is listed, and <code>--offline</code> turns it off.</p>
+          </li>
+          <li>
+            <p class="number">05</p>
             <h3>AI that shows its work</h3>
-            <p>AI review is opt-in. Every statement must cite lines of the change, and Walkdiff checks each citation against what the model was shown, discarding the rest.</p>
-          </div>
-          <div class="card">
-            <h3>Fits how teams already work</h3>
-            <p>Use it from the command line, a local app that tracks several reviews, or CI. Comments and approvals post back to GitHub and GitLab.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="how">
-      <div class="wrap">
-        <h2>How a review goes</h2>
-        <ol class="steps">
-          <li><strong>Point it at a PR or MR.</strong> Walkdiff fetches only the merge base and head commits, and parses both versions of each changed file.</li>
-          <li><strong>Read the brief.</strong> What to check, how many changes need attention, and where to start.</li>
-          <li><strong>Walk the review path.</strong> Each stop shows one change with its code, callers, tests and findings, and says why it's on the path.</li>
-          <li><strong>Mark changes as reviewed and comment</strong> on exact lines. Everything else is one click away under <em>All changes</em>.</li>
-          <li><strong>Post your review</strong> to the PR from the app, or let CI leave a summary comment with a link to the report.</li>
+            <p>AI review is opt-in. Every statement must cite lines of the change, and citations that don't match what the model was shown are discarded.</p>
+          </li>
+          <li>
+            <p class="number">06</p>
+            <h3>Fits how teams work</h3>
+            <p>The command line, a local app that tracks several reviews, or CI. Comments and approvals post back to GitHub and GitLab.</p>
+          </li>
         </ol>
-        <p><a class="button" href="example/">Open a real report</a> &nbsp;It's Walkdiff reviewing one of its own pull requests.</p>
       </div>
     </section>
 
-    <section id="languages">
-      <div class="wrap">
-        <h2>Languages</h2>
-        <p class="section-lede">Changed units, callers, function metrics, risky-API rules and syntax highlighting work in:</p>
-        <ul class="pills">
-          <li>Rust</li><li>TypeScript</li><li>JavaScript</li><li>Python</li><li>Go</li><li>Java</li><li>C</li><li>C++</li>
+    <section class="band alt" id="how">
+      <div class="wrap split">
+        <div>
+          <h2>How a review goes</h2>
+          <p>From a link to a posted review, without leaving the report.</p>
+          <p><a href="example/">Open a real report</a>: Walkdiff reviewing one of its own pull requests.</p>
+        </div>
+        <ol class="steps">
+          <li>
+            <span class="number" style="color: var(--red)" aria-hidden="true">1</span>
+            <p><strong>Point it at a PR or MR.</strong> It fetches only the merge base and head commits, and parses both versions of each changed file.</p>
+          </li>
+          <li>
+            <span class="number" style="color: var(--amber)" aria-hidden="true">2</span>
+            <p><strong>Read the brief.</strong> What to check, how many changes need attention, and where to start.</p>
+          </li>
+          <li>
+            <span class="number" style="color: var(--blue)" aria-hidden="true">3</span>
+            <p><strong>Walk the review path.</strong> One change per stop, with its code, callers, tests and findings, and why it's on the path.</p>
+          </li>
+          <li>
+            <span class="number" style="color: var(--green)" aria-hidden="true">4</span>
+            <p><strong>Post your review.</strong> Comments on exact lines and your decision go back to the PR from the app, or CI leaves a summary with a link to the report.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="band" id="languages">
+      <div class="wrap languages">
+        <h2>Understands</h2>
+        <ul class="pills" aria-label="Supported languages">
+          <li>Rust</li><li>TypeScript</li><li>JavaScript</li><li>Python</li>
+          <li class="new">Go</li><li class="new">Java</li><li class="new">C</li><li class="new">C++</li>
         </ul>
-        <p>Other files get a line diff, and the secret and sensitive-path rules still read them.</p>
       </div>
     </section>
 
-    <section id="direction">
+    <section class="band alt" id="direction">
       <div class="wrap">
-        <h2>Where it's going</h2>
-        <p class="section-lede">
-          Walkdiff is an early release. The aim is a review companion that understands the change as well as
-          its author does, in every language a team uses, and that stays honest about what it couldn't check.
-        </p>
-        <div class="grid">
-          <div class="card">
+        <div class="section-intro">
+          <h2>Where it's going</h2>
+          <p>Walkdiff is an early release. The aim is a review companion that understands a change as well as its author does, in every language a team uses, and stays honest about what it couldn't check.</p>
+        </div>
+        <div class="cards">
+          <div>
             <h3>Deeper language support</h3>
             <p>Dependency checks for Go and Java projects, and breaking-change detection for Java, C and C++, alongside Rust, TypeScript, Python and Go.</p>
           </div>
-          <div class="card">
+          <div>
             <h3>Reviewing stacks</h3>
-            <p>Stacked PRs reviewed together, bottom first, with each PR's progress and what its host says now. This already works, and it will keep improving.</p>
+            <p>Stacked PRs reviewed together, bottom first, with each PR's progress and what its host says now. It works today and keeps improving.</p>
           </div>
-          <div class="card">
+          <div>
             <h3>Fewer blind spots</h3>
             <p>Every check that can't run says so in the report. Each release turns more of those "not checked" lines into checks.</p>
           </div>
@@ -159,8 +202,8 @@
 
   <footer>
     <div class="wrap">
-      <span>Walkdiff is source-available under the <a href="https://github.com/navasvarela/walkdiff/blob/main/LICENSE.md">Functional Source License</a>; each version becomes Apache 2.0 two years after its release.</span>
-      <span><a href="https://github.com/navasvarela/walkdiff/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://www.npmjs.com/package/walkdiff">npm</a> · <a href="https://github.com/navasvarela/walkdiff/blob/main/SECURITY.md">Security</a></span>
+      <span>Source-available under the <a href="https://github.com/navasvarela/walkdiff/blob/main/LICENSE.md">Functional Source License</a>. Each version becomes Apache 2.0 two years after its release.</span>
+      <span class="links"><a href="https://github.com/navasvarela/walkdiff/blob/main/CHANGELOG.md">Changelog</a><a href="https://www.npmjs.com/package/walkdiff">npm</a><a href="https://github.com/navasvarela/walkdiff/blob/main/SECURITY.md">Security</a></span>
     </div>
   </footer>
 </body>
