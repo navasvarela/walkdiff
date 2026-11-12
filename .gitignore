@@ -2,3 +2,6 @@ node_modules/
 dist/
 .walkdiff/
 dist-package/
+
+# Built by the Pages workflow; a committed copy would be scanned as this repository's code.
+site/example/
