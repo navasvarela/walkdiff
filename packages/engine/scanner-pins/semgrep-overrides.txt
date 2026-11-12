@@ -1,0 +1,13 @@
+# Semgrep dependencies that Walkdiff leaves out of Semgrep's environment. A marker that is never
+# true is uv's way to drop a requirement; scripts/lockSemgrep.ts then removes them from the lock.
+#
+# Walkdiff only runs `semgrep scan`. The MCP SDK, with its HTTP server stack, serves the separate
+# `semgrep mcp` command, and OpenTelemetry sends traces only when tracing is turned on. Neither is
+# loaded by a scan: the same rules find the same results with or without them. Leaving them out
+# keeps their vulnerabilities out of reach, and Semgrep pins both exactly, so they can't be updated.
+mcp ; sys_platform == 'never'
+opentelemetry-api ; sys_platform == 'never'
+opentelemetry-sdk ; sys_platform == 'never'
+opentelemetry-exporter-otlp-proto-http ; sys_platform == 'never'
+opentelemetry-instrumentation-requests ; sys_platform == 'never'
+opentelemetry-instrumentation-threading ; sys_platform == 'never'

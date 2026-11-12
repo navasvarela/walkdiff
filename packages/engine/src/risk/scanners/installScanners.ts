@@ -99,8 +99,7 @@ export const BINARY_PINS: readonly BinaryPin[] = [
 ]
 
 // Keep in step with semgrep-requirements.txt, which holds this version and the hash of everything
-// it depends on. Regenerate that file with:
-//   uv pip compile --universal --generate-hashes --python-version 3.10 --only-binary :all: --no-header
+// a scan needs. Regenerate that file with `node scripts/lockSemgrep.ts`.
 export const SEMGREP_VERSION = "1.183.0"
 export const SEMGREP_REQUIREMENTS = firstExisting([resolve(import.meta.dirname, "scanner-pins/semgrep-requirements.txt"), resolve(import.meta.dirname, "../../../scanner-pins/semgrep-requirements.txt")])
 const SEMGREP_BINARY = "semgrep"
@@ -199,8 +198,10 @@ async function moveToTop(folder: string, member: string, binary: string): Promis
 /**
  * Semgrep is a Python application with no standalone build, so it gets a private environment
  * that nothing else on the machine shares. `--require-hashes` holds every package to the locked
- * file, and `--only-binary` means no package's setup code runs. A virtual environment records its
- * own path, so unlike the binaries it can't be built elsewhere and renamed; the marker says it's done.
+ * file, and `--only-binary` means no package's setup code runs. `--no-deps` installs exactly that
+ * file, which leaves out Semgrep's MCP server and tracing packages (semgrep-overrides.txt says why);
+ * pip would otherwise insist on them. A virtual environment records its own path, so unlike the
+ * binaries it can't be built elsewhere and renamed; the marker says it's done.
  */
 async function installSemgrep(tools: string, deps: InstallDependencies): Promise<string | undefined> {
   if (SEMGREP_UNSUPPORTED_PLATFORMS.has(deps.platform.split("-").at(0) ?? "")) {
@@ -224,7 +225,7 @@ async function installSemgrep(tools: string, deps: InstallDependencies): Promise
     await rm(target, { recursive: true, force: true })
     throw new Error(NEEDS_PYTHON)
   }
-  await deps.run(join(target, "bin", "python"), ["-m", "pip", "install", "--require-hashes", "--only-binary", ":all:", "--no-input", "--disable-pip-version-check", "--quiet", "-r", SEMGREP_REQUIREMENTS])
+  await deps.run(join(target, "bin", "python"), ["-m", "pip", "install", "--require-hashes", "--no-deps", "--only-binary", ":all:", "--no-input", "--disable-pip-version-check", "--quiet", "-r", SEMGREP_REQUIREMENTS])
   await deps.run(executable, ["--version"])
   await writeFile(marker, "")
   return executable
