@@ -5,7 +5,7 @@
 A review companion for GitHub pull requests and GitLab merge requests. `walkdiff review <url>` fetches the
 change, analyzes it, and serves a local report.
 
-Status: early release, [v0.9.0](CHANGELOG.md). To run it on your team's PRs, see the [pilot guide](docs/pilot.md).
+Status: early release, [v0.10.0](CHANGELOG.md). To run it on your team's PRs, see the [pilot guide](docs/pilot.md).
 
 **Documentation:** [website](https://navasvarela.github.io/walkdiff/), [getting started](docs/getting-started.md), [configuration](docs/configuration.md), [troubleshooting](docs/troubleshooting.md), [security policy](SECURITY.md).
 
@@ -106,7 +106,7 @@ Tokens and code stay on your machine, apart from the host itself, package names 
 
 ## In CI
 
-The GitHub Action (`navasvarela/walkdiff@v0.9.0`) and the GitLab template (`ci/gitlab-ci.yml`) generate the report for each PR, keep it as a job artifact, and post one summary comment that is updated on each push. The [pilot guide](docs/pilot.md) has the setup. Locally, `walkdiff review` also works without a URL inside a CI job, and `walkdiff comment --report <dir> --report-url <url>` posts the summary.
+The GitHub Action (`navasvarela/walkdiff@v0.10.0`) and the GitLab template (`ci/gitlab-ci.yml`) generate the report for each PR, keep it as a job artifact, and post one summary comment that is updated on each push. The [pilot guide](docs/pilot.md) has the setup. Locally, `walkdiff review` also works without a URL inside a CI job, and `walkdiff comment --report <dir> --report-url <url>` posts the summary.
 
 ## AI review
 

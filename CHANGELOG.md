@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.0
+
+- **Dependency checks for Go and Java:** PRs that add or bump dependencies in `go.mod`, `pom.xml`, `build.gradle`, `build.gradle.kts`, Gradle version catalogs (`*.versions.toml`) or `gradle.lockfile` now get what npm, Cargo and Python ones get. Each new direct dependency is noted, checked for trust (known malicious, not on its registry, very new, or a lookalike name) and against your licence allowlist, and versions new to the build are looked up in OSV. Go and Maven packages are looked up through [deps.dev](https://deps.dev), which covers the Go module proxy, Maven Central and Google's Maven repository. `go.sum` isn't read, since it lists versions the build dropped, and a Maven module of the project's own group is recognised as part of the project.
+- **A website:** [navasvarela.github.io/walkdiff](https://navasvarela.github.io/walkdiff/) presents what Walkdiff is for, a short manual of every feature, and a real report to try before installing anything.
+
 ## 0.9.0
 
 - **Go, Java, C and C++:** files in these languages now get what Rust, TypeScript and Python files get. That means changed functions, methods and types as units with change facts, callers traced across the repository, function metrics, risky-API rules and syntax highlighting.
