@@ -31,6 +31,8 @@ describe("assessPackageTrust", () => {
     [Ecosystem.Npm, "npm"],
     [Ecosystem.PyPI, "PyPI"],
     [Ecosystem.Crates, "crates.io"],
+    [Ecosystem.Go, "the Go module proxy"],
+    [Ecosystem.Maven, "Maven Central"],
   ])("flags a %s package that isn't on its registry, as it may be made up", async (ecosystem, registry) => {
     const { findings } = await assessPackageTrust([declared("requests-stealth-bypass", ecosystem)], sources({ lookUp: async () => ({ status: "missing" }) }))
     expect(findings).toMatchObject([{ ruleId: "trust.missing", severity: "medium", title: `\`requests-stealth-bypass\` isn't on ${registry}` }])
@@ -56,6 +58,9 @@ describe("assessPackageTrust", () => {
     ["python_dotenv2", Ecosystem.PyPI, "python-dotenv"],
     ["completely-different", Ecosystem.PyPI, undefined],
     ["serde-json", Ecosystem.Crates, "serde_json"],
+    ["github.com/spf13/cobr4", Ecosystem.Go, "github.com/spf13/cobra"],
+    ["github.com/go-chi/chi/v5", Ecosystem.Go, undefined],
+    ["com.google.guava:guavaa", Ecosystem.Maven, "com.google.guava:guava"],
   ] as const)("compares %s with popular names", async (name, ecosystem, target) => {
     const { findings } = await assessPackageTrust([declared(name, ecosystem)], sources())
     expect(findings.at(0)?.title).toBe(target === undefined ? undefined : `\`${name}\` looks like \`${target}\``)
@@ -207,6 +212,34 @@ describe("lookUpOnRegistry", () => {
     vi.stubGlobal("fetch", asked)
     expect(await lookUpOnRegistry(Ecosystem.Npm, name)).toEqual({ status: "missing" })
     expect(asked.mock.calls.at(0)?.[0]).toBe(expected)
+    vi.unstubAllGlobals()
+  })
+})
+
+describe("lookUpOnRegistry through deps.dev", () => {
+  const versions = {
+    versions: [
+      { versionKey: { version: "v0.1.0" }, publishedAt: "2019-03-01T00:00:00Z", isDefault: false },
+      { versionKey: { version: "v1.8.0" }, publishedAt: "2023-11-01T00:00:00Z", isDefault: true },
+    ],
+  }
+
+  it.each([
+    [Ecosystem.Go, "github.com/spf13/cobra", "https://api.deps.dev/v3/systems/go/packages/github.com%2Fspf13%2Fcobra"],
+    [Ecosystem.Maven, "com.google.code.gson:gson", "https://api.deps.dev/v3/systems/maven/packages/com.google.code.gson%3Agson"],
+  ])("reads when a %s package first appeared, and the licence of its default version", async (ecosystem, name, packageUrl) => {
+    const asked = vi.fn<typeof fetch>(async (url) => Response.json(String(url).includes("/versions/") ? { licenses: ["Apache-2.0", "MIT"] } : versions))
+    vi.stubGlobal("fetch", asked)
+    expect(await lookUpOnRegistry(ecosystem, name)).toEqual({ status: "published", firstPublished: new Date("2019-03-01T00:00:00Z"), license: "(Apache-2.0) AND (MIT)" })
+    expect(asked.mock.calls.map((call) => String(call[0]))).toEqual([packageUrl, `${packageUrl}/versions/v1.8.0`])
+    vi.unstubAllGlobals()
+  })
+
+  it("reports a package deps.dev doesn't know as missing, and a broken answer as unavailable", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => new Response("{}", { status: 404 })))
+    expect(await lookUpOnRegistry(Ecosystem.Go, "github.com/made/up")).toEqual({ status: "missing" })
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => Response.json({ versions: "nope" })))
+    await expect(lookUpOnRegistry(Ecosystem.Maven, "a:b")).rejects.toThrow("deps.dev sent an unexpected answer")
     vi.unstubAllGlobals()
   })
 })

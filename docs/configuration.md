@@ -94,7 +94,7 @@ Put this file at the root of the repository being reviewed. Every setting is opt
 | `ai.providers` | Limits where code can go: `"anthropic"`, `"local"` for a model on the reviewer's machine, or a host such as `"api.openai.com"` |
 | `scanners.semgrep.rules` | Sets Semgrep registry rule packs (`p/…` or `r/…`). Use an empty list to turn Semgrep off |
 | `coverage.paths` | Globs for coverage reports whose names Walkdiff doesn't recognize, in CI artifacts or the PR. |
-| `dependencies.private` | Names or globs for your own packages. They're never sent to OSV or package registries, or flagged as missing. |
+| `dependencies.private` | Names or globs for your own packages, such as `@acme/*`, `com.acme:*` for Maven or `github.com/acme/**` for Go modules, whose paths need `**`. They're never sent to OSV or package registries, or flagged as missing. |
 | `dependencies.allowedLicenses` | SPDX identifiers your team accepts. New dependencies under any other licence, or with none declared, are flagged. Leave it out to skip the check. |
 | `feedback.url` | Adds a feedback link to the report and the PR comment |
 
@@ -107,7 +107,7 @@ Put this file at the root of the repository being reviewed. Every setting is opt
 | The PR's host | Your token, if the host is trusted, to read the PR and its code | Always |
 | OSV | Names and versions of dependencies | Unless `--offline` |
 | GitHub and PyPI | Downloads of the pinned scanners, checked against their hashes; nothing of yours is sent | On `pnpm install`, when a version isn't there yet |
-| OSV, npm, PyPI and crates.io | Names of new direct dependencies, unless listed in `dependencies.private`; no versions of your code | When a PR adds a dependency, unless `--offline` or turned off in Settings |
+| OSV, npm, PyPI, crates.io and deps.dev (for Go modules and Maven artifacts) | Names of new direct dependencies, unless listed in `dependencies.private`; no versions of your code | When a PR adds a dependency, unless `--offline` or turned off in Settings |
 | Semgrep registry | A rule download; your code isn't uploaded | During a review, unless `--offline` |
 | Your AI provider | The changed code, and the PR's title and description, with known credential formats redacted and credential files left out | Only with `--ai` or the app's AI option. Nothing leaves your machine with a local model |
 

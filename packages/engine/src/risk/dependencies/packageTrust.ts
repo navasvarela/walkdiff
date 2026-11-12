@@ -54,7 +54,13 @@ const REQUEST_TIMEOUT_MS = 15_000
 // crates.io requires clients to identify themselves.
 const USER_AGENT = "walkdiff (https://github.com/navasvarela/walkdiff)"
 
-const REGISTRY_NAMES: Readonly<Record<Ecosystem, string>> = { [Ecosystem.Npm]: "npm", [Ecosystem.PyPI]: "PyPI", [Ecosystem.Crates]: "crates.io" }
+const REGISTRY_NAMES: Readonly<Record<Ecosystem, string>> = {
+  [Ecosystem.Npm]: "npm",
+  [Ecosystem.PyPI]: "PyPI",
+  [Ecosystem.Crates]: "crates.io",
+  [Ecosystem.Go]: "the Go module proxy",
+  [Ecosystem.Maven]: "Maven Central",
+}
 
 /**
  * Requirements that don't come from a public registry, so a registry can't say anything about them:
@@ -212,9 +218,24 @@ interface PublishedFacts {
   readonly license: string | undefined
 }
 
+/** A JSON response, or undefined when the service says there's no such thing (404). */
+type GetJson = (url: string) => Promise<unknown>
+
 interface RegistryClient {
-  readonly url: (name: string) => string
-  readonly read: (body: unknown) => PublishedFacts
+  /** Named in errors: the registry, or the service answering for it. */
+  readonly service: string
+  /** What the registry says about a package; undefined when it has never heard of it. */
+  readonly facts: (name: string, getJson: GetJson) => Promise<PublishedFacts | undefined>
+}
+
+function singleRequest(service: string, url: (name: string) => string, read: (body: unknown) => PublishedFacts): RegistryClient {
+  return {
+    service,
+    facts: async (name, getJson) => {
+      const body = await getJson(url(name))
+      return body === undefined ? undefined : read(body)
+    },
+  }
 }
 
 function npmLicenseText(license: z.infer<typeof npmLicenseSchema>): string | undefined {
@@ -228,49 +249,85 @@ function npmPathFor(name: string): string {
 }
 
 const REGISTRIES: Readonly<Record<Ecosystem, RegistryClient>> = {
-  [Ecosystem.Npm]: {
-    url: (name) => `https://registry.npmjs.org/${npmPathFor(name)}`,
-    read: (body) => {
-      const parsed = npmSchema.parse(body)
-      const latest = parsed["dist-tags"]?.latest
-      const latestLicense = latest === undefined ? undefined : parsed.versions?.[latest]?.license
-      return { firstPublished: new Date(parsed.time.created), license: npmLicenseText(latestLicense) ?? npmLicenseText(parsed.license) }
+  [Ecosystem.Npm]: singleRequest("npm", (name) => `https://registry.npmjs.org/${npmPathFor(name)}`, (body) => {
+    const parsed = npmSchema.parse(body)
+    const latest = parsed["dist-tags"]?.latest
+    const latestLicense = latest === undefined ? undefined : parsed.versions?.[latest]?.license
+    return { firstPublished: new Date(parsed.time.created), license: npmLicenseText(latestLicense) ?? npmLicenseText(parsed.license) }
+  }),
+  [Ecosystem.PyPI]: singleRequest("PyPI", (name) => `https://pypi.org/pypi/${encodeURIComponent(name)}/json`, (body) => {
+    const { info, releases } = pypiSchema.parse(body)
+    const times = Object.values(releases).flat().map((file) => new Date(file.upload_time_iso_8601).getTime())
+    return { firstPublished: times.length === 0 ? undefined : new Date(Math.min(...times)), license: pypiLicense(info.license_expression, info.license, info.classifiers) }
+  }),
+  [Ecosystem.Crates]: singleRequest("crates.io", (name) => `https://crates.io/api/v1/crates/${encodeURIComponent(name)}`, (body) => {
+    const parsed = cratesSchema.parse(body)
+    return { firstPublished: new Date(parsed.crate.created_at), license: parsed.versions.at(0)?.license ?? undefined }
+  }),
+  // Go modules have no registry with an API for when a module first appeared or its licence;
+  // deps.dev indexes the Go module proxy, and Maven Central and Google's Maven repository too.
+  [Ecosystem.Go]: depsDevClient("go"),
+  [Ecosystem.Maven]: depsDevClient("maven"),
+}
+
+const DEPS_DEV_SYSTEMS = "https://api.deps.dev/v3/systems"
+const depsDevPackageSchema = z
+  .object({
+    versions: z.array(z.object({ versionKey: z.object({ version: z.string() }).loose(), publishedAt: z.string().optional(), isDefault: z.boolean().optional() }).loose()).default([]),
+  })
+  .loose()
+const depsDevVersionSchema = z.object({ licenses: z.array(z.string()).default([]) }).loose()
+
+// The package lists every version with when it was published; the licence is per version, so the
+// default one, which deps.dev takes to be the latest release, is asked about.
+function depsDevClient(system: string): RegistryClient {
+  return {
+    service: "deps.dev",
+    facts: async (name, getJson) => {
+      const packageUrl = `${DEPS_DEV_SYSTEMS}/${system}/packages/${encodeURIComponent(name)}`
+      const body = await getJson(packageUrl)
+      if (body === undefined) return undefined
+      const { versions } = depsDevPackageSchema.parse(body)
+      const times = versions.flatMap((version) => (version.publishedAt === undefined ? [] : [new Date(version.publishedAt).getTime()]))
+      const current = versions.find((version) => version.isDefault === true) ?? versions.at(-1)
+      const license = current === undefined ? undefined : depsDevLicense(await getJson(`${packageUrl}/versions/${encodeURIComponent(current.versionKey.version)}`))
+      return { firstPublished: times.length === 0 ? undefined : new Date(Math.min(...times)), license }
     },
-  },
-  [Ecosystem.PyPI]: {
-    url: (name) => `https://pypi.org/pypi/${encodeURIComponent(name)}/json`,
-    read: (body) => {
-      const { info, releases } = pypiSchema.parse(body)
-      const times = Object.values(releases).flat().map((file) => new Date(file.upload_time_iso_8601).getTime())
-      return { firstPublished: times.length === 0 ? undefined : new Date(Math.min(...times)), license: pypiLicense(info.license_expression, info.license, info.classifiers) }
-    },
-  },
-  [Ecosystem.Crates]: {
-    url: (name) => `https://crates.io/api/v1/crates/${encodeURIComponent(name)}`,
-    read: (body) => {
-      const parsed = cratesSchema.parse(body)
-      return { firstPublished: new Date(parsed.crate.created_at), license: parsed.versions.at(0)?.license ?? undefined }
-    },
-  },
+  }
+}
+
+// A pom can list several licences without saying whether they're alternatives, so all of them
+// must be allowed: the cautious reading.
+function depsDevLicense(body: unknown): string | undefined {
+  if (body === undefined) return undefined
+  const { licenses } = depsDevVersionSchema.parse(body)
+  if (licenses.length <= 1) return licenses.at(0)
+  return licenses.map((license) => `(${license})`).join(" AND ")
 }
 
 // A name reserved with no releases can't be installed, which to a reviewer is the same as missing.
 export async function lookUpOnRegistry(ecosystem: Ecosystem, name: string): Promise<RegistryEntry> {
   const client = REGISTRIES[ecosystem]
+  let facts: PublishedFacts | undefined
+  try {
+    facts = await client.facts(name, (url) => getJson(url, client.service))
+  } catch (error: unknown) {
+    if (error instanceof RegistryUnavailableError) throw error
+    throw new RegistryUnavailableError(`${client.service} sent an unexpected answer: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  return facts?.firstPublished === undefined ? { status: RegistryStatus.Missing } : { status: RegistryStatus.Published, firstPublished: facts.firstPublished, license: facts.license }
+}
+
+async function getJson(url: string, service: string): Promise<unknown> {
   let response: Response
   try {
-    response = await fetch(client.url(name), { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
+    response = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
   } catch (error: unknown) {
-    throw new RegistryUnavailableError(`could not reach ${REGISTRY_NAMES[ecosystem]}: ${error instanceof Error ? error.message : String(error)}`)
+    throw new RegistryUnavailableError(`could not reach ${service}: ${error instanceof Error ? error.message : String(error)}`)
   }
-  if (response.status === 404) return { status: RegistryStatus.Missing }
-  if (!response.ok) throw new RegistryUnavailableError(`${REGISTRY_NAMES[ecosystem]} responded ${response.status}`)
-  try {
-    const { firstPublished, license } = client.read(await response.json())
-    return firstPublished === undefined ? { status: RegistryStatus.Missing } : { status: RegistryStatus.Published, firstPublished, license }
-  } catch (error: unknown) {
-    throw new RegistryUnavailableError(`${REGISTRY_NAMES[ecosystem]} sent an unexpected answer: ${error instanceof Error ? error.message : String(error)}`)
-  }
+  if (response.status === 404) return undefined
+  if (!response.ok) throw new RegistryUnavailableError(`${service} responded ${response.status}`)
+  return response.json()
 }
 
 export const LIVE_TRUST_SOURCES = (now: Date): TrustSources => ({ lookUp: lookUpOnRegistry, maliciousNames: findMaliciousPackages, now })
