@@ -1,0 +1,59 @@
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+# One deployment at a time, and a newer push replaces one still waiting.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: corepack enable
+      # Scripts only install the security scanners, which an offline review doesn't run.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      # The example report is built here rather than committed: a committed report is a large
+      # bundle of third-party JavaScript, which code scanning reads as this repository's code.
+      - name: Build the example report
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        # Walkdiff writes reports readable only by their owner, since they can hold private code.
+        # Pages refuses files it can't read, and this report is public.
+        run: |
+          pnpm walkdiff review https://github.com/navasvarela/walkdiff/pull/59 --offline --no-serve --out site/example
+          chmod -R a+rX site/example
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

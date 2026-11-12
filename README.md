@@ -7,7 +7,7 @@ change, analyzes it, and serves a local report.
 
 Status: early release, [v0.9.0](CHANGELOG.md). To run it on your team's PRs, see the [pilot guide](docs/pilot.md).
 
-**Documentation:** [getting started](docs/getting-started.md), [configuration](docs/configuration.md), [troubleshooting](docs/troubleshooting.md), [security policy](SECURITY.md).
+**Documentation:** [website](https://navasvarela.github.io/walkdiff/), [getting started](docs/getting-started.md), [configuration](docs/configuration.md), [troubleshooting](docs/troubleshooting.md), [security policy](SECURITY.md).
 
 ## What the report shows
 
