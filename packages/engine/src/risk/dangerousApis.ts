@@ -20,6 +20,8 @@ const GO: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Go])
 const JAVA: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Java])
 const C_FAMILY: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.C, SourceLanguage.Cpp])
 const CPP: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Cpp])
+const KOTLIN: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Kotlin])
+const CSHARP: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.CSharp])
 
 function rule(
   id: string,
@@ -36,6 +38,7 @@ const CODE_EXECUTION = "Runs a string as code. If any part of it can come from u
 const TLS_DISABLED = "Turns off certificate checks, so anyone on the network path can read or alter the traffic."
 const SQL_INTERPOLATION = "SQL assembled from interpolated values is open to injection. Use bound parameters instead."
 const SPAWNS_PROCESSES = "Check that no user input reaches the command or its arguments unchecked."
+const DESERIALIZATION = "Reading objects from a stream can run code chosen by whoever wrote it; never deserialize untrusted data."
 
 const API_RULES: readonly ApiRule[] = [
   rule("js.eval", ECMASCRIPT, RiskSeverity.High, /\beval\s*\(/, "eval()", CODE_EXECUTION),
@@ -64,7 +67,7 @@ const API_RULES: readonly ApiRule[] = [
   rule("go.unescaped-template", GO, RiskSeverity.Medium, /\btemplate\.(?:HTML|HTMLAttr|JS|JSStr|CSS|URL)\s*\(/, "Marks text as safe for a template", "html/template won't escape it; if any of it comes from users, that's cross-site scripting."),
   rule("go.sql-format", GO, RiskSeverity.Medium, /\.(?:Query|QueryRow|Exec)(?:Context)?\s*\([^)]*\bfmt\.Sprintf\s*\(/, "SQL from fmt.Sprintf", SQL_INTERPOLATION),
   rule("java.exec", JAVA, RiskSeverity.Medium, /\bgetRuntime\(\)\s*\.exec\s*\(|\bnew\s+ProcessBuilder\s*\(/, "Spawns processes", SPAWNS_PROCESSES),
-  rule("java.deserialization", JAVA, RiskSeverity.Medium, /\bnew\s+ObjectInputStream\s*\(/, "Java deserialization", "Reading objects from a stream can run code chosen by whoever wrote it; never deserialize untrusted data."),
+  rule("java.deserialization", JAVA, RiskSeverity.Medium, /\bnew\s+ObjectInputStream\s*\(/, "Java deserialization", DESERIALIZATION),
   rule("java.sql-concat", JAVA, RiskSeverity.Medium, /\.(?:executeQuery|executeUpdate|execute|prepareStatement|addBatch)\s*\(\s*"[^"]*"\s*\+/, "SQL built by concatenation", SQL_INTERPOLATION),
   rule("java.tls-disabled", JAVA, RiskSeverity.High, /\bNoopHostnameVerifier\b|\bALLOW_ALL_HOSTNAME_VERIFIER\b|\bsetHostnameVerifier\s*\(\s*\([^)]*\)\s*->\s*true\b/, "TLS verification disabled", TLS_DISABLED),
   rule("c.unbounded-copy", C_FAMILY, RiskSeverity.Medium, /\b(?:strcpy|strcat|stpcpy|wcscpy|wcscat|sprintf|vsprintf|gets)\s*\(/, "Unbounded string copy", "Writes with no length limit, so input longer than the buffer overflows it. Use a bounded form such as snprintf."),
@@ -72,6 +75,15 @@ const API_RULES: readonly ApiRule[] = [
   rule("c.exec", C_FAMILY, RiskSeverity.Medium, /\b(?:system|popen|exec(?:l|lp|le|v|vp|vpe|ve))\s*\(/, "Spawns processes", SPAWNS_PROCESSES),
   rule("c.tls-disabled", C_FAMILY, RiskSeverity.High, /\bSSL_(?:CTX_)?set_verify\s*\([^,]+,\s*SSL_VERIFY_NONE\b|\bCURLOPT_SSL_VERIFY(?:PEER|HOST)\s*,\s*0/, "TLS verification disabled", TLS_DISABLED),
   rule("cpp.reinterpret-cast", CPP, RiskSeverity.Medium, /\breinterpret_cast\s*</, "reinterpret_cast", "Reinterprets memory with no checks; a wrong type or size is undefined behaviour."),
+  rule("kotlin.exec", KOTLIN, RiskSeverity.Medium, /\bgetRuntime\(\)\s*\.exec\s*\(|\bProcessBuilder\s*\(/, "Spawns processes", SPAWNS_PROCESSES),
+  rule("kotlin.deserialization", KOTLIN, RiskSeverity.Medium, /\bObjectInputStream\s*\(/, "Java deserialization", DESERIALIZATION),
+  rule("kotlin.sql-template", KOTLIN, RiskSeverity.Medium, /\.(?:executeQuery|executeUpdate|execute|prepareStatement|rawQuery|execSQL)\s*\(\s*"[^"]*\$\{?\w/, "SQL built from a string template", SQL_INTERPOLATION),
+  rule("kotlin.tls-disabled", KOTLIN, RiskSeverity.High, /\bNoopHostnameVerifier\b|\bhostnameVerifier\s*(?:=\s*HostnameVerifier\s*)?\{\s*_\s*,\s*_\s*->\s*true\b/, "TLS verification disabled", TLS_DISABLED),
+  rule("csharp.exec", CSHARP, RiskSeverity.Medium, /\bProcess\.Start\s*\(|\bnew\s+ProcessStartInfo\s*\(/, "Spawns processes", SPAWNS_PROCESSES),
+  rule("csharp.deserialization", CSHARP, RiskSeverity.High, /\bnew\s+(?:BinaryFormatter|NetDataContractSerializer|SoapFormatter|LosFormatter)\s*\(|\bTypeNameHandling\s*=\s*TypeNameHandling\.(?:All|Auto|Objects|Arrays)\b/, "Unsafe deserialization", "These serializers can create any type the data names, which lets whoever wrote it run code. Use System.Text.Json, or keep TypeNameHandling at None."),
+  rule("csharp.sql-interpolation", CSHARP, RiskSeverity.Medium, /\b(?:new\s+SqlCommand|ExecuteSqlRaw(?:Async)?|FromSqlRaw|ExecuteSqlCommand)\s*\(\s*(?:\$"|"[^"]*"\s*\+)/, "SQL built from interpolation", SQL_INTERPOLATION),
+  rule("csharp.tls-disabled", CSHARP, RiskSeverity.High, /\b(?:ServerCertificateCustomValidationCallback|ServerCertificateValidationCallback)\s*\+?=\s*(?:\([^)]*\)|\w+)\s*=>\s*true\b|\bDangerousAcceptAnyServerCertificateValidator\b/, "TLS verification disabled", TLS_DISABLED),
+  rule("csharp.unsafe", CSHARP, RiskSeverity.Medium, /\bunsafe\s*(?:\{|\w)/, "unsafe code", "The runtime no longer checks memory safety here; review the pointer arithmetic and lifetimes the code relies on."),
 ]
 
 /**

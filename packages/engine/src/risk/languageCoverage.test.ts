@@ -7,9 +7,9 @@ describe("languageGaps", () => {
   })
 
   it("names unparsed languages for both checks, and parsed languages without public API rules for that one", () => {
-    expect(languageGaps(["app/Main.kt", "src/A.java", "src/store.c", "include/store.h", "app/Other.kt"]).map((gap) => gap.check)).toEqual([
-      "Dangerous-API rules for .kt files",
-      "Public API checks for .kt, .java, .c, .h files",
+    expect(languageGaps(["app/main.rb", "src/A.java", "src/store.c", "include/store.h", "app/other.rb"]).map((gap) => gap.check)).toEqual([
+      "Dangerous-API rules for .rb files",
+      "Public API checks for .rb, .java, .c, .h files",
     ])
   })
 })

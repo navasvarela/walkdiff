@@ -3,6 +3,7 @@ import type { Node } from "web-tree-sitter"
 import { classifyWithGrammar, isBindingWithGrammar, namedDefinition, ParameterKind } from "./languageSpec.ts"
 import type { ContainerContext, DefinitionHeader, IdentifierGrammar, LanguageSpec, PublicDefinitionTest } from "./languageSpec.ts"
 import { describeTestStatement, leadsIntoTestSuite } from "./testCalls.ts"
+import { parametersByField, returnTypeByField } from "./shape.ts"
 
 const KIND_BY_NODE_TYPE: ReadonlyMap<string, UnitKind> = new Map([
   ["function_declaration", UnitKind.Function],
@@ -173,8 +174,8 @@ function makeSpec(language: SourceLanguage, grammar: string): LanguageSpec {
     shape: {
       // `const f = () => {}` and class fields keep their parameters on the assigned function.
       functionNode: (definition) => definition.childForFieldName("value") ?? definition,
-      signatureNode: (fn) => fn,
-      returnTypeField: "return_type",
+      parameters: parametersByField,
+      returnType: returnTypeByField("return_type"),
       parameterKind,
       calls: new Map([
         ["call_expression", { calleeField: "function", suffix: "" }],

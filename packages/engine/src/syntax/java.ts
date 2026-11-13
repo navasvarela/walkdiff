@@ -2,6 +2,7 @@ import { SourceLanguage, UnitKind } from "@walkdiff/review-model"
 import type { Node } from "web-tree-sitter"
 import { classifyWithGrammar, isBindingWithGrammar, namedDefinition, ParameterKind } from "./languageSpec.ts"
 import type { ContainerContext, DefinitionHeader, IdentifierGrammar, LanguageSpec } from "./languageSpec.ts"
+import { parametersByField, returnTypeByField } from "./shape.ts"
 
 const KIND_BY_NODE_TYPE: ReadonlyMap<string, UnitKind> = new Map([
   ["class_declaration", UnitKind.Class],
@@ -90,8 +91,8 @@ export const javaSpec: LanguageSpec = {
   isImplicitlyInvoked: (methodName) => IMPLICITLY_INVOKED.has(methodName),
   shape: {
     functionNode: (definition) => definition,
-    signatureNode: (fn) => fn,
-    returnTypeField: "type",
+    parameters: parametersByField,
+    returnType: returnTypeByField("type"),
     parameterKind,
     calls: new Map([
       ["method_invocation", { calleeField: "name", suffix: "" }],

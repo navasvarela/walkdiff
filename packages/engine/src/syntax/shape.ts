@@ -2,7 +2,7 @@ import type { UnitFacts } from "@walkdiff/review-model"
 import type { Node } from "web-tree-sitter"
 import { declaredName } from "./declarators.ts"
 import { ParameterKind } from "./languageSpec.ts"
-import type { ShapeGrammar } from "./languageSpec.ts"
+import type { CallSyntax, ShapeGrammar } from "./languageSpec.ts"
 
 /** A function's outward form and control flow, enough to state what an edit changed. */
 export interface UnitShape {
@@ -41,19 +41,21 @@ const LAST_SEGMENT = /[\p{L}\p{N}_$]+$/u
 // `self`, `&self`, `&mut self` and `cls` are how a method is called, not something a caller passes.
 const RECEIVER_PARAMETER = /\b(self|cls)$|^this$/
 const NO_PARAMETERS = "void"
+// Kotlin's parameter node, which names its parameter without a field.
+const UNNAMED_PARAMETER = "parameter"
 
 export function extractShape(grammar: ShapeGrammar, definition: Node): UnitShape {
   const fn = grammar.functionNode(definition)
   const calls = callNames(grammar, fn)
   const bailOuts = calls.list.filter((name) => grammar.errorCalls.has(name)).length
-  const slots = parameterNodesOf(grammar.signatureNode(fn)).flatMap(parameterSlots)
+  const slots = grammar.parameters(fn).flatMap(parameterSlots)
   const parameters = new Map(slots.map((slot) => [slot.name, slot.text]))
   const branches = fn.descendantsOfType([...grammar.branchTypes]).length
   return {
     parameters,
     signature: slots.map((slot) => signatureParameter(grammar, slot)),
     // TypeScript's return type node includes its leading colon.
-    returnType: typeText(fn.childForFieldName(grammar.returnTypeField)),
+    returnType: typeText(grammar.returnType(fn)),
     calls: new Set(calls.list),
     errorPaths: fn.descendantsOfType([...grammar.errorTypes]).length + bailOuts,
     branches,
@@ -110,13 +112,19 @@ export function factsBetween(before: UnitShape, after: UnitShape): UnitFacts | n
   return hasAny ? facts : null
 }
 
-function parameterNodesOf(fn: Node): Node[] {
+/** The parameters in the function's `parameters` field, or the single `parameter` of `x => x + 1`. */
+export function parametersByField(fn: Node): Node[] {
   const list = fn.childForFieldName("parameters")
   // `x => x + 1` has a single parameter and no list around it.
   const single = fn.childForFieldName("parameter")
   const nodes = list === null ? (single === null ? [] : [single]) : list.namedChildren
   // C's `int f(void)` takes no parameters.
   return nodes.filter((node): node is Node => node !== null && !node.type.includes("comment") && node.text !== NO_PARAMETERS)
+}
+
+/** Reads the return type from a field of the function's node. */
+export function returnTypeByField(field: string): (fn: Node) => Node | null {
+  return (fn) => fn.childForFieldName(field)
 }
 
 /** One name a caller passes, with the declaration it's in. */
@@ -148,8 +156,9 @@ function parameterName(node: Node): string {
   // Java's `String... rest` names its parameter in a declarator, and C's `char *name` in a chain of them.
   const named = node.childForFieldName("pattern") ?? node.childForFieldName("name") ?? declaratorName(node) ?? declaredName(node)?.nameNode ?? null
   if (named !== null) return named.text
-  // Python's `typed_parameter` has no name field: the name is its first child.
-  return node.type.includes("typed") ? (node.firstNamedChild?.text ?? node.text) : node.text
+  // Python's `typed_parameter` and Kotlin's `parameter` have no name field: the name is their first identifier.
+  if (!node.type.includes("typed") && node.type !== UNNAMED_PARAMETER) return node.text
+  return node.namedChildren.find((child) => child?.type === "identifier")?.text ?? node.firstNamedChild?.text ?? node.text
 }
 
 function declaratorName(node: Node): Node | null {
@@ -164,11 +173,15 @@ interface CallNames {
 function callNames(grammar: ShapeGrammar, fn: Node): CallNames {
   const list = fn.descendantsOfType([...grammar.calls.keys()]).flatMap((call) => {
     const syntax = call === null ? undefined : grammar.calls.get(call.type)
-    const callee = syntax === undefined ? null : (call?.childForFieldName(syntax.calleeField) ?? null)
+    const callee = syntax === undefined || call === null ? null : calleeOf(call, syntax)
     const name = callee === null ? undefined : calleeName(callee)
     return syntax === undefined || name === undefined ? [] : [`${name}${syntax.suffix}`]
   })
   return { list }
+}
+
+function calleeOf(call: Node, syntax: CallSyntax): Node | null {
+  return syntax.calleeField === undefined ? call.firstNamedChild : call.childForFieldName(syntax.calleeField)
 }
 
 // Undefined for a function called where it's written, such as Go's `go func() {…}()` or

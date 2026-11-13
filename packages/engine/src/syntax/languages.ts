@@ -1,8 +1,10 @@
 import { extname } from "node:path"
 import { SourceLanguage } from "@walkdiff/review-model"
 import { cppSpec, cSpec } from "./cFamily.ts"
+import { csharpSpec } from "./csharp.ts"
 import { goSpec } from "./go.ts"
 import { javaSpec } from "./java.ts"
+import { kotlinSpec } from "./kotlin.ts"
 import type { LanguageSpec } from "./languageSpec.ts"
 import { pythonSpec } from "./python.ts"
 import { rustSpec } from "./rust.ts"
@@ -23,6 +25,9 @@ const SPEC_BY_EXTENSION: ReadonlyMap<string, LanguageSpec> = new Map([
   [".pyi", pythonSpec],
   [".go", goSpec],
   [".java", javaSpec],
+  [".kt", kotlinSpec],
+  [".kts", kotlinSpec],
+  [".cs", csharpSpec],
   [".c", cSpec],
   // A `.h` header may be C or C++. The C++ grammar reads both, short of C code using a C++
   // keyword such as `new` as a name; the C grammar would drop every class in a C++ header.

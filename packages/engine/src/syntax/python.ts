@@ -2,6 +2,7 @@ import { SourceLanguage, UnitKind } from "@walkdiff/review-model"
 import type { Node } from "web-tree-sitter"
 import { classifyWithGrammar, isBindingWithGrammar, namedDefinition, ParameterKind } from "./languageSpec.ts"
 import type { ContainerContext, DefinitionHeader, IdentifierGrammar, LanguageSpec } from "./languageSpec.ts"
+import { parametersByField, returnTypeByField } from "./shape.ts"
 
 const CONTAINERS: ReadonlySet<UnitKind> = new Set([UnitKind.Class])
 
@@ -80,8 +81,8 @@ export const pythonSpec: LanguageSpec = {
   isImplicitlyInvoked: (methodName) => DUNDER_METHOD.test(methodName),
   shape: {
     functionNode: (definition) => definition,
-    signatureNode: (fn) => fn,
-    returnTypeField: "return_type",
+    parameters: parametersByField,
+    returnType: returnTypeByField("return_type"),
     parameterKind,
     calls: new Map([["call", { calleeField: "function", suffix: "" }]]),
     errorCalls: new Set(),
