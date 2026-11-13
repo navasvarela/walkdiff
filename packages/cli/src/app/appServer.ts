@@ -6,9 +6,9 @@ import { join, resolve } from "node:path"
 import { gitHostFor, HostApiError, InvalidPullRequestUrlError, parsePullRequestUrl } from "@walkdiff/providers"
 import type { GitHost, PullRequestRef } from "@walkdiff/providers"
 import { AI_API_KEY_VARIABLE, AiUnavailableError, CoverageFileError, createAiProvider, describeChecks, firstExisting } from "@walkdiff/engine"
-import { acceptStackRequestSchema, addReviewRequestSchema, approveStackRequestSchema, anthropicBaseUrlFrom, appSettingsSchema, attachCoverageRequestSchema, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
+import { acceptStackRequestSchema, addReviewRequestSchema, anthropicBaseUrlFrom, approveStackRequestSchema, appSettingsSchema, attachCoverageRequestSchema, LogLevel, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
 import { MemberCheck, ReportChange, ReviewStatus } from "@walkdiff/review-model"
-import type { AiConnectionResult, ApproveStackRequest, SettingsView, CheckStatus, StackView } from "@walkdiff/review-model"
+import type { AiConnectionResult, ApproveStackRequest, CheckStatus, Log, SettingsView, StackView } from "@walkdiff/review-model"
 import { readHostTokens } from "../environment.ts"
 import { REPORT_FILE_POLICY_TAG, REPORT_PAGE_FILE, writeReport } from "../report.ts"
 import { addressOf, BASE_POLICY, listen, LOOPBACK_HOST, REPORT_PAGE_POLICY, respond, SECURITY_HEADERS } from "../server.ts"
@@ -69,7 +69,7 @@ export class AppPortInUseError extends Error {
 
 export interface AppServerOptions {
   readonly port: number
-  readonly log: (message: string) => void
+  readonly log: Log
   /** Tests fix the key; otherwise a new one is created for this run. */
   readonly apiKey?: string
   /** For the settings page: whether API keys are available. Keys never leave the server. */
@@ -95,7 +95,7 @@ export async function startAppServer(store: ReviewStore, service: ReviewService,
   const server = createServer((request, response) => {
     handle(request, response, context).catch((error: unknown) => {
       // Details such as file paths go to the terminal, not to whatever made the request.
-      log(`The app could not answer ${request.method ?? ""} ${request.url ?? ""}: ${error instanceof Error ? error.message : String(error)}`)
+      log(`The app could not answer ${request.method ?? ""} ${request.url ?? ""}: ${error instanceof Error ? error.message : String(error)}`, { level: LogLevel.Error })
       sendJson(response, 500, { error: UNEXPECTED_ERROR })
     })
   })

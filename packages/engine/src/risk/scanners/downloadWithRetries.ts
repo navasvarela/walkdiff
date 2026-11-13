@@ -1,3 +1,5 @@
+import { LogLevel } from "@walkdiff/review-model"
+import type { Log } from "@walkdiff/review-model"
 const DOWNLOAD_TIMEOUT_MS = 2 * 60 * 1000
 
 // GitHub's release downloads sometimes answer 502 or 504 for a few minutes, on any asset, while
@@ -12,7 +14,7 @@ const MS_PER_SECOND = 1000
 export interface DownloadDependencies {
   readonly fetch: (url: string, init: { readonly signal: AbortSignal }) => Promise<Response>
   readonly wait: (ms: number) => Promise<void>
-  readonly log: (message: string) => void
+  readonly log: Log
 }
 
 const Outcome = { Done: "done", TryAgain: "tryAgain", Failed: "failed" } as const
@@ -33,7 +35,7 @@ export async function downloadWithRetries(url: string, deps: DownloadDependencie
   for (const delayMs of RETRY_DELAYS_MS) {
     const attempt = await downloadOnce(url, deps)
     if (attempt.outcome !== Outcome.TryAgain) return settled(attempt)
-    deps.log(`Downloading ${url} failed (${attempt.problem}). Trying again in ${delayMs / MS_PER_SECOND} seconds.`)
+    deps.log(`Downloading ${url} failed (${attempt.problem}). Trying again in ${delayMs / MS_PER_SECOND} seconds.`, { level: LogLevel.Warn, fields: { url } })
     await deps.wait(delayMs)
   }
   const last = await downloadOnce(url, deps)

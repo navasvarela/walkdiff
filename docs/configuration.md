@@ -19,6 +19,7 @@
 | `--data-dir <dir>` | `app` | Sets where the review list is stored |
 | `--report <dir>` | `comment` | The folder `review` wrote with `--out` |
 | `--report-url <url>` | `comment` | Where reviewers can open the report |
+| `--log-format <f>` | all | `text` (default), or `json` for [JSON logs](#logs) |
 
 ## Environment variables
 
@@ -31,6 +32,24 @@
 | `WALKDIFF_AI_API_KEY` | Key for AI review with an OpenAI-compatible provider; local models usually need none |
 | `XDG_CACHE_HOME` | Moves the cache from `~/.cache/walkdiff` |
 | `XDG_DATA_HOME` | Moves the app's data from `~/.local/share/walkdiff` |
+| `WALKDIFF_LOG_FORMAT` | `text` or `json`, as `--log-format`, which takes precedence |
+
+## Logs
+
+Walkdiff writes what it's doing to stderr, so stdout only carries what a command prints, such as `--help`. By default each message is a plain sentence. With `--log-format json`, or `WALKDIFF_LOG_FORMAT=json` in CI, each is one JSON object per line ([JSON Lines](https://jsonlines.org)):
+
+```json
+{"time":"2026-11-13T09:30:00.000Z","level":"info","msg":"Scanning for security problems…","step":"scanningCode"}
+{"time":"2026-11-13T09:30:04.112Z","level":"warn","msg":"Walkdiff couldn't install gitleaks: …","scanner":"gitleaks"}
+{"time":"2026-11-13T09:30:09.861Z","level":"info","msg":"15 files changed, no security findings. Report written to ./report","files":15,"findings":0,"reportDir":"./report"}
+```
+
+| Field | What it holds |
+| --- | --- |
+| `time` | When it happened, in UTC (ISO 8601) |
+| `level` | `info`, `warn` (something didn't work, and Walkdiff carried on) or `error` (the command failed) |
+| `msg` | The same sentence the text format prints |
+| Others | Facts to filter on, by event: `step` for each analysis step, `reportDir`, `files` and `findings` when a report is written, `url` for a server or download, `scanner` and `version` while installing scanners, `review` in the app, and `version` on a failure |
 
 ### Tokens and trusted hosts
 
