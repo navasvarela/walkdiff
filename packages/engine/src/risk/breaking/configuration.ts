@@ -1,10 +1,9 @@
-import { codeSpan, DiffLineKind, FileChangeStatus, FileContentKind, RiskCategory, RiskSeverity } from "@walkdiff/review-model"
+import { codeSpan, DiffLineKind, FileChangeStatus, FileContentKind, isTestPath, RiskCategory, RiskSeverity } from "@walkdiff/review-model"
 import type { DiffLine, FileDiff, Hunk, Risk } from "@walkdiff/review-model"
 import { escapeRegExp } from "../../impact/candidateFiles.ts"
 import { languageSpecFor } from "../../syntax/languages.ts"
 import { findingAt, isThirdParty } from "../scannedFile.ts"
 import type { RuleDescription, ScannedFile } from "../scannedFile.ts"
-import { isTestPath } from "../testCode.ts"
 import { describeMentions, isSpecificName } from "./codeMentions.ts"
 import type { CodeMention } from "./codeMentions.ts"
 
