@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import type { ReactElement } from "react"
-import { AiReviewStatus, CheckOutcome, namesOfChecks, summarizeChecks, UnitChangeKind, UnitImpactStatus } from "@walkdiff/review-model"
+import { AiReviewStatus, CheckOutcome, isHostedPullRequest, isHostedReview, namesOfChecks, summarizeChecks, UnitChangeKind, UnitImpactStatus } from "@walkdiff/review-model"
 import type { ChangedUnit, CheckRun, ReviewModel, RiskAssessment, SkippedCheck } from "@walkdiff/review-model"
 import { aiNotesForStop, digestAiReview } from "../aiDigest.ts"
 import { lineCommentsIn } from "../lineComments.ts"
@@ -587,7 +587,7 @@ function Finish({ review, plan, state }: { readonly review: ReviewModel; readonl
         {overall.reviewed} of {overall.total} changes reviewed overall. The decision is yours: Walkdiff only points at what to look at.
       </p>
 
-      {isConnectedToApp() ? (
+      {isConnectedToApp() && isHostedReview(review) ? (
         <SubmitReviewForm review={review} comments={comments} lineComments={lineComments} />
       ) : (
         comments.length + lineComments.length > 0 && <Comments comments={comments} lineComments={lineComments} />
@@ -615,9 +615,11 @@ function Finish({ review, plan, state }: { readonly review: ReviewModel; readonl
             Continue the path
           </a>
         )}
-        <a className="guide-button guide-button-primary" href={review.pullRequest.url} target="_blank" rel="noreferrer">
-          Open the PR to respond
-        </a>
+        {isHostedPullRequest(review.pullRequest) && (
+          <a className="guide-button guide-button-primary" href={review.pullRequest.url} target="_blank" rel="noreferrer">
+            Open the PR to respond
+          </a>
+        )}
       </div>
     </main>
   )

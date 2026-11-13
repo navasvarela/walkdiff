@@ -4,6 +4,7 @@ import type { AiSettings } from "@walkdiff/review-model"
 
 export const USAGE = `Usage:
   walkdiff review [pull-request-url] [options]
+  walkdiff review --local [--base <ref>] [options]
   walkdiff comment --report <dir> --report-url <url>
   walkdiff app [options]
   walkdiff setup
@@ -19,6 +20,10 @@ setup installs the pinned security scanners Walkdiff runs, checking each against
 and app do this on their first run anyway, unless --offline.
 
 Options:
+  --local            Review the committed work on this repository's current branch, before
+                     it has a pull request. Uncommitted changes are left out
+  --base <ref>       With --local: the branch it will merge into (default: the remote's
+                     default branch, else main or master)
   --out <dir>        Write the report here instead of the cache directory
   --port <number>    Port for the local server (review: 4318, or any free port; app: 4317)
   --no-serve         Write the report and exit without serving it
@@ -57,8 +62,10 @@ const MAX_PORT = 65_535
 const DEFAULT_APP_PORT = 4317
 
 export interface ReviewOptions {
-  /** Undefined means: take it from the CI environment. */
+  /** Undefined means: take it from the CI environment, unless `local` is set. */
   readonly url: string | undefined
+  /** Set by --local: review the current branch here instead of a pull request. */
+  readonly local: LocalReviewOptions | undefined
   readonly outDir: string | undefined
   /** Undefined prefers a fixed port, falling back to any free one. */
   readonly port: number | undefined
@@ -73,6 +80,11 @@ export interface ReviewOptions {
 }
 
 export type AiOptions = AiSettings
+
+export interface LocalReviewOptions {
+  /** What the branch will merge into; undefined finds the remote's default branch. */
+  readonly baseRef: string | undefined
+}
 
 export interface CommentOptions {
   readonly reportDir: string
@@ -121,6 +133,8 @@ export function parseCommand(argv: readonly string[]): Command {
       "report-url": { type: "string" },
       "cache-dir": { type: "string" },
       coverage: { type: "string" },
+      local: { type: "boolean", default: false },
+      base: { type: "string" },
       help: { type: "boolean", short: "h", default: false },
       version: { type: "boolean", short: "v", default: false },
     },
@@ -159,10 +173,13 @@ export function parseCommand(argv: readonly string[]): Command {
     throw new UsageError(`Unexpected arguments: ${extra.join(" ")}`)
   }
 
+  if (values.local && url !== undefined) throw new UsageError("--local reviews this repository's branch, so it takes no pull request URL")
+  if (values.base !== undefined && !values.local) throw new UsageError("--base only applies with --local")
   return {
     kind: "review",
     options: {
       url,
+      local: values.local ? { baseRef: values.base } : undefined,
       outDir: values.out,
       port: values.port === undefined ? undefined : parsePort(values.port),
       serve: values.serve,

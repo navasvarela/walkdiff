@@ -1,11 +1,11 @@
 import { join } from "node:path"
-import { analyzeChangedFiles, coverageFromArchives, coverageInPullRequest, createAiProvider, fetchCommits, readCoverage, readWalkdiffConfig, reviewWithAi } from "@walkdiff/engine"
+import { analyzeChangedFiles, coverageFromArchives, coverageInPullRequest, createAiProvider, fetchCommits, readCoverage, readLocalChange, readWalkdiffConfig, reviewWithAi } from "@walkdiff/engine"
 import type { AiProvider } from "@walkdiff/engine"
 import { gitHostFor, parsePullRequestUrl, repositoryPath } from "@walkdiff/providers"
 import type { HostTokens, PullRequestRef } from "@walkdiff/providers"
-import { AiReviewStatus, AnalysisStep, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, securitySummary } from "@walkdiff/review-model"
-import type { AiReview, CheckId, CommitSha, FileDiff, ReviewModel, StepReporter, TestCoverage } from "@walkdiff/review-model"
-import type { AiOptions, ReviewOptions } from "./args.ts"
+import { AiReviewStatus, AnalysisStep, LOCAL_CHANGE_HOST, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, securitySummary } from "@walkdiff/review-model"
+import type { AiReview, CheckId, CommitSha, FileDiff, LocalChange, PullRequest, ReviewModel, StepReporter, TestCoverage } from "@walkdiff/review-model"
+import type { AiOptions, LocalReviewOptions, ReviewOptions } from "./args.ts"
 import { detectPullRequestUrl } from "./ciEnvironment.ts"
 import type { CiEnvironment } from "./ciEnvironment.ts"
 import { writeReport } from "./report.ts"
@@ -28,6 +28,8 @@ export interface AnalysisDependencies {
 
 export interface ReviewDependencies extends AnalysisDependencies {
   readonly env: CiEnvironment
+  /** Where Walkdiff was started, which --local reviews the repository of. */
+  readonly cwd: string
 }
 
 /** What an analysis needs to know, whichever command asked for it. */
@@ -46,10 +48,13 @@ export interface AttachedCoverage {
   readonly coverage: TestCoverage
 }
 
+interface Review {
+  readonly model: ReviewModel
+  readonly reportDir: string
+}
+
 export async function runReview(options: ReviewOptions, deps: ReviewDependencies): Promise<void> {
-  const ref = parsePullRequestUrl(options.url ?? (await detectPullRequestUrl(deps.env)))
-  const model = await analyzePullRequest(ref, options, deps)
-  const reportDir = options.outDir ?? defaultReportDir(deps.cacheDir, ref)
+  const { model, reportDir } = options.local === undefined ? await reviewPullRequest(options, deps) : await reviewLocalBranch(options.local, options, deps)
   await writeReport(model, reportDir)
 
   deps.log(`${model.files.length} files changed, ${securitySummary(model.risk.findings).toLowerCase()}. Report written to ${reportDir}`)
@@ -74,6 +79,23 @@ async function serveReportOnPreferredPort(reportDir: string, port: number | unde
   }
 }
 
+async function reviewPullRequest(options: ReviewOptions, deps: ReviewDependencies): Promise<Review> {
+  const ref = parsePullRequestUrl(options.url ?? (await detectPullRequestUrl(deps.env)))
+  const model = await analyzePullRequest(ref, options, deps)
+  return { model, reportDir: options.outDir ?? defaultReportDir(deps.cacheDir, ref) }
+}
+
+// Reads the user's own repository in place: nothing is fetched, and nothing in it is changed.
+async function reviewLocalBranch(local: LocalReviewOptions, options: ReviewOptions, deps: ReviewDependencies): Promise<Review> {
+  const { repoDir, change, uncommittedFiles } = await readLocalChange({ cwd: deps.cwd, baseRef: local.baseRef })
+  if (uncommittedFiles > 0) {
+    deps.log(`${uncommittedFiles} ${uncommittedFiles === 1 ? "file has" : "files have"} uncommitted changes, which this review leaves out. Commit them to include them.`)
+  }
+  deps.log(`Reviewing ${change.headRef} against ${change.baseRef} in ${repoDir}.`)
+  const model = await analyzeChange({ repoDir, pullRequest: change, ref: undefined }, options, deps)
+  return { model, reportDir: options.outDir ?? localReportDir(deps.cacheDir, change) }
+}
+
 export async function analyzePullRequest(ref: PullRequestRef, options: AnalysisRequest, deps: AnalysisDependencies): Promise<ReviewModel> {
   deps.reportStep(AnalysisStep.FetchingPullRequest)
   const snapshot = await gitHostFor(ref, deps.tokens).fetchPullRequest()
@@ -86,7 +108,17 @@ export async function analyzePullRequest(ref: PullRequestRef, options: AnalysisR
     credentials: snapshot.gitAuth,
     commits: [pullRequest.mergeBaseSha, pullRequest.headSha],
   })
+  return analyzeChange({ repoDir, pullRequest, ref }, options, deps)
+}
 
+/** A change whose commits are in `repoDir`. `ref` names its pull request, when it has one. */
+interface ChangeToAnalyze {
+  readonly repoDir: string
+  readonly pullRequest: PullRequest
+  readonly ref: PullRequestRef | undefined
+}
+
+async function analyzeChange({ repoDir, pullRequest, ref }: ChangeToAnalyze, options: AnalysisRequest, deps: AnalysisDependencies): Promise<ReviewModel> {
   const { files, risk } = await analyzeChangedFiles(repoDir, pullRequest.mergeBaseSha, pullRequest.headSha, {
     network: options.network,
     disabledChecks: options.disabledChecks ?? [],
@@ -123,7 +155,8 @@ export async function analyzePullRequest(ref: PullRequestRef, options: AnalysisR
 }
 
 interface CoverageSearch {
-  readonly ref: PullRequestRef
+  /** Undefined for a local branch, which has no CI runs to look in. */
+  readonly ref: PullRequestRef | undefined
   readonly repoDir: string
   readonly headSha: CommitSha
   readonly diffs: readonly FileDiff[]
@@ -141,6 +174,7 @@ async function coverageFor(options: AnalysisRequest, search: CoverageSearch, dep
 
 // Coverage only adds evidence, so a token without access to CI must not cost the whole review.
 async function coverageFromCi(search: CoverageSearch, deps: AnalysisDependencies): Promise<TestCoverage | undefined> {
+  if (search.ref === undefined) return undefined
   try {
     const archives = await gitHostFor(search.ref, deps.tokens).fetchCoverageArchives(search.headSha)
     return coverageFromArchives(archives, search.diffs, search.patterns)
@@ -172,5 +206,10 @@ function describeAiReview(ai: AiReview): string {
 
 export function defaultReportDir(cacheDir: string, ref: PullRequestRef): string {
   return join(cacheDir, "reports", new URL(ref.webOrigin).host, repositoryPath(ref), String(ref.number))
+}
+
+// Branch names hold slashes (`feature/parser`), which become folders; git refuses `..` in them.
+function localReportDir(cacheDir: string, change: LocalChange): string {
+  return join(cacheDir, "reports", LOCAL_CHANGE_HOST, change.repositoryName, ...change.headRef.split("/"))
 }
 

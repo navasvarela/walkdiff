@@ -19,12 +19,8 @@ export const commitShaSchema = z
   .brand<"CommitSha">()
 export type CommitSha = z.infer<typeof commitShaSchema>
 
-export const pullRequestSchema = z.object({
-  host: z.enum(GitHostKind),
-  url: z.url(),
-  /** The repository's web page, for linking to files at a commit. */
-  repositoryWebUrl: z.url(),
-  number: z.number().int().positive(),
+/** The commits and branches every change under review has, hosted or not. */
+const changeFields = {
   title: z.string(),
   description: z.string(),
   author: z.string(),
@@ -34,8 +30,40 @@ export const pullRequestSchema = z.object({
   headSha: commitShaSchema,
   /** The diff is always computed from the merge base, matching what GitHub and GitLab show. */
   mergeBaseSha: commitShaSchema,
+}
+
+/** A pull request or merge request on its host, where comments and approvals can be posted. */
+export const hostedPullRequestSchema = z.object({
+  host: z.enum(GitHostKind),
+  url: z.url(),
+  /** The repository's web page, for linking to files at a commit. */
+  repositoryWebUrl: z.url(),
+  number: z.number().int().positive(),
+  ...changeFields,
 })
+export type HostedPullRequest = z.infer<typeof hostedPullRequestSchema>
+
+export const LOCAL_CHANGE_HOST = "local"
+
+/**
+ * A branch reviewed on its author's machine before it's pushed (`walkdiff review --local`). It
+ * has no host, so no link, number or web page to link files to, and nowhere to post a review.
+ */
+export const localChangeSchema = z.object({
+  host: z.literal(LOCAL_CHANGE_HOST),
+  /** The folder the repository is in, which names it in the report. */
+  repositoryName: z.string(),
+  ...changeFields,
+})
+export type LocalChange = z.infer<typeof localChangeSchema>
+
+/** What's under review: still named for pull requests, which most reviews are. */
+export const pullRequestSchema = z.discriminatedUnion("host", [hostedPullRequestSchema, localChangeSchema])
 export type PullRequest = z.infer<typeof pullRequestSchema>
+
+export function isHostedPullRequest(pullRequest: PullRequest): pullRequest is HostedPullRequest {
+  return pullRequest.host !== LOCAL_CHANGE_HOST
+}
 
 const lineNumberSchema = z.number().int().positive()
 
@@ -504,6 +532,13 @@ export const reviewModelSchema = z.object({
   feedbackUrl: z.url({ protocol: /^https?$/ }).nullable(),
 })
 export type ReviewModel = z.infer<typeof reviewModelSchema>
+
+/** A review of a pull request on its host, the only kind with somewhere to post comments or a review. */
+export type HostedReviewModel = ReviewModel & { readonly pullRequest: HostedPullRequest }
+
+export function isHostedReview(model: ReviewModel): model is HostedReviewModel {
+  return isHostedPullRequest(model.pullRequest)
+}
 
 export const ReviewStatus = { Queued: "queued", Analyzing: "analyzing", Ready: "ready", Failed: "failed" } as const
 export type ReviewStatus = (typeof ReviewStatus)[keyof typeof ReviewStatus]

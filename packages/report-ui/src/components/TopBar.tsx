@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import type { ReactElement } from "react"
-import { numberLabel } from "@walkdiff/review-model"
+import { isHostedPullRequest, numberLabel } from "@walkdiff/review-model"
 import type { ReviewModel } from "@walkdiff/review-model"
 import { overallProgress, pathProgress, reviewPlanFor } from "../reviewProgress.ts"
 import { useReviewState } from "../reviewState.tsx"
@@ -46,9 +46,13 @@ export function TopBar({ review, section }: TopBarProps): ReactElement {
           <span className="topbar-separator" aria-hidden="true">
             /
           </span>
-          <a href={pullRequest.url} target="_blank" rel="noreferrer">
-            {numberLabel(pullRequest.host, pullRequest.number)}
-          </a>
+          {isHostedPullRequest(pullRequest) ? (
+            <a href={pullRequest.url} target="_blank" rel="noreferrer">
+              {numberLabel(pullRequest.host, pullRequest.number)}
+            </a>
+          ) : (
+            <span>{pullRequest.repositoryName} · local branch</span>
+          )}
         </div>
         <nav className="topbar-nav" aria-label="Review sections">
           <a href={REVIEW_HASH} aria-current={section === TopBarSection.Review ? "page" : undefined}>

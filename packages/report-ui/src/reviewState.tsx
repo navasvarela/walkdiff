@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import type { ReactElement, ReactNode } from "react"
-import { progressKey } from "@walkdiff/review-model"
-import type { ProgressRecord, ReviewModel } from "@walkdiff/review-model"
+import { isHostedPullRequest, progressKey } from "@walkdiff/review-model"
+import type { ProgressRecord, PullRequest, ReviewModel } from "@walkdiff/review-model"
 import { changedSinceReview, EMPTY_REVIEW_STATE, overallProgress, parseSavedState, serializeState, withComment, withReviewed } from "./reviewProgress.ts"
 import type { ReviewItem, ReviewState } from "./reviewProgress.ts"
 
@@ -29,20 +29,29 @@ interface ReviewStateProviderProps {
 }
 
 /**
+ * What a review's progress is saved under: the PR's address, so a report made after a push
+ * picks up where the reviewer left off. A local branch has no address, so its repository and
+ * branch name stand in.
+ */
+function savedAs(pullRequest: PullRequest): string {
+  return isHostedPullRequest(pullRequest) ? pullRequest.url : `local:${pullRequest.repositoryName}:${pullRequest.headRef}`
+}
+
+/**
  * Keeps progress and comments in this browser, per pull request, so they survive a new push.
  * Storage can be unavailable or full, as in a private window or some reports opened from disk:
  * the review then lasts until the page closes.
  */
 export function ReviewStateProvider({ review, children }: ReviewStateProviderProps): ReactElement {
-  const key = `${STORAGE_KEY_PREFIX}${review.pullRequest.url}`
+  const key = `${STORAGE_KEY_PREFIX}${savedAs(review.pullRequest)}`
   const [stateAtOpen] = useState(() => parseSavedState(readStorage(key)))
   const [state, setState] = useState(stateAtOpen)
   const changedAtOpen = useMemo(() => changedSinceReview(review.files, stateAtOpen), [review.files, stateAtOpen])
   // Saved on open too, so the app's list catches up with a report re-made after a push.
   useEffect(() => {
-    const { url, headSha, baseRef } = review.pullRequest
+    const { headSha, baseRef } = review.pullRequest
     const progress: ProgressRecord = { ...overallProgress(review.files, state), drafts: state.comments.size, head: { headSha, baseRef } }
-    writeStorage(progressKey(url), JSON.stringify(progress))
+    writeStorage(progressKey(savedAs(review.pullRequest)), JSON.stringify(progress))
   }, [review.files, review.pullRequest, state])
   const update = useCallback(
     (change: (current: ReviewState) => ReviewState): void => {

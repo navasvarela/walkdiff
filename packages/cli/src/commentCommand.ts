@@ -2,7 +2,8 @@ import { appendFile, readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { gitHostFor, HostApiError, parsePullRequestUrl } from "@walkdiff/providers"
 import type { HostTokens } from "@walkdiff/providers"
-import { reviewModelSchema } from "@walkdiff/review-model"
+import { isHostedReview, reviewModelSchema } from "@walkdiff/review-model"
+import { UsageError } from "./args.ts"
 import type { CommentOptions } from "./args.ts"
 import { REVIEW_MODEL_FILE } from "./report.ts"
 import { renderSummaryComment, SUMMARY_COMMENT_MARKER } from "./summaryComment.ts"
@@ -21,6 +22,7 @@ export interface CommentDependencies {
 export async function runComment(options: CommentOptions, deps: CommentDependencies): Promise<void> {
   const text = await readFile(join(options.reportDir, REVIEW_MODEL_FILE), "utf8")
   const model = reviewModelSchema.parse(JSON.parse(text))
+  if (!isHostedReview(model)) throw new UsageError(`${options.reportDir} is a review of a local branch, which has no pull request to comment on.`)
   const body = renderSummaryComment(model, options.reportUrl)
 
   if (deps.stepSummaryPath !== undefined) {

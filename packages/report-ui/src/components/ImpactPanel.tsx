@@ -2,6 +2,7 @@ import type { ReactElement } from "react"
 import { ReferenceConfidence, UnitChangeKind, UnitImpactStatus } from "@walkdiff/review-model"
 import type { ChangedUnit, PullRequest, Reference, UnitImpact } from "@walkdiff/review-model"
 import { sourceLineUrl } from "../sourceLinks.ts"
+import { SourceLocation } from "./HostLink.tsx"
 
 const CONFIDENCE_LABELS: Readonly<Record<ReferenceConfidence, string>> = {
   [ReferenceConfidence.Exact]: "exact",
@@ -96,9 +97,9 @@ function ReferenceList({ references, pullRequest }: ReferenceListProps): ReactEl
           <span className={`confidence confidence-${reference.confidence}`} title={CONFIDENCE_HINTS[reference.confidence]}>
             {CONFIDENCE_LABELS[reference.confidence]}
           </span>
-          <a href={sourceLineUrl(pullRequest, reference.path, reference.line)} target="_blank" rel="noreferrer">
+          <SourceLocation url={sourceLineUrl(pullRequest, reference.path, reference.line)}>
             {reference.path}:{reference.line}
-          </a>
+          </SourceLocation>
           {reference.callerQualifiedName !== null && <span className="reference-caller">in {reference.callerQualifiedName}</span>}
           <code className="reference-snippet">{reference.snippet}</code>
         </li>

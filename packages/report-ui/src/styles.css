@@ -701,6 +701,12 @@ code {
   }
 }
 
+/* Where a hosted PR shows its number: a local branch has none. */
+.local-change {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
 .level-badge,
 .severity {
   display: inline-block;

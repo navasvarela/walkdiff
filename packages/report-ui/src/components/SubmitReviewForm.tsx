@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { ReactElement } from "react"
 import { GitHostKind, ReviewEvent, submitReviewSchema } from "@walkdiff/review-model"
-import type { ReviewModel, SubmitReview } from "@walkdiff/review-model"
+import type { HostedReviewModel, SubmitReview } from "@walkdiff/review-model"
 import { isWebLink, postReview } from "../appApi.ts"
 import { useReloadConversation } from "../conversationState.tsx"
 import { reviewCommentsFrom } from "../reviewProgress.ts"
@@ -20,7 +20,8 @@ const EVENTS: readonly { readonly event: ReviewEvent; readonly label: string; re
 ]
 
 interface SubmitReviewFormProps {
-  readonly review: ReviewModel
+  /** Only a hosted pull request has somewhere to post a review. */
+  readonly review: HostedReviewModel
   readonly comments: readonly ItemComment[]
   readonly lineComments: readonly LineComment[]
 }

@@ -1,5 +1,5 @@
 import type { ReactElement } from "react"
-import { SECURITY_SCAN_LIMITS, securitySummary } from "@walkdiff/review-model"
+import { isHostedPullRequest, SECURITY_SCAN_LIMITS, securitySummary } from "@walkdiff/review-model"
 import type { ChangedFile, PullRequest, RiskAssessment } from "@walkdiff/review-model"
 import { summarizeFile } from "../unitChange.ts"
 
@@ -29,9 +29,13 @@ export function PullRequestHeader({ pullRequest, files, risk, feedbackUrl }: Pul
           {securitySummary(risk.findings)}
         </span>{" "}
         {pullRequest.title}{" "}
-        <a href={pullRequest.url} target="_blank" rel="noreferrer">
-          #{pullRequest.number}
-        </a>
+        {isHostedPullRequest(pullRequest) ? (
+          <a href={pullRequest.url} target="_blank" rel="noreferrer">
+            #{pullRequest.number}
+          </a>
+        ) : (
+          <span className="local-change">local branch</span>
+        )}
       </h1>
       <p className="meta">
         <strong>{pullRequest.author}</strong> wants to merge <code>{pullRequest.headRef}</code> into{" "}

@@ -68,6 +68,15 @@ npx walkdiff review https://github.com/owner/repo/pull/123
 npx walkdiff review https://gitlab.com/group/project/-/merge_requests/45 --no-serve --out ./report
 ```
 
+To review your own branch before opening a pull request, run it inside the repository:
+
+```sh
+npx walkdiff review --local               # against the remote's default branch
+npx walkdiff review --local --base develop
+```
+
+It reads your committed work in place, without fetching or changing anything, and leaves uncommitted changes out. The report is the same, without the parts that need a host: links to the PR and its files, posting a review, and coverage from CI.
+
 Or install it once with `npm install --global walkdiff`, then run `walkdiff`. To work on Walkdiff itself,
 clone this repository, run `pnpm install`, and use `pnpm walkdiff` in place of `walkdiff`.
 
