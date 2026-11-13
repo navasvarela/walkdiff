@@ -95,6 +95,7 @@ describe("installScanners", () => {
     await installScanners(root, deps({ pins: [], run }))
     const pip = commands.find((command) => command.includes("pip install"))
     expect(pip).toContain("--require-hashes")
+    expect(pip).toContain("--no-deps")
     expect(pip).toContain("--only-binary :all:")
     expect(pip).toContain(SEMGREP_REQUIREMENTS)
     expect(await readlink(join(root, "bin", "semgrep"))).toMatch(new RegExp(`^\\.\\./tools/semgrep-${SEMGREP_VERSION}-[0-9a-f]{12}/bin/semgrep$`))

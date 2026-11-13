@@ -1,0 +1,17 @@
+# Versions Walkdiff installs in place of the ones Semgrep pins, to take security fixes Semgrep
+# hasn't picked up yet. scripts/lockSemgrep.ts resolves the lock with these, and the installer
+# installs exactly the lock (`--no-deps`), so Semgrep's own pins don't get in the way.
+#
+# Semgrep 1.183.0 pins mcp==1.29.0 and the OpenTelemetry 1.37 family. These are minor updates
+# within the same major versions; CI checks a scan still runs through both of Semgrep's CLIs.
+# Drop an override once Semgrep's own pin reaches the fixed version.
+
+# GHSA-w4fh-qvv9-3v23, GHSA-5h93-6whr-6q8j, GHSA-rwrf-2pqf-9j8j, GHSA-84m7-p3x7-pcfv
+mcp>=1.30.0,<2
+
+# GHSA-xcq7-p3pf-p88h. The family is released together, so it moves together.
+opentelemetry-api>=1.45.1,<2
+opentelemetry-sdk>=1.45.1,<2
+opentelemetry-exporter-otlp-proto-http>=1.45.1,<2
+opentelemetry-instrumentation-requests>=0.66b0,<1
+opentelemetry-instrumentation-threading>=0.66b0,<1
