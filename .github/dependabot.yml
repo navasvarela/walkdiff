@@ -1,0 +1,40 @@
+version: 2
+
+updates:
+  # The pnpm workspace: the root and each package share one lockfile.
+  - package-ecosystem: npm
+    directories:
+      - "/"
+      - "/packages/*"
+    schedule:
+      interval: weekly
+      day: monday
+    # A compromised release is usually found and pulled within days, so new versions wait a week.
+    cooldown:
+      default-days: 7
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+  # Workflows and the action pin actions to commit SHAs; Dependabot moves the SHA and its version comment.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # Semgrep's lock takes newer versions than Semgrep pins for some packages (semgrep-overrides.txt),
+  # so a plain bump of one pin can break the install. Regenerate it with scripts/lockSemgrep.ts
+  # instead; version updates are off here, while security alerts still open pull requests.
+  - package-ecosystem: pip
+    directory: "/packages/engine/scanner-pins"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 0
