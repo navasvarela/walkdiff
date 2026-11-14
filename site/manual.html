@@ -198,6 +198,7 @@ walkdiff review https://github.com/owner/repo/pull/123</code></pre>
             </tbody>
           </table>
         </div>
+        <p>Error handling in added code is checked too: handlers that swallow errors, handlers that catch everything, Rust's <code>.unwrap()</code> outside tests, and Go's <code>_ = f()</code>.</p>
         <p>Ruff, oxlint and jscpd add likely bugs in Python and JavaScript, and new code copied from elsewhere. Turn these checks off for a repository with <code>{ "quality": { "enabled": false } }</code> in <code>.walkdiff.json</code>.</p>
       </section>
 
