@@ -1,3 +1,4 @@
+import { UnitKind } from "@walkdiff/review-model"
 import { describe, expect, it } from "vitest"
 import type { FunctionQuality } from "../syntax/functionQuality.ts"
 import { scanFunctionMetrics } from "./functionMetrics.ts"
@@ -5,7 +6,7 @@ import { scanFunctionMetrics } from "./functionMetrics.ts"
 const SMALL = { complexity: 2, nesting: 1, lines: 10, parameters: 1 }
 
 function measured(before: FunctionQuality["before"], after: FunctionQuality["after"], path = "src/a.ts", qualifiedName = "parse"): FunctionQuality {
-  return { path, qualifiedName, line: 7, before, after }
+  return { path, kind: UnitKind.Function, qualifiedName, line: 7, before, after }
 }
 
 describe("scanFunctionMetrics", () => {

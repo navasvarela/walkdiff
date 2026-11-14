@@ -1,5 +1,4 @@
-import { RiskCategory, RiskSeverity } from "@walkdiff/review-model"
-import { isTestPath } from "../testCode.ts"
+import { isTestPath, RiskCategory, RiskSeverity } from "@walkdiff/review-model"
 import { readRuffViolations, ruffCheckArgs, ruffDetail } from "./ruff.ts"
 import type { ScannerFinding } from "./scannerFinding.ts"
 
