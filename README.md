@@ -28,7 +28,9 @@ All changes has five tabs, including **Conversation** in the app: **Changes** (f
 - **Blast radius.** For every function, method or type the PR changes, removes or renames, the report
   lists where the rest of the code still uses it, linked to the host at the head commit, and flags the
   callers this PR did not touch. Removed and renamed units show any references left behind.
-- **Risks and security findings.** Built-in rules flag likely secrets (redacted in the report), risky APIs
+- **Risks and security findings.** Built-in rules flag likely secrets (redacted in the report), new
+  HTTP endpoints (and one without the auth its neighbours declare, or code that turns auth or CSRF
+  checks off), risky APIs
   such as `eval`, `shell=True`, raw HTML, `unsafe`, Go's `InsecureSkipVerify`, Java deserialization, C#'s
   `BinaryFormatter` or C's `strcpy` (only in code, not comments or strings), sensitive
   areas such as auth, payments, migrations and CI, new dependencies, and known vulnerabilities in
