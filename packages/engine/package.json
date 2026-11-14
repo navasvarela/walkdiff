@@ -9,7 +9,7 @@
     "@tree-sitter-grammars/tree-sitter-kotlin": "^1.1.0",
     "@walkdiff/review-model": "workspace:*",
     "jscpd": "5.4.2",
-    "oxlint": "1.90.0",
+    "oxlint": "1.92.0",
     "smol-toml": "^1.9.1",
     "tree-sitter-c": "^0.24.1",
     "tree-sitter-c-sharp": "^0.23.5",
