@@ -4,7 +4,7 @@ import { createServer } from "node:http"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { commitShaSchema, REVIEW_MODEL_SCHEMA_VERSION } from "@walkdiff/review-model"
-import type { ChangedFile, ReviewModel, Risk } from "@walkdiff/review-model"
+import type { ChangedFile, HostedReviewModel, Risk } from "@walkdiff/review-model"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 import { parseCommandLine, UsageError } from "./args.ts"
 import { detectPullRequestUrl } from "./ciEnvironment.ts"
@@ -13,7 +13,7 @@ import { diffLink, escapeMarkdown, renderSummaryComment, SUMMARY_COMMENT_MARKER 
 
 const SHA = commitShaSchema.parse("a".repeat(40))
 
-function modelWith(url: string, overrides: Partial<ReviewModel> = {}): ReviewModel {
+function modelWith(url: string, overrides: Partial<HostedReviewModel> = {}): HostedReviewModel {
   const file: ChangedFile = {
     diff: { status: "modified", path: "src/a.py", additions: 1, deletions: 1, content: { kind: "text", hunks: [] } },
     noise: null,
@@ -104,7 +104,7 @@ describe("renderSummaryComment", () => {
 
 describe("the comment's wording and links", () => {
   const finding = (title: string, category: Risk["category"], severity: Risk["severity"] = "low"): Risk => ({ ruleId: "r", category, severity, title, detail: "d", location: { path: "src/a|b.ts", line: 3 }, evidence: null })
-  const model = (findings: readonly Risk[], host: "github" | "gitlab" = "github"): ReviewModel => {
+  const model = (findings: readonly Risk[], host: "github" | "gitlab" = "github"): HostedReviewModel => {
     const base = modelWith("https://github.com/acme/app/pull/7")
     return { ...base, pullRequest: { ...base.pullRequest, host }, risk: { ...base.risk, findings: [...findings], checksRun: [{ name: "Semgrep", detail: "d" }, { name: "oxlint", detail: "d" }], notChecked: [] } }
   }
@@ -200,6 +200,19 @@ describe("parseCommandLine", () => {
     expect(parseCommandLine(["review", "--no-serve"], {}).command).toMatchObject({ kind: "review", options: { url: undefined, serve: false } })
     expect(() => parseCommandLine(["comment", "--report", "r"], {}).command).toThrow(UsageError)
     expect(() => parseCommandLine(["comment", "--report", "r", "--report-url", "javascript:alert(1)"], {}).command).toThrow(UsageError)
+  })
+
+  it("reads --local with or without a base", () => {
+    expect(parseCommandLine(["review", "--local"], {}).command).toMatchObject({ kind: "review", options: { url: undefined, local: { baseRef: undefined } } })
+    expect(parseCommandLine(["review", "--local", "--base", "develop"], {}).command).toMatchObject({ kind: "review", options: { local: { baseRef: "develop" } } })
+    expect(parseCommandLine(["review", "https://github.com/acme/app/pull/7"], {}).command).toMatchObject({ kind: "review", options: { local: undefined } })
+  })
+
+  it.each([
+    [["review", "--local", "https://github.com/acme/app/pull/7"], "takes no pull request URL"],
+    [["review", "--base", "main"], "--base only applies with --local"],
+  ])("refuses %j", (argv, message) => {
+    expect(() => parseCommandLine(argv, {}).command).toThrow(message)
   })
 
   it("accepts setup on its own", () => {

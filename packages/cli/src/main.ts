@@ -37,6 +37,7 @@ async function main(argv: readonly string[], log: Log): Promise<void> {
         tokens: readHostTokens(process.env),
         cacheDir: command.options.cacheDir ?? defaultCacheDir(process.env),
         env: process.env,
+        cwd: process.cwd(),
         now: () => new Date(),
         log,
         reportStep: (step) => log(`${stepLabel(step)}…`, { fields: { step } }),

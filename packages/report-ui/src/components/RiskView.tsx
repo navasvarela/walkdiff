@@ -3,6 +3,7 @@ import { CheckOutcome, SECURITY_SCAN_LIMITS, securitySummary, summarizeChecks } 
 import type { CheckRow, PullRequest, Risk, RiskAssessment } from "@walkdiff/review-model"
 import { CATEGORY_LABELS, groupByRule, SEVERITY_LABELS } from "../risks.ts"
 import { sourceLineUrl } from "../sourceLinks.ts"
+import { HostLink } from "./HostLink.tsx"
 import { InlineCode } from "./InlineCode.tsx"
 
 interface RiskViewProps {
@@ -125,11 +126,7 @@ function RiskPlace({ finding, pullRequest, onOpenFile }: RiskPlaceProps): ReactE
           {label}
         </button>
       )}
-      {location.line !== null && (
-        <a href={sourceLineUrl(pullRequest, location.path, location.line)} target="_blank" rel="noreferrer" title="Open on the host">
-          ↗
-        </a>
-      )}
+      {location.line !== null && <HostLink url={sourceLineUrl(pullRequest, location.path, location.line)} />}
       {finding.evidence !== null && <code className="risk-evidence">{finding.evidence}</code>}
     </li>
   )

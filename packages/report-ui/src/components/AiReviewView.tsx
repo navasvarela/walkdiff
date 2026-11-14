@@ -4,6 +4,7 @@ import type { AiReview, Citation, PullRequest } from "@walkdiff/review-model"
 import { digestAiReview } from "../aiDigest.ts"
 import type { AiDigest } from "../aiDigest.ts"
 import { sourceLineUrl } from "../sourceLinks.ts"
+import { HostLink } from "./HostLink.tsx"
 
 const VERDICT_LABELS: Readonly<Record<IntentVerdict, string>> = {
   [IntentVerdict.Matches]: "Matches",
@@ -157,9 +158,7 @@ function Citations({ citations, pullRequest, onOpenFile }: CitationsProps): Reac
             <button type="button" className="link-button" onClick={() => onOpenFile(citation.path)}>
               {label}
             </button>
-            <a href={sourceLineUrl(pullRequest, citation.path, citation.startLine, citation.side)} target="_blank" rel="noreferrer" title="Open on the host">
-              ↗
-            </a>
+            <HostLink url={sourceLineUrl(pullRequest, citation.path, citation.startLine, citation.side)} />
           </li>
         )
       })}

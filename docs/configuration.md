@@ -4,6 +4,8 @@
 
 | Option | Used with | What it does |
 | --- | --- | --- |
+| `--local` | `review` | Reviews the committed work on the current branch of the repository you're in, before it has a pull request |
+| `--base <ref>` | `review --local` | The branch it will merge into (default: the remote's default branch, else `main` or `master`) |
 | `--out <dir>` | `review` | Writes the report here instead of the cache folder |
 | `--port <number>` | `review`, `app` | Sets the local port. `review` uses 4318, or any free port if that is taken; `app` uses 4317 |
 | `--no-serve` | `review` | Writes the report and exits |
