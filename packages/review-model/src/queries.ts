@@ -57,6 +57,7 @@ const SECURITY_CATEGORIES: ReadonlySet<RiskCategory> = new Set([
   RiskCategory.Vulnerability,
   RiskCategory.CodeScan,
   RiskCategory.AttackSurface,
+  RiskCategory.Infrastructure,
 ])
 
 export function isSecurityFinding(finding: Risk): boolean {
