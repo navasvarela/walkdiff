@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import { AiReviewStatus, changedUnitsOf, GitHostKind, IntentVerdict, isBehaviourChange, RiskSeverity, SECURITY_SCAN_LIMITS, securityFindings, securitySummary, summarizeChecks, totalsOf, untouchedReferences } from "@walkdiff/review-model"
-import type { AiReview, PullRequest, Risk, RiskAssessment, ReviewModel } from "@walkdiff/review-model"
+import type { AiReview, HostedPullRequest, HostedReviewModel, ReviewModel, Risk, RiskAssessment } from "@walkdiff/review-model"
 
 /** Finds this tool's earlier comment so later runs replace it instead of adding another. */
 export const SUMMARY_COMMENT_MARKER = "<!-- walkdiff-report -->"
@@ -25,7 +25,7 @@ const AlertKind = { Note: "NOTE", Warning: "WARNING", Caution: "CAUTION" } as co
 type AlertKind = (typeof AlertKind)[keyof typeof AlertKind]
 
 /** The PR comment: what a reviewer should know before deciding whether to open the report. */
-export function renderSummaryComment(model: ReviewModel, reportUrl: string): string {
+export function renderSummaryComment(model: HostedReviewModel, reportUrl: string): string {
   const lines = [
     SUMMARY_COMMENT_MARKER,
     `### <img src="${LOGO_URL}" alt="" width="${LOGO_SIZE}" height="${LOGO_SIZE}" align="top"> Walkdiff`,
@@ -42,7 +42,7 @@ export function renderSummaryComment(model: ReviewModel, reportUrl: string): str
   return lines.join("\n")
 }
 
-function securityCallout(risk: RiskAssessment, pullRequest: PullRequest): string[] {
+function securityCallout(risk: RiskAssessment, pullRequest: HostedPullRequest): string[] {
   const scanners = risk.checksRun.map((check) => check.name).filter((name) => SECURITY_CHECKS.has(name))
   const sentence = `**${securitySummary(risk.findings)}** from ${joinNames(scanners.map(inlineCode))}. ${SECURITY_SCAN_LIMITS}`
   // GitLab only draws these from 17.10, and shows the marker as text before that. GitHub always does.
@@ -100,7 +100,7 @@ function aiRow(ai: AiReview): Row[] {
   }
 }
 
-function findingsTable(findings: readonly Risk[], pullRequest: PullRequest): string[] {
+function findingsTable(findings: readonly Risk[], pullRequest: HostedPullRequest): string[] {
   if (findings.length === 0) return []
   const groups = new Map<string, Risk[]>()
   for (const finding of findings) groups.set(finding.title, [...(groups.get(finding.title) ?? []), finding])
@@ -118,7 +118,7 @@ function severityRank(group: readonly Risk[]): number {
   return severity === undefined ? SEVERITY_ORDER.length : SEVERITY_ORDER.indexOf(severity)
 }
 
-function whereCell(group: readonly Risk[], pullRequest: PullRequest): string {
+function whereCell(group: readonly Risk[], pullRequest: HostedPullRequest): string {
   const first = group.at(0)
   if (first?.location == null) return "This PR"
   const { path, line } = first.location
@@ -133,7 +133,7 @@ function whereCell(group: readonly Risk[], pullRequest: PullRequest): string {
  * a wrong one only opens the diff at the top. GitLab needs both old and new line numbers to reach
  * a line, and a finding only has the new one, so its links stop at the file.
  */
-export function diffLink(pullRequest: PullRequest, path: string, line: number | null): string {
+export function diffLink(pullRequest: HostedPullRequest, path: string, line: number | null): string {
   if (pullRequest.host === GitHostKind.GitLab) {
     return `${pullRequest.url}/diffs#${createHash("sha1").update(path).digest("hex")}`
   }

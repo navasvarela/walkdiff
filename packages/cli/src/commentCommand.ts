@@ -2,7 +2,9 @@ import { appendFile, readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { gitHostFor, HostApiError, parsePullRequestUrl } from "@walkdiff/providers"
 import type { HostTokens } from "@walkdiff/providers"
-import { reviewModelSchema } from "@walkdiff/review-model"
+import { isHostedReview, LogLevel, reviewModelSchema } from "@walkdiff/review-model"
+import type { Log } from "@walkdiff/review-model"
+import { UsageError } from "./args.ts"
 import type { CommentOptions } from "./args.ts"
 import { REVIEW_MODEL_FILE } from "./report.ts"
 import { renderSummaryComment, SUMMARY_COMMENT_MARKER } from "./summaryComment.ts"
@@ -11,7 +13,7 @@ export interface CommentDependencies {
   readonly tokens: HostTokens
   /** GitHub Actions' job summary file, written so the result is visible without a comment. */
   readonly stepSummaryPath: string | undefined
-  readonly log: (message: string) => void
+  readonly log: Log
 }
 
 /**
@@ -21,6 +23,7 @@ export interface CommentDependencies {
 export async function runComment(options: CommentOptions, deps: CommentDependencies): Promise<void> {
   const text = await readFile(join(options.reportDir, REVIEW_MODEL_FILE), "utf8")
   const model = reviewModelSchema.parse(JSON.parse(text))
+  if (!isHostedReview(model)) throw new UsageError(`${options.reportDir} is a review of a local branch, which has no pull request to comment on.`)
   const body = renderSummaryComment(model, options.reportUrl)
 
   if (deps.stepSummaryPath !== undefined) {
@@ -32,6 +35,6 @@ export async function runComment(options: CommentOptions, deps: CommentDependenc
     deps.log("Posted the summary comment.")
   } catch (error: unknown) {
     if (!(error instanceof HostApiError) || !error.isPermissionProblem) throw error
-    deps.log(`Could not post the summary comment (this token may be read-only): ${error.message}`)
+    deps.log(`Could not post the summary comment (this token may be read-only): ${error.message}`, { level: LogLevel.Warn })
   }
 }

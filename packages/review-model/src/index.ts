@@ -21,6 +21,11 @@ export {
   AiReviewStatus,
   commitShaSchema,
   pullRequestSchema,
+  hostedPullRequestSchema,
+  localChangeSchema,
+  LOCAL_CHANGE_HOST,
+  isHostedPullRequest,
+  isHostedReview,
   diffLineSchema,
   hunkSchema,
   fileContentSchema,
@@ -58,6 +63,9 @@ export {
 export type {
   CommitSha,
   PullRequest,
+  HostedPullRequest,
+  HostedReviewModel,
+  LocalChange,
   DiffLine,
   Hunk,
   FileContent,
@@ -96,6 +104,8 @@ export type {
 export { CheckOutcome, summarizeChecks, totalsOf } from "./checkSummary.ts"
 export type { CheckRow, CheckTotals } from "./checkSummary.ts"
 export { changedUnitsOf, codeSpan, isBehaviourChange, isSecurityFinding, isTestKind, namesOfChecks, SECURITY_SCAN_LIMITS, securityFindings, securitySummary, untouchedReferences } from "./queries.ts"
+export { isTestPath, isTestUnit } from "./testCode.ts"
+export type { NamedUnit } from "./testCode.ts"
 export {
   AiProviderKind,
   aiConnectionResultSchema,
@@ -137,3 +147,6 @@ export {
 export type { ApprovalBlocked, ApproveStackRequest, ApproveStackResult, BlockedMember, MemberApproval, PullRequestStatus, StackMemberStatus, StackView } from "./stackStatus.ts"
 export { parseProgressRecord, progressKey, progressRecordSchema } from "./browserProgress.ts"
 export type { ProgressRecord } from "./browserProgress.ts"
+
+export { LogLevel } from "./logging.ts"
+export type { Log, LogDetails, LogFields } from "./logging.ts"
