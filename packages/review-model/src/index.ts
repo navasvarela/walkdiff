@@ -96,6 +96,8 @@ export type {
 export { CheckOutcome, summarizeChecks, totalsOf } from "./checkSummary.ts"
 export type { CheckRow, CheckTotals } from "./checkSummary.ts"
 export { changedUnitsOf, codeSpan, isBehaviourChange, isSecurityFinding, isTestKind, namesOfChecks, SECURITY_SCAN_LIMITS, securityFindings, securitySummary, untouchedReferences } from "./queries.ts"
+export { isTestPath, isTestUnit } from "./testCode.ts"
+export type { NamedUnit } from "./testCode.ts"
 export {
   AiProviderKind,
   aiConnectionResultSchema,

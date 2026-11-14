@@ -1,10 +1,9 @@
-import { RiskCategory, RiskSeverity } from "@walkdiff/review-model"
+import { isTestPath, isTestUnit, RiskCategory, RiskSeverity } from "@walkdiff/review-model"
 import type { Risk } from "@walkdiff/review-model"
 import type { FunctionQuality } from "../syntax/functionQuality.ts"
 import type { FunctionMetrics } from "../syntax/shape.ts"
 import { findingAt } from "./scannedFile.ts"
 import type { RuleDescription } from "./scannedFile.ts"
-import { isTestPath, isTestUnit } from "./testCode.ts"
 
 interface MetricRule extends RuleDescription {
   readonly metric: keyof FunctionMetrics
@@ -39,7 +38,7 @@ const METRIC_RULES: readonly MetricRule[] = [
 /** Flags functions this PR added over a limit or made meaningfully worse; test code is left out. */
 export function scanFunctionMetrics(functions: readonly FunctionQuality[]): Risk[] {
   return functions
-    .filter((fn) => !isTestPath(fn.path) && !isTestUnit(fn.qualifiedName))
+    .filter((fn) => !isTestPath(fn.path) && !isTestUnit(fn))
     .flatMap((fn) =>
       METRIC_RULES.flatMap((rule) => {
         const before = fn.before?.[rule.metric]

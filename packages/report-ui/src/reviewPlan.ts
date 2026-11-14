@@ -1,4 +1,4 @@
-import { changedUnitsOf, DiffLineKind, FileContentKind, FileChangeStatus, isBehaviourChange, isTestKind, RiskCategory, RiskSeverity, UnitChangeKind, UnitImpactStatus, UnitKind, untouchedReferences } from "@walkdiff/review-model"
+import { changedUnitsOf, DiffLineKind, FileContentKind, FileChangeStatus, isBehaviourChange, isTestPath, isTestUnit, RiskCategory, RiskSeverity, UnitChangeKind, UnitImpactStatus, UnitKind, untouchedReferences } from "@walkdiff/review-model"
 import type { ChangedFile, ChangedUnit, ReviewModel, Risk, TestCoverage, UnitChange } from "@walkdiff/review-model"
 
 /*
@@ -81,8 +81,6 @@ const DATA_KIND_CALLER_DIVISOR = 3
 const CATEGORIES_NOT_IN_CHECKS: ReadonlySet<RiskCategory> = new Set([RiskCategory.Size, RiskCategory.CodeQuality])
 
 const FIRST_SENTENCE = /^.+?[.!?](?=\s|$)/
-const TEST_PATH = /(^|\/)(tests?|__tests__|spec|testing)\/|[._-](test|spec)\.[a-z]+$|(^|\/)test_[^/]+\.py$/i
-const TEST_UNIT = /(^|::|\.)tests?(::|\.)|(^|::|\.)test_/
 
 export interface ReviewStop {
   /** Null for a file without functions to show, such as a CI pipeline. */
@@ -180,14 +178,6 @@ function countFindingsOffPath(findings: readonly Risk[], stops: readonly ReviewS
   // A finding about the whole PR, such as no tests changed, has no place to visit, so the path
   // isn't missing it. The brief's checks already show it.
   return findings.filter((finding) => finding.location !== null && !CATEGORIES_NOT_IN_CHECKS.has(finding.category) && !visited.has(finding)).length
-}
-
-export function isTestPath(path: string): boolean {
-  return TEST_PATH.test(path)
-}
-
-export function isTestUnit(unit: ChangedUnit): boolean {
-  return isTestKind(unit.kind) || TEST_UNIT.test(unit.qualifiedName)
 }
 
 function isOnThePathKind(unit: ChangedUnit, findings: readonly Risk[]): boolean {

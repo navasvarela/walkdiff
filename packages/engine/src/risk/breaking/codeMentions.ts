@@ -1,7 +1,7 @@
+import { isTestPath } from "@walkdiff/review-model"
 import type { CommitSha } from "@walkdiff/review-model"
 import { readBlobs } from "../../blobs.ts"
 import { escapeRegExp, filesMentioning } from "../../impact/candidateFiles.ts"
-import { isTestPath } from "../testCode.ts"
 
 export interface CodeMention {
   readonly path: string
