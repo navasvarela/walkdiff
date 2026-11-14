@@ -75,7 +75,7 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
     privatePackages: config.dependencies.private,
     allowedLicenses: config.dependencies.allowedLicenses ?? undefined,
   })
-  const supplyChain = await scanSupplyChain({ repoDir: request.repoDir, base: request.base, head: request.head, files: scanned, privatePackages: config.dependencies.private })
+  const supplyChain = await scanSupplyChain({ repoDir: request.repoDir, base: request.base, head: request.head, files: scanned, privatePackages: config.dependencies.private, network: request.network, disabled: request.disabledChecks })
   request.reportStep(AnalysisStep.ScanningCode)
   const pipelineFiles = await readPipelineFiles(scanned, (paths) => readHeadTexts(request, paths))
   const codeScan = await runCodeScanners({ files: scanned, semgrepRules: config.scanners.semgrep.rules, network: request.network, run: request.runScanner, disabled: request.disabledChecks, pipelineFiles })

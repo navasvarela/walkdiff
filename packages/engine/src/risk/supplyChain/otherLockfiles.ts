@@ -1,5 +1,6 @@
 import { basename } from "node:path"
 import { parse as parseToml } from "smol-toml"
+import { Ecosystem } from "../dependencies/ecosystem.ts"
 import { field, stringField } from "../dependencies/fields.ts"
 import { normalizePythonName } from "../dependencies/packages.ts"
 import { hashesByAlgorithm } from "./lockedPackage.ts"
@@ -7,10 +8,10 @@ import type { LockedPackage, LockfileReader } from "./lockedPackage.ts"
 import { gitOrigin, OriginKind, PublicRegistry, registryOrigin } from "./packageOrigin.ts"
 import type { PackageOrigin } from "./packageOrigin.ts"
 
-export const CARGO_LOCK: LockfileReader = { matches: (name) => name === "Cargo.lock", read: (text) => tomlPackages(text, cargoPackage) }
-export const UV_LOCK: LockfileReader = { matches: (name) => name === "uv.lock", read: (text) => tomlPackages(text, uvPackage, normalizePythonName) }
-export const POETRY_LOCK: LockfileReader = { matches: (name) => name === "poetry.lock", read: (text) => tomlPackages(text, poetryPackage, normalizePythonName) }
-export const GO_SUM: LockfileReader = { matches: (name) => name === "go.sum", read: readGoSum }
+export const CARGO_LOCK: LockfileReader = { ecosystem: Ecosystem.Crates, matches: (name) => name === "Cargo.lock", read: (text) => tomlPackages(text, cargoPackage) }
+export const UV_LOCK: LockfileReader = { ecosystem: Ecosystem.PyPI, matches: (name) => name === "uv.lock", read: (text) => tomlPackages(text, uvPackage, normalizePythonName) }
+export const POETRY_LOCK: LockfileReader = { ecosystem: Ecosystem.PyPI, matches: (name) => name === "poetry.lock", read: (text) => tomlPackages(text, poetryPackage, normalizePythonName) }
+export const GO_SUM: LockfileReader = { ecosystem: Ecosystem.Go, matches: (name) => name === "go.sum", read: readGoSum }
 
 const FROM_PYPI: PackageOrigin = { kind: OriginKind.Registry, registry: PublicRegistry.PyPI, secure: true }
 const LOCAL: PackageOrigin = { kind: OriginKind.Local }

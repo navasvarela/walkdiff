@@ -31,6 +31,7 @@ const CHECKS: readonly CheckDescription[] = [
   { id: CheckId.Zizmor, name: "zizmor", purpose: "Finds security problems in GitHub Actions workflows", binary: ZIZMOR_BINARY, install: "walkdiff setup", sends: null },
   { id: CheckId.Poutine, name: "poutine", purpose: "Finds security problems in GitLab CI, Azure Pipelines and Tekton", binary: POUTINE_BINARY, install: "walkdiff setup", sends: null },
   { id: CheckId.DependencyTrust, name: "Dependency trust", purpose: "Flags new packages that are malicious, missing from the registry, very new or lookalikes", binary: null, install: null, sends: "Names of new direct dependencies, except those you list as private, to OSV, npm, PyPI and crates.io" },
+  { id: CheckId.NpmReleases, name: "npm release history", purpose: "Flags npm upgrades published by a new account or without the provenance earlier releases had", binary: null, install: null, sends: "Names and versions of upgraded npm packages, except those you list as private, to npm" },
   { id: CheckId.FunctionMetrics, name: "Function measures", purpose: "Flags complex, long or deeply nested functions", binary: null, install: null, sends: null },
   { id: CheckId.Ruff, name: "Ruff", purpose: "Finds likely bugs and insecure code in Python", binary: RUFF_BINARY, install: "walkdiff setup", sends: null },
   { id: CheckId.Oxlint, name: "oxlint", purpose: "Finds likely bugs in TypeScript and JavaScript", binary: OXLINT_BINARY, install: "pnpm install", sends: null },
