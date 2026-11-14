@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.11.0
+
+- **Review your own branch before opening a pull request:** `walkdiff review --local` reviews the committed work on the current branch of the repository you're in, against the remote's default branch or `--base <ref>`. It reads the repository in place without fetching or changing anything, and says how many files have uncommitted changes it left out. The report is the same, without what needs a host: the PR link, links to files, posting a review, and coverage from CI.
+- **Kotlin and C#:** files in these languages now get changed units with change facts, callers traced across the repository, function metrics, risky-API rules and syntax highlighting.
+  - **Kotlin:** extension functions are named by the type they extend, as `String.shout`.
+  - **C#:** file-scoped namespaces name the declarations after them, as `Acme.Server.Runner.Run`.
+- **JSON logs:** `--log-format json`, or `WALKDIFF_LOG_FORMAT=json` in CI, prints each message to stderr as one JSON object per line, with `time`, `level` and `msg`, plus fields such as the analysis step or the report's folder. Messages now have levels, `info`, `warn` or `error`, and the text format is unchanged.
+- **Test files are recognised the same way everywhere:**
+  - `ServerTest.java`, `ParserTests.kt`, `Tests/` folders and `_test` files in any language count as tests in every check.
+  - Go's `TestXxx` functions and Rust's `tests.rs` stay off the review path.
+  - Test files no longer get function-metric findings or a "no tests changed" note.
+- **Semgrep's environment is patched:** Walkdiff now installs the fixed versions of `mcp` (1.30.0) and OpenTelemetry (1.45.2) with Semgrep, which still pins vulnerable ones itself. Existing installs pick this up on the next run.
+
 ## 0.10.0
 
 - **Dependency checks for Go and Java:** PRs that add or bump dependencies in `go.mod`, `pom.xml`, `build.gradle`, `build.gradle.kts`, Gradle version catalogs (`*.versions.toml`) or `gradle.lockfile` now get what npm, Cargo and Python ones get. Each new direct dependency is noted, checked for trust (known malicious, not on its registry, very new, or a lookalike name) and against your licence allowlist, and versions new to the build are looked up in OSV. Go and Maven packages are looked up through [deps.dev](https://deps.dev), which covers the Go module proxy, Maven Central and Google's Maven repository. `go.sum` isn't read, since it lists versions the build dropped, and a Maven module of the project's own group is recognised as part of the project.
