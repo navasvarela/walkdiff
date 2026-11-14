@@ -137,6 +137,7 @@ walkdiff review https://github.com/owner/repo/pull/123</code></pre>
         <p>Built-in rules read the lines a PR adds, and only code counts, not comments or strings:</p>
         <ul>
           <li><strong>Secrets</strong>, redacted in the report.</li>
+          <li><strong>Attack surface</strong>: new HTTP endpoints, a new one without the auth the other routes in its file declare, and code that turns auth or CSRF checks off, such as <code>[AllowAnonymous]</code> or <code>@csrf_exempt</code>.</li>
           <li><strong>Risky APIs</strong>, such as <code>eval</code>, <code>shell=True</code>, raw HTML, <code>unsafe</code>, disabled TLS checks, SQL built from strings, Java deserialization, or C's <code>strcpy</code>.</li>
           <li><strong>Sensitive areas</strong>: auth, payments, migrations, CI, and paths your team marks.</li>
           <li><strong>Infrastructure</strong>: Dockerfiles (unpinned bases, <code>curl | sh</code>, secrets in the image, root), Kubernetes manifests (privileged pods, host access, root, added capabilities) and Terraform (open ingress, public buckets and databases, encryption off, IAM wildcards).</li>
@@ -199,6 +200,7 @@ walkdiff review https://github.com/owner/repo/pull/123</code></pre>
             </tbody>
           </table>
         </div>
+        <p>Error handling in added code is checked too: handlers that swallow errors, handlers that catch everything, Rust's <code>.unwrap()</code> outside tests, and Go's <code>_ = f()</code>.</p>
         <p>Ruff, oxlint and jscpd add likely bugs in Python and JavaScript, and new code copied from elsewhere. Turn these checks off for a repository with <code>{ "quality": { "enabled": false } }</code> in <code>.walkdiff.json</code>.</p>
       </section>
 

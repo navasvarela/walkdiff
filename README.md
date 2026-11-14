@@ -28,7 +28,9 @@ All changes has five tabs, including **Conversation** in the app: **Changes** (f
 - **Blast radius.** For every function, method or type the PR changes, removes or renames, the report
   lists where the rest of the code still uses it, linked to the host at the head commit, and flags the
   callers this PR did not touch. Removed and renamed units show any references left behind.
-- **Risks and security findings.** Built-in rules flag likely secrets (redacted in the report), risky APIs
+- **Risks and security findings.** Built-in rules flag likely secrets (redacted in the report), new
+  HTTP endpoints (and one without the auth its neighbours declare, or code that turns auth or CSRF
+  checks off), risky APIs
   such as `eval`, `shell=True`, raw HTML, `unsafe`, Go's `InsecureSkipVerify`, Java deserialization, C#'s
   `BinaryFormatter` or C's `strcpy` (only in code, not comments or strings), sensitive
   areas such as auth, payments, migrations and CI, new dependencies, and known vulnerabilities in
@@ -229,6 +231,18 @@ without the definition changing, and inputs of a GitHub Action's `action.yml`.
 
 Walkdiff flags poor implementations and bad practice in the code a PR adds, under the "Code quality"
 category in the Risks tab. These findings never count as security findings.
+
+**Error handling** is checked on added code, outside tests:
+
+| Finding | Severity | Languages |
+| --- | --- | --- |
+| Error swallowed: a handler that does nothing, or only `pass` or `...` | Medium | TypeScript, JavaScript, Python, Java, Kotlin, C#, C++, and Go's empty `if err != nil {}` |
+| Catches every error: a bare `except:`, `BaseException`, `Throwable` or `catch (...)` | Low | Python, Java, Kotlin, C++ |
+| May panic: `.unwrap()` or `.expect()` | Low | Rust, outside `mod tests` and `#[test]` functions |
+| Result discarded: `_ = f()` | Low | Go |
+
+A handler holding only a comment counts as a decision someone explained, and isn't flagged. Neither is a
+promise `.catch(() => fallback)` that returns a value.
 
 **Function metrics** are built in and cover Rust, TypeScript, Python, Go, Java, Kotlin, C#, C and C++. A function is flagged when
 the PR adds it over a limit, pushes it over one, or makes one already over the limit at least 20%

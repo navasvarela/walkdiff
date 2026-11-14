@@ -23,6 +23,15 @@ export function addedLines(diff: FileDiff): AddedLine[] {
   )
 }
 
+export function removedLines(diff: FileDiff): AddedLine[] {
+  if (diff.content.kind === FileContentKind.Binary) {
+    return []
+  }
+  return diff.content.hunks.flatMap((hunk) =>
+    hunk.lines.flatMap((line) => (line.kind === DiffLineKind.Removed ? [{ line: line.oldLine, content: line.content }] : [])),
+  )
+}
+
 /** Lockfiles and vendored code are third-party content; scanning them only produces noise. */
 export function isThirdParty(file: ScannedFile): boolean {
   return file.noise?.kind === NoiseKind.Lockfile || file.noise?.kind === NoiseKind.Vendored
