@@ -384,6 +384,8 @@ export const RiskCategory = {
   AttackSurface: "attackSurface",
   /** Misconfigured infrastructure: Dockerfiles, Kubernetes manifests and Terraform. */
   Infrastructure: "infrastructure",
+  /** How packages reach the build: lockfile sources and hashes, install scripts and registry settings. */
+  SupplyChain: "supplyChain",
 } as const
 export type RiskCategory = (typeof RiskCategory)[keyof typeof RiskCategory]
 

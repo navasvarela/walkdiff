@@ -6,6 +6,7 @@ import { scanDangerousApis } from "./dangerousApis.ts"
 import { scanDependencies } from "./dependencies/scanDependencies.ts"
 import { scanErrorHandling } from "./errorHandling.ts"
 import { scanInfrastructure } from "./infrastructure.ts"
+import { scanSupplyChain } from "./supplyChain/scanSupplyChain.ts"
 import { scanFunctionMetrics } from "./functionMetrics.ts"
 import { languageGaps } from "./languageCoverage.ts"
 import { reviewSignals } from "./reviewSignals.ts"
@@ -74,6 +75,7 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
     privatePackages: config.dependencies.private,
     allowedLicenses: config.dependencies.allowedLicenses ?? undefined,
   })
+  const supplyChain = await scanSupplyChain({ repoDir: request.repoDir, base: request.base, head: request.head, files: scanned, privatePackages: config.dependencies.private })
   request.reportStep(AnalysisStep.ScanningCode)
   const pipelineFiles = await readPipelineFiles(scanned, (paths) => readHeadTexts(request, paths))
   const codeScan = await runCodeScanners({ files: scanned, semgrepRules: config.scanners.semgrep.rules, network: request.network, run: request.runScanner, disabled: request.disabledChecks, pipelineFiles })
@@ -97,6 +99,7 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
     ...scanInfrastructure(scanned),
     ...codeScan.findings,
     ...dependencies.findings,
+    ...supplyChain.findings,
     ...reviewSignals(request.files),
     ...breaking,
     ...quality.findings,
@@ -105,8 +108,8 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
   return {
     securityLevel: securityLevelOf(findings),
     findings,
-    checksRun: [BUILT_IN_CHECK, BREAKING_CHANGE_CHECK, ...codeScan.checksRun, ...dependencies.checksRun, ...quality.checksRun],
-    notChecked: [...codeScan.notChecked, ...dependencies.notChecked, ...quality.notChecked, ...coverageGaps(request.files, request.files.length - scanned.length)],
+    checksRun: [BUILT_IN_CHECK, BREAKING_CHANGE_CHECK, ...codeScan.checksRun, ...dependencies.checksRun, ...supplyChain.checksRun, ...quality.checksRun],
+    notChecked: [...codeScan.notChecked, ...dependencies.notChecked, ...supplyChain.notChecked, ...quality.notChecked, ...coverageGaps(request.files, request.files.length - scanned.length)],
   }
 }
 

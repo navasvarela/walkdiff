@@ -178,6 +178,32 @@ Built-in rules read the lines a PR adds to infrastructure files, outside tests a
 | Kubernetes manifests | Privileged containers, the host's network, process or IPC namespaces, privilege escalation, running as root, `hostPath` volumes, added `SYS_ADMIN`, `NET_ADMIN` or `ALL` capabilities, and images without a version |
 | Terraform | Ingress from `0.0.0.0/0` (not egress), public S3 ACLs, public-access blocks turned off, publicly accessible databases, encryption turned off, and IAM wildcard actions |
 
+## Supply chain
+
+Built-in rules check how packages reach the build, separately from whether they're vulnerable. They
+compare each lockfile at the merge base and at head, and read the package-manager settings a PR adds.
+They read only the repository, so they also run with `--offline`. Findings use the "Supply chain"
+category, which counts towards the security summary.
+
+Lockfiles read: `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock` (Yarn 1 and 2+),
+`pnpm-lock.yaml`, `Cargo.lock`, `uv.lock`, `poetry.lock` and `go.sum`.
+
+| Flags | Why |
+| --- | --- |
+| The same version with a different content hash | A registry never serves new files for a published version, so a hand edit or a tampered mirror is likely |
+| A private package now resolved from a public registry | Dependency confusion: anyone can publish your private name publicly. Private names come from `dependencies.private` in `.walkdiff.json` |
+| A package that moves to another registry, repository or URL | How a fork or a takeover gets in |
+| A new package from a git repository or a plain URL, or any over `http://` | Nothing records who published it, or anyone on the network can swap it |
+| An upgrade that starts running an install script, or a new package that runs one | Compromised releases often add a `postinstall` (npm and pnpm 6–8 lockfiles record this) |
+| A changed registry in `.npmrc`, `.yarnrc.yml`, `bunfig.toml`, `pip.conf`, requirement files, `uv.toml`, `pyproject.toml` or `.cargo/config.toml` | Changes where every package comes from |
+| `--extra-index-url` for pip | pip installs the highest version from any index, the original dependency confusion attack |
+| Certificate checks turned off, `--trusted-host`, or a registry over `http://` | Packages can be swapped on the way |
+| A changed `preinstall`, `install` or `postinstall` script in `package.json` | npm runs it on every install |
+| `.pnpmfile.cjs` or a Yarn plugin | Code that runs inside the package manager |
+| A `replace` in `go.mod` pointing at another module | Builds use a different module than the one required |
+
+Only entries the PR adds or changes are judged: what was already in the lockfile was already reviewed.
+
 ## Breaking changes
 
 Walkdiff flags changes that could break other code or a deployment, under the "Breaking change" category
