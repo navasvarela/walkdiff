@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { commitShaSchema, REVIEW_MODEL_SCHEMA_VERSION } from "@walkdiff/review-model"
 import type { ChangedFile, HostedReviewModel, Risk } from "@walkdiff/review-model"
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
-import { parseCommand, UsageError } from "./args.ts"
+import { parseCommandLine, UsageError } from "./args.ts"
 import { detectPullRequestUrl } from "./ciEnvironment.ts"
 import { runComment } from "./commentCommand.ts"
 import { diffLink, escapeMarkdown, renderSummaryComment, SUMMARY_COMMENT_MARKER } from "./summaryComment.ts"
@@ -195,29 +195,45 @@ describe("detectPullRequestUrl", () => {
   })
 })
 
-describe("parseCommand", () => {
+describe("parseCommandLine", () => {
   it("accepts review without a URL and requires both comment options", () => {
-    expect(parseCommand(["review", "--no-serve"])).toMatchObject({ kind: "review", options: { url: undefined, serve: false } })
-    expect(() => parseCommand(["comment", "--report", "r"])).toThrow(UsageError)
-    expect(() => parseCommand(["comment", "--report", "r", "--report-url", "javascript:alert(1)"])).toThrow(UsageError)
+    expect(parseCommandLine(["review", "--no-serve"], {}).command).toMatchObject({ kind: "review", options: { url: undefined, serve: false } })
+    expect(() => parseCommandLine(["comment", "--report", "r"], {}).command).toThrow(UsageError)
+    expect(() => parseCommandLine(["comment", "--report", "r", "--report-url", "javascript:alert(1)"], {}).command).toThrow(UsageError)
   })
 
   it("reads --local with or without a base", () => {
-    expect(parseCommand(["review", "--local"])).toMatchObject({ kind: "review", options: { url: undefined, local: { baseRef: undefined } } })
-    expect(parseCommand(["review", "--local", "--base", "develop"])).toMatchObject({ kind: "review", options: { local: { baseRef: "develop" } } })
-    expect(parseCommand(["review", "https://github.com/acme/app/pull/7"])).toMatchObject({ kind: "review", options: { local: undefined } })
+    expect(parseCommandLine(["review", "--local"], {}).command).toMatchObject({ kind: "review", options: { url: undefined, local: { baseRef: undefined } } })
+    expect(parseCommandLine(["review", "--local", "--base", "develop"], {}).command).toMatchObject({ kind: "review", options: { local: { baseRef: "develop" } } })
+    expect(parseCommandLine(["review", "https://github.com/acme/app/pull/7"], {}).command).toMatchObject({ kind: "review", options: { local: undefined } })
   })
 
   it.each([
     [["review", "--local", "https://github.com/acme/app/pull/7"], "takes no pull request URL"],
     [["review", "--base", "main"], "--base only applies with --local"],
   ])("refuses %j", (argv, message) => {
-    expect(() => parseCommand(argv)).toThrow(message)
+    expect(() => parseCommandLine(argv, {}).command).toThrow(message)
   })
 
   it("accepts setup on its own", () => {
-    expect(parseCommand(["setup"])).toEqual({ kind: "setup" })
-    expect(() => parseCommand(["setup", "extra"])).toThrow(UsageError)
+    expect(parseCommandLine(["setup"], {}).command).toEqual({ kind: "setup" })
+    expect(() => parseCommandLine(["setup", "extra"], {}).command).toThrow(UsageError)
+  })
+
+  it.each([
+    [[], {}, "text"],
+    [["--log-format", "json"], {}, "json"],
+    [[], { WALKDIFF_LOG_FORMAT: "json" }, "json"],
+    [["--log-format", "text"], { WALKDIFF_LOG_FORMAT: "json" }, "text"],
+  ])("reads the log format from %j and %j as %s", (flags, env, format) => {
+    expect(parseCommandLine(["review", ...flags], env).logFormat).toBe(format)
+  })
+
+  it.each([
+    [["--log-format", "xml"], {}, "--log-format must be text or json"],
+    [[], { WALKDIFF_LOG_FORMAT: "yaml" }, "WALKDIFF_LOG_FORMAT must be text or json"],
+  ])("refuses an unknown log format", (flags, env, message) => {
+    expect(() => parseCommandLine(["review", ...flags], env)).toThrow(message)
   })
 })
 

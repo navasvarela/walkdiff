@@ -3,8 +3,8 @@ import { analyzeChangedFiles, coverageFromArchives, coverageInPullRequest, creat
 import type { AiProvider } from "@walkdiff/engine"
 import { gitHostFor, parsePullRequestUrl, repositoryPath } from "@walkdiff/providers"
 import type { HostTokens, PullRequestRef } from "@walkdiff/providers"
-import { AiReviewStatus, AnalysisStep, LOCAL_CHANGE_HOST, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, securitySummary } from "@walkdiff/review-model"
-import type { AiReview, CheckId, CommitSha, FileDiff, LocalChange, PullRequest, ReviewModel, StepReporter, TestCoverage } from "@walkdiff/review-model"
+import { AiReviewStatus, AnalysisStep, LOCAL_CHANGE_HOST, LogLevel, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, securitySummary } from "@walkdiff/review-model"
+import type { AiReview, CheckId, CommitSha, FileDiff, LocalChange, Log, PullRequest, ReviewModel, StepReporter, TestCoverage } from "@walkdiff/review-model"
 import type { AiOptions, LocalReviewOptions, ReviewOptions } from "./args.ts"
 import { detectPullRequestUrl } from "./ciEnvironment.ts"
 import type { CiEnvironment } from "./ciEnvironment.ts"
@@ -21,7 +21,7 @@ export interface AnalysisDependencies {
   readonly tokens: HostTokens
   readonly cacheDir: string
   readonly now: () => Date
-  readonly log: (message: string) => void
+  readonly log: Log
   /** Told as each step of the analysis starts. */
   readonly reportStep: StepReporter
 }
@@ -57,12 +57,12 @@ export async function runReview(options: ReviewOptions, deps: ReviewDependencies
   const { model, reportDir } = options.local === undefined ? await reviewPullRequest(options, deps) : await reviewLocalBranch(options.local, options, deps)
   await writeReport(model, reportDir)
 
-  deps.log(`${model.files.length} files changed, ${securitySummary(model.risk.findings).toLowerCase()}. Report written to ${reportDir}`)
+  deps.log(`${model.files.length} files changed, ${securitySummary(model.risk.findings).toLowerCase()}. Report written to ${reportDir}`, { fields: { files: model.files.length, findings: model.risk.findings.length, reportDir } })
   if (!options.serve) {
     return
   }
   const server = await serveReportOnPreferredPort(reportDir, options.port)
-  deps.log(`Serving the report at ${server.url} (Ctrl+C to stop)`)
+  deps.log(`Serving the report at ${server.url} (Ctrl+C to stop)`, { fields: { url: server.url } })
 }
 
 /**
@@ -89,9 +89,9 @@ async function reviewPullRequest(options: ReviewOptions, deps: ReviewDependencie
 async function reviewLocalBranch(local: LocalReviewOptions, options: ReviewOptions, deps: ReviewDependencies): Promise<Review> {
   const { repoDir, change, uncommittedFiles } = await readLocalChange({ cwd: deps.cwd, baseRef: local.baseRef })
   if (uncommittedFiles > 0) {
-    deps.log(`${uncommittedFiles} ${uncommittedFiles === 1 ? "file has" : "files have"} uncommitted changes, which this review leaves out. Commit them to include them.`)
+    deps.log(`${uncommittedFiles} ${uncommittedFiles === 1 ? "file has" : "files have"} uncommitted changes, which this review leaves out. Commit them to include them.`, { level: LogLevel.Warn, fields: { uncommittedFiles } })
   }
-  deps.log(`Reviewing ${change.headRef} against ${change.baseRef} in ${repoDir}.`)
+  deps.log(`Reviewing ${change.headRef} against ${change.baseRef} in ${repoDir}.`, { fields: { headRef: change.headRef, baseRef: change.baseRef, repoDir } })
   const model = await analyzeChange({ repoDir, pullRequest: change, ref: undefined }, options, deps)
   return { model, reportDir: options.outDir ?? localReportDir(deps.cacheDir, change) }
 }
@@ -179,7 +179,7 @@ async function coverageFromCi(search: CoverageSearch, deps: AnalysisDependencies
     const archives = await gitHostFor(search.ref, deps.tokens).fetchCoverageArchives(search.headSha)
     return coverageFromArchives(archives, search.diffs, search.patterns)
   } catch (error: unknown) {
-    deps.log(`Could not read CI artifacts: ${error instanceof Error ? error.message : String(error)}`)
+    deps.log(`Could not read CI artifacts: ${error instanceof Error ? error.message : String(error)}`, { level: LogLevel.Warn })
     return undefined
   }
 }

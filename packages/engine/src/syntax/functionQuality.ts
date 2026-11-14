@@ -1,3 +1,4 @@
+import type { UnitKind } from "@walkdiff/review-model"
 import type { FileVersions } from "./compareUnits.ts"
 import type { Definition } from "./definitions.ts"
 import type { FunctionMetrics } from "./shape.ts"
@@ -5,6 +6,8 @@ import type { FunctionMetrics } from "./shape.ts"
 /** A function at the head and how it measured before; undefined `before` means it is new. */
 export interface FunctionQuality {
   readonly path: string
+  /** A function or a method, told apart so test code can be recognised by name. */
+  readonly kind: UnitKind
   readonly qualifiedName: string
   readonly line: number
   readonly before: FunctionMetrics | undefined
@@ -26,6 +29,7 @@ export function functionQualities(files: readonly FileVersions[]): FunctionQuali
       if (definition.shape === undefined) return []
       return [{
         path: file.path,
+        kind: definition.kind,
         qualifiedName: definition.qualifiedName,
         line: definition.snapshot.startLine,
         before: previousMetrics(definition, beforeByKey, beforeByBody),

@@ -1,6 +1,6 @@
-import { changedUnitsOf, DiffLineKind, FileChangeStatus, FileContentKind, isBehaviourChange, UnitChangeKind, unitSnapshotSchema } from "@walkdiff/review-model"
+import { changedUnitsOf, DiffLineKind, FileChangeStatus, FileContentKind, isBehaviourChange, isTestPath, isTestUnit, UnitChangeKind, unitSnapshotSchema } from "@walkdiff/review-model"
 import type { ChangedFile, ChangedUnit, ReviewComment, ReviewModel, UnitSnapshot } from "@walkdiff/review-model"
-import { buildReviewPlan, isTestPath, isTestUnit, stopFor } from "./reviewPlan.ts"
+import { buildReviewPlan, stopFor } from "./reviewPlan.ts"
 import type { ReviewPlan, ReviewStop } from "./reviewPlan.ts"
 import { describeRange, reviewCommentFromLines } from "./lineComments.ts"
 import type { LineComment } from "./lineComments.ts"

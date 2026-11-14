@@ -1,8 +1,7 @@
-import { codeSpan, changedUnitsOf, isBehaviourChange, ReferenceConfidence, RiskCategory, RiskSeverity, UnitChangeKind, UnitImpactStatus, untouchedReferences } from "@walkdiff/review-model"
+import { changedUnitsOf, codeSpan, isBehaviourChange, isTestPath, isTestUnit, ReferenceConfidence, RiskCategory, RiskSeverity, UnitChangeKind, UnitImpactStatus, untouchedReferences } from "@walkdiff/review-model"
 import type { ChangedFile, Risk } from "@walkdiff/review-model"
 import { findingAt, pullRequestFinding } from "./scannedFile.ts"
 import type { RuleDescription } from "./scannedFile.ts"
-import { isTestPath, isTestUnit } from "./testCode.ts"
 
 // Defect detection drops sharply past about 400 lines per review, per the SmartBear/Cisco
 // study of 2,500 code reviews. The upper threshold is a judgement call.
@@ -31,11 +30,11 @@ function sizeSignal(files: readonly ChangedFile[]): Risk[] {
 
 function missingTestsSignal(files: readonly ChangedFile[]): Risk[] {
   const reviewable = files.filter((file) => file.noise === null)
-  const testsChanged = reviewable.some((file) => isTestPath(file.diff.path) || changedUnitsOf(file).some((unit) => isTestUnit(unit.qualifiedName)))
+  const testsChanged = reviewable.some((file) => isTestPath(file.diff.path) || changedUnitsOf(file).some(isTestUnit))
   const codeChanges = reviewable
     .filter((file) => !isTestPath(file.diff.path))
     .flatMap(changedUnitsOf)
-    .filter((unit) => isBehaviourChange(unit.change) && !isTestUnit(unit.qualifiedName))
+    .filter((unit) => isBehaviourChange(unit.change) && !isTestUnit(unit))
   if (testsChanged || codeChanges.length === 0) return []
   const rule: RuleDescription = {
     id: "tests.none",

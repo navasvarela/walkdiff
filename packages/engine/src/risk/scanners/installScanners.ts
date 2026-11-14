@@ -1,3 +1,5 @@
+import { LogLevel } from "@walkdiff/review-model"
+import type { Log } from "@walkdiff/review-model"
 import { createHash } from "node:crypto"
 import { chmod, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises"
 import { existsSync } from "node:fs"
@@ -117,7 +119,7 @@ export interface InstallDependencies {
   readonly download: (url: string) => Promise<Buffer>
   /** Rejects when the command can't start or exits with an error. */
   readonly run: (command: string, args: readonly string[]) => Promise<void>
-  readonly log: (message: string) => void
+  readonly log: Log
   readonly platform: string
   readonly pins: readonly BinaryPin[]
 }
@@ -147,21 +149,21 @@ async function attempt(binary: string, bin: string, deps: InstallDependencies, i
     await rm(link, { force: true })
     await symlink(relative(bin, executable), link)
   } catch (error: unknown) {
-    deps.log(`Walkdiff couldn't install ${binary}: ${error instanceof Error ? error.message : String(error)}. Reports will list it as not run.`)
+    deps.log(`Walkdiff couldn't install ${binary}: ${error instanceof Error ? error.message : String(error)}. Reports will list it as not run.`, { level: LogLevel.Warn, fields: { scanner: binary } })
   }
 }
 
 async function installBinary(pin: BinaryPin, tools: string, deps: InstallDependencies): Promise<string | undefined> {
   const asset = pin.assets[deps.platform]
   if (asset === undefined) {
-    deps.log(`Walkdiff has no ${pin.binary} build for ${deps.platform}. Install it yourself to use it.`)
+    deps.log(`Walkdiff has no ${pin.binary} build for ${deps.platform}. Install it yourself to use it.`, { level: LogLevel.Warn, fields: { scanner: pin.binary, platform: deps.platform } })
     return undefined
   }
   const target = join(tools, `${pin.binary}-${pin.version}`)
   const executable = join(target, pin.binary)
   if (existsSync(executable)) return executable
 
-  deps.log(`Installing ${pin.binary} ${pin.version}…`)
+  deps.log(`Installing ${pin.binary} ${pin.version}…`, { fields: { scanner: pin.binary, version: pin.version } })
   const bytes = await deps.download(`${pin.baseUrl}/${asset.file}`)
   const actual = createHash("sha256").update(bytes).digest("hex")
   if (actual !== asset.sha256) throw new Error(`${asset.file} doesn't match its pinned hash (expected ${asset.sha256}, got ${actual})`)
@@ -205,7 +207,7 @@ async function moveToTop(folder: string, member: string, binary: string): Promis
  */
 async function installSemgrep(tools: string, deps: InstallDependencies): Promise<string | undefined> {
   if (SEMGREP_UNSUPPORTED_PLATFORMS.has(deps.platform.split("-").at(0) ?? "")) {
-    deps.log("Semgrep doesn't run natively here. Install it yourself, for example in WSL, to use it.")
+    deps.log("Semgrep doesn't run natively here. Install it yourself, for example in WSL, to use it.", { level: LogLevel.Warn, fields: { scanner: SEMGREP_BINARY, platform: deps.platform } })
     return undefined
   }
   // Named for the lock file's contents too, so changing any locked package reinstalls, not only a
@@ -216,7 +218,7 @@ async function installSemgrep(tools: string, deps: InstallDependencies): Promise
   const marker = join(target, SEMGREP_COMPLETE_MARKER)
   if (existsSync(marker)) return executable
 
-  deps.log(`Installing Semgrep ${SEMGREP_VERSION}…`)
+  deps.log(`Installing Semgrep ${SEMGREP_VERSION}…`, { fields: { scanner: SEMGREP_BINARY, version: SEMGREP_VERSION } })
   await rm(target, { recursive: true, force: true })
   try {
     await deps.run("python3", ["-c", HAS_SUPPORTED_PYTHON])
@@ -241,7 +243,7 @@ function run(command: string, args: readonly string[]): Promise<void> {
 }
 
 /** Installs for this machine, into the folder scanners are run from. Quick when they're all there. */
-export function installScannersHere(log: (message: string) => void = console.log): Promise<void> {
+export function installScannersHere(log: Log = console.log): Promise<void> {
   const download = (url: string): Promise<Buffer> => downloadWithRetries(url, { fetch, wait: async (ms) => void (await sleep(ms)), log })
   return installScanners(MANAGED_SCANNERS_ROOT, { download, run, log, platform: `${process.platform}-${process.arch}`, pins: BINARY_PINS })
 }

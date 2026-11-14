@@ -1,4 +1,4 @@
-import { codeSpan, changedUnitsOf, ModificationWeight, ReferenceConfidence, RiskCategory, RiskSeverity, SyntaxAnalysisStatus, UnitChangeKind, UnitImpactStatus, UnitKind, untouchedReferences } from "@walkdiff/review-model"
+import { changedUnitsOf, codeSpan, isTestPath, isTestUnit, ModificationWeight, ReferenceConfidence, RiskCategory, RiskSeverity, SyntaxAnalysisStatus, UnitChangeKind, UnitImpactStatus, UnitKind, untouchedReferences } from "@walkdiff/review-model"
 import type { ChangedFile, ChangedUnit, Reference, Risk, UnitSnapshot } from "@walkdiff/review-model"
 import { escapeRegExp } from "../../impact/candidateFiles.ts"
 import { simpleTypeName } from "../../impact/traceImpact.ts"
@@ -7,7 +7,6 @@ import type { Definition } from "../../syntax/definitions.ts"
 import { languageSpecFor } from "../../syntax/languages.ts"
 import { findingAt } from "../scannedFile.ts"
 import type { RuleDescription } from "../scannedFile.ts"
-import { isTestPath, isTestUnit } from "../testCode.ts"
 import type { LibrarySurface } from "./librarySurface.ts"
 import { signatureChanges } from "./signatureChanges.ts"
 
@@ -79,7 +78,7 @@ function apiUnitsOf(file: ChangedFile, versions: FileVersions, surface: LibraryS
   const bySnapshot = new Map<UnitSnapshot, Definition>(definitions.flatMap((definition) => [[definition.snapshot, definition], [definition.wholeSnapshot, definition]]))
   const beforePath = "previousPath" in file.diff ? file.diff.previousPath : file.diff.path
   return changedUnitsOf(file).flatMap((unit) => {
-    if (!KIND_WORDS.has(unit.kind) || isTestUnit(unit.qualifiedName) || !("before" in unit.change)) return []
+    if (!KIND_WORDS.has(unit.kind) || isTestUnit(unit) || !("before" in unit.change)) return []
     const before = bySnapshot.get(unit.change.before)
     const after = "after" in unit.change ? bySnapshot.get(unit.change.after) : undefined
     if (before === undefined || !isPublicApi(before, unit, versions, file.diff.path)) return []

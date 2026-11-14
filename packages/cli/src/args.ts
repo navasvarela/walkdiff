@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util"
+import { isLogFormat, LOG_FORMAT_VARIABLE, LogFormat } from "./logging.ts"
 import { AiProviderKind, aiSettingsSchema, DEFAULT_AI_MAX_INPUT_TOKENS, DEFAULT_AI_MODEL } from "@walkdiff/review-model"
 import type { AiSettings } from "@walkdiff/review-model"
 
@@ -43,6 +44,8 @@ Options:
   --data-dir <dir>   With app: where the review list is stored (default: ~/.local/share/walkdiff)
   --report <dir>     With comment: the directory review wrote (--out)
   --report-url <url> With comment: where reviewers can open the report
+  --log-format <f>   text (default), or json for one JSON object per line on stderr, with
+                     time, level and msg, for CI and log collectors
   -h, --help         Show this help
   -v, --version      Show which Walkdiff this is
 
@@ -54,6 +57,7 @@ Environment:
                            may receive those tokens, such as git.acme.internal
   ANTHROPIC_API_KEY        Key for --ai with Anthropic (or an \`ant auth login\` profile)
   WALKDIFF_AI_API_KEY      Key for --ai with an OpenAI-compatible provider
+  WALKDIFF_LOG_FORMAT      text or json, as --log-format, which takes precedence
 
 Troubleshooting: https://github.com/navasvarela/walkdiff/blob/main/docs/troubleshooting.md`
 
@@ -108,38 +112,67 @@ export type Command =
   | { readonly kind: "review"; readonly options: ReviewOptions }
   | { readonly kind: "comment"; readonly options: CommentOptions }
 
+/** The command, and how to print what it does. */
+export interface CommandLine {
+  readonly command: Command
+  readonly logFormat: LogFormat
+}
+
 export class UsageError extends Error {
   override readonly name = "UsageError"
 }
 
-export function parseCommand(argv: readonly string[]): Command {
-  const { values, positionals } = parseArgs({
-    args: [...argv],
-    allowPositionals: true,
-    allowNegative: true,
-    options: {
-      out: { type: "string" },
-      port: { type: "string" },
-      serve: { type: "boolean", default: true },
-      open: { type: "boolean", default: true },
-      offline: { type: "boolean", default: false },
-      ai: { type: "boolean", default: false },
-      "ai-model": { type: "string" },
-      "ai-provider": { type: "string" },
-      "ai-base-url": { type: "string" },
-      "ai-max-input-tokens": { type: "string" },
-      "data-dir": { type: "string" },
-      report: { type: "string" },
-      "report-url": { type: "string" },
-      "cache-dir": { type: "string" },
-      coverage: { type: "string" },
-      local: { type: "boolean", default: false },
-      base: { type: "string" },
-      help: { type: "boolean", short: "h", default: false },
-      version: { type: "boolean", short: "v", default: false },
-    },
-  })
+export function parseCommandLine(argv: readonly string[], env: NodeJS.ProcessEnv): CommandLine {
+  const { values, positionals } = parseOptions(argv)
+  return { command: commandFrom(values, positionals), logFormat: parseLogFormat(values["log-format"], env) }
+}
 
+/**
+ * The format for logs, from the option, else the environment, else text. Usable before the
+ * command line has been read, so even an error in it can be logged as asked.
+ */
+export function logFormatFromEnvironment(env: NodeJS.ProcessEnv): LogFormat {
+  const fromEnvironment = env[LOG_FORMAT_VARIABLE]
+  return fromEnvironment !== undefined && isLogFormat(fromEnvironment) ? fromEnvironment : LogFormat.Text
+}
+
+function parseLogFormat(flag: string | undefined, env: NodeJS.ProcessEnv): LogFormat {
+  const requested = flag ?? env[LOG_FORMAT_VARIABLE]
+  if (requested === undefined) return LogFormat.Text
+  if (!isLogFormat(requested)) throw new UsageError(`${flag === undefined ? LOG_FORMAT_VARIABLE : "--log-format"} must be text or json, got "${requested}"`)
+  return requested
+}
+
+const OPTIONS = {
+  out: { type: "string" },
+  port: { type: "string" },
+  serve: { type: "boolean", default: true },
+  open: { type: "boolean", default: true },
+  offline: { type: "boolean", default: false },
+  ai: { type: "boolean", default: false },
+  "ai-model": { type: "string" },
+  "ai-provider": { type: "string" },
+  "ai-base-url": { type: "string" },
+  "ai-max-input-tokens": { type: "string" },
+  "data-dir": { type: "string" },
+  report: { type: "string" },
+  "report-url": { type: "string" },
+  "cache-dir": { type: "string" },
+  coverage: { type: "string" },
+  local: { type: "boolean", default: false },
+  base: { type: "string" },
+  help: { type: "boolean", short: "h", default: false },
+  version: { type: "boolean", short: "v", default: false },
+  "log-format": { type: "string" },
+} as const
+
+function parseOptions(argv: readonly string[]) {
+  return parseArgs({ args: [...argv], allowPositionals: true, allowNegative: true, options: OPTIONS })
+}
+
+type ParsedValues = ReturnType<typeof parseOptions>["values"]
+
+function commandFrom(values: ParsedValues, positionals: readonly string[]): Command {
   const [command, url, ...extra] = positionals
   if (values.version) {
     return { kind: "version" }

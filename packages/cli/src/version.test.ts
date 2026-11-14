@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
-import { parseCommand } from "./args.ts"
+import { parseCommandLine } from "./args.ts"
 import { walkdiffVersion } from "./version.ts"
 
 describe("walkdiff --version", () => {
@@ -11,7 +11,7 @@ describe("walkdiff --version", () => {
   })
 
   it.each([[["--version"]], [["-v"]], [["review", "https://github.com/o/r/pull/1", "--version"]]])("answers %j with the version, not a command", (argv) => {
-    expect(parseCommand(argv)).toEqual({ kind: "version" })
+    expect(parseCommandLine(argv, {}).command).toEqual({ kind: "version" })
   })
 
   it("throws for a manifest without a version, rather than printing nothing", () => {
