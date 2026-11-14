@@ -1,3 +1,4 @@
+import type { Ecosystem } from "../dependencies/ecosystem.ts"
 import type { PackageOrigin } from "./packageOrigin.ts"
 
 /** One package version a lockfile pins, with what the supply-chain rules compare between commits. */
@@ -18,9 +19,19 @@ export interface LockedPackage {
 }
 
 export interface LockfileReader {
+  readonly ecosystem: Ecosystem
   matches(fileName: string): boolean
   /** Throws when the text isn't a lockfile of this format. */
   read(text: string): LockedPackage[]
+}
+
+/** The line where `anchor` first appears, to link a finding to a package's entry. */
+export function lineOfAnchor(text: string, anchor: string): number | null {
+  const index = text.indexOf(anchor)
+  if (index === -1) return null
+  let line = 1
+  for (let position = text.indexOf("\n"); position !== -1 && position < index; position = text.indexOf("\n", position + 1)) line++
+  return line
 }
 
 /** `sha512-abc sha1-def` → sha512 → sha512-abc, sha1 → sha1-def. */

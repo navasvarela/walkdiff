@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { collectFileDiffs } from "../../changedFiles.ts"
 import { runGit } from "../../git.ts"
 import { classifyNoise } from "../../noise.ts"
+import type { NpmRelease, ReleaseLookup } from "./npmReleases.ts"
 import { scanSupplyChain } from "./scanSupplyChain.ts"
 
 const COMMITTER_ENV = {
@@ -36,6 +37,13 @@ const LOCK_AFTER = packageLock({
   "node_modules/@acme/core": { version: "2.0.0", resolved: tarball("@acme/core", "2.0.0"), integrity: "sha512-c" },
 })
 
+const BY_MAINTAINER: NpmRelease = { publisher: "faisalman", maintainers: new Set(["faisalman"]), hasProvenance: false, trustedPublisher: false }
+const releases: Readonly<Record<string, NpmRelease>> = {
+  "ua-parser-js@0.7.28": BY_MAINTAINER,
+  "ua-parser-js@0.7.29": { ...BY_MAINTAINER, publisher: "someone-else" },
+}
+const lookUpRelease: ReleaseLookup = async (name, version) => releases[`${name}@${version}`]
+
 describe("scanSupplyChain", () => {
   let repoDir = ""
   let findings: readonly Risk[] = []
@@ -56,7 +64,7 @@ describe("scanSupplyChain", () => {
     const head = await commit(after)
     const diffs = await collectFileDiffs(repoDir, base, head)
     const files = diffs.map((diff) => ({ diff, noise: classifyNoise(diff.path, after[diff.path]), after: after[diff.path] }))
-    const scan = await scanSupplyChain({ repoDir, base, head, files, privatePackages: ["@acme/*"] })
+    const scan = await scanSupplyChain({ repoDir, base, head, files, privatePackages: ["@acme/*"], network: true, disabled: new Set(), lookUpRelease })
     findings = scan.findings
   })
 
@@ -71,6 +79,7 @@ describe("scanSupplyChain", () => {
       "supply-chain.integrity-changed package-lock.json:8",
       "supply-chain.install-script-added package-lock.json:13",
       "supply-chain.dependency-confusion package-lock.json:19",
+      "supply-chain.new-publisher package-lock.json:13",
     ])
   })
 })

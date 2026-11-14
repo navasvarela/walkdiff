@@ -204,6 +204,17 @@ Lockfiles read: `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock` (Yarn 1 
 
 Only entries the PR adds or changes are judged: what was already in the lockfile was already reviewed.
 
+Online, npm packages a lockfile upgrades within a release line (a new minor or patch, which `^` ranges
+install unasked) are also compared with the release they replace, using npm's record of each:
+
+| Flags | Severity |
+| --- | --- |
+| A release without the provenance the previous one had, which is how a release published from a stolen token looks | Medium |
+| A release published by an account that wasn't a maintainer of the previous one, unless it was built by CI with provenance or trusted publishing | Low |
+
+This sends upgraded package names and versions to npm, except those in `dependencies.private`; turn it
+off under Checks in the app's Settings ("npm release history"), or with `--offline`. Up to 300 upgrades are checked per review.
+
 ## Breaking changes
 
 Walkdiff flags changes that could break other code or a deployment, under the "Breaking change" category

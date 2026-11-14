@@ -3,6 +3,7 @@ import type { Risk } from "@walkdiff/review-model"
 import { isPrivatePackage } from "../dependencies/packageTrust.ts"
 import { findingAt } from "../scannedFile.ts"
 import type { RuleDescription } from "../scannedFile.ts"
+import { lineOfAnchor } from "./lockedPackage.ts"
 import type { LockedPackage } from "./lockedPackage.ts"
 import { describeOrigin, isInsecure, isPublicRegistry, OriginKind, originKey } from "./packageOrigin.ts"
 
@@ -28,7 +29,7 @@ export function lockfileFindings(lockfile: LockfileVersions, privatePackages: re
   return distinctVersions(lockfile.after).flatMap((entry) => {
     const earlier = earlierByName.get(entry.name) ?? []
     const evidence = `${entry.name} ${entry.version}`
-    const line = lineOf(lockfile.text, entry.anchor)
+    const line = lineOfAnchor(lockfile.text, entry.anchor)
     return rulesFor(entry, earlier, isPrivatePackage(entry.name, privatePackages)).map((found) => findingAt(found, lockfile.path, line, evidence))
   })
 }
@@ -160,12 +161,4 @@ function distinctVersions(entries: readonly LockedPackage[]): LockedPackage[] {
     seen.add(key)
     return true
   })
-}
-
-function lineOf(text: string, anchor: string): number | null {
-  const index = text.indexOf(anchor)
-  if (index === -1) return null
-  let line = 1
-  for (let position = text.indexOf("\n"); position !== -1 && position < index; position = text.indexOf("\n", position + 1)) line++
-  return line
 }

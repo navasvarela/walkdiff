@@ -1,4 +1,5 @@
 import { parse as parseYaml, parseAllDocuments } from "yaml"
+import { Ecosystem } from "../dependencies/ecosystem.ts"
 import { field, recordOrEmpty, stringField } from "../dependencies/fields.ts"
 import { hashesByAlgorithm } from "./lockedPackage.ts"
 import type { LockedPackage, LockfileReader } from "./lockedPackage.ts"
@@ -8,9 +9,9 @@ import type { PackageOrigin } from "./packageOrigin.ts"
 const FROM_CONFIGURED_REGISTRY: PackageOrigin = { kind: OriginKind.Registry, registry: CONFIGURED_REGISTRY, secure: true }
 const NO_HASHES: ReadonlyMap<string, string> = new Map()
 
-export const PACKAGE_LOCK: LockfileReader = { matches: (name) => name === "package-lock.json" || name === "npm-shrinkwrap.json", read: readPackageLock }
-export const YARN_LOCK: LockfileReader = { matches: (name) => name === "yarn.lock", read: readYarnLock }
-export const PNPM_LOCK: LockfileReader = { matches: (name) => name === "pnpm-lock.yaml", read: readPnpmLock }
+export const PACKAGE_LOCK: LockfileReader = { ecosystem: Ecosystem.Npm, matches: (name) => name === "package-lock.json" || name === "npm-shrinkwrap.json", read: readPackageLock }
+export const YARN_LOCK: LockfileReader = { ecosystem: Ecosystem.Npm, matches: (name) => name === "yarn.lock", read: readYarnLock }
+export const PNPM_LOCK: LockfileReader = { ecosystem: Ecosystem.Npm, matches: (name) => name === "pnpm-lock.yaml", read: readPnpmLock }
 
 // Lockfile v2 and v3 key each install path: "node_modules/a/node_modules/b" is package b. Paths
 // without node_modules are the project's own workspaces, and links point at them.
