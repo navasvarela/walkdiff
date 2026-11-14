@@ -89,10 +89,10 @@ export type ParameterKind = (typeof ParameterKind)[keyof typeof ParameterKind]
 export interface ShapeGrammar {
   /** The node holding the parameters; differs from the definition for `const f = () => {}`. */
   functionNode(definition: Node): Node
-  /** The node whose `parameters` field lists the parameters: the function, or C's declarator inside it. */
-  signatureNode(fn: Node): Node
-  /** The function node's field holding its return type: `return_type`, Go's `result`, Java's `type`. */
-  readonly returnTypeField: string
+  /** The function's parameter declarations, in order: most grammars list them in a `parameters` field. */
+  parameters(fn: Node): readonly Node[]
+  /** The function's declared return type, or null when it has none. */
+  returnType(fn: Node): Node | null
   parameterKind(parameter: Node): ParameterKind
   /** Call node type → the field naming what is called, and text appended to that name. */
   readonly calls: ReadonlyMap<string, CallSyntax>
@@ -108,7 +108,8 @@ export interface ShapeGrammar {
 }
 
 export interface CallSyntax {
-  readonly calleeField: string
+  /** The field naming what is called; undefined when it's the call's first child, as in Kotlin. */
+  readonly calleeField: string | undefined
   readonly suffix: string
 }
 

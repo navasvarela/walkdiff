@@ -2,6 +2,7 @@ import { SourceLanguage, UnitKind } from "@walkdiff/review-model"
 import type { Node } from "web-tree-sitter"
 import { classifyWithGrammar, isBindingWithGrammar, namedDefinition, ParameterKind } from "./languageSpec.ts"
 import type { ContainerContext, DefinitionHeader, IdentifierGrammar, LanguageSpec, PublicDefinitionTest } from "./languageSpec.ts"
+import { parametersByField, returnTypeByField } from "./shape.ts"
 
 const KIND_BY_TYPE_NODE: ReadonlyMap<string, UnitKind> = new Map([
   ["struct_type", UnitKind.Struct],
@@ -113,8 +114,8 @@ export const goSpec: LanguageSpec = {
   isImplicitlyInvoked: () => false,
   shape: {
     functionNode: (definition) => definition,
-    signatureNode: (fn) => fn,
-    returnTypeField: "result",
+    parameters: parametersByField,
+    returnType: returnTypeByField("result"),
     parameterKind,
     calls: new Map([["call_expression", { calleeField: "function", suffix: "" }]]),
     // Go returns errors as values, so a bail-out is one of these calls rather than a statement.

@@ -144,6 +144,37 @@ describe("scanDangerousApis", () => {
     ].join("\n")
     expect(summary(await scanDangerousApis([addedFile("src/net.cpp", content)]))).toEqual(["cpp.reinterpret-cast@2", "c.tls-disabled@3"])
   })
+
+  it("flags risky Kotlin in code but not in comments or strings", async () => {
+    const content = [
+      "fun run(db: SQLiteDatabase, id: String) {",
+      '  ProcessBuilder("sh", "-c", id).start()',
+      "  val input = ObjectInputStream(socket.getInputStream())",
+      '  db.rawQuery("SELECT * FROM t WHERE id = $id", null)',
+      "  client.hostnameVerifier { _, _ -> true }",
+      '  val note = "ProcessBuilder(x)"',
+      "  // ObjectInputStream(stream) would be unsafe here",
+      "}",
+    ].join("\n")
+    expect(summary(await scanDangerousApis([addedFile("app/src/main/kotlin/Run.kt", content)]))).toEqual(["kotlin.exec@2", "kotlin.deserialization@3", "kotlin.sql-template@4", "kotlin.tls-disabled@5"])
+  })
+
+  it("flags risky C# in code but not in comments or strings", async () => {
+    const content = [
+      "class A {",
+      "  void F(string id) {",
+      '    Process.Start("cmd", id);',
+      "    var f = new BinaryFormatter();",
+      '    var c = new SqlCommand($"SELECT * FROM t WHERE id = {id}", conn);',
+      "    handler.ServerCertificateCustomValidationCallback = (m, c, ch, e) => true;",
+      "    unsafe { p++; }",
+      '    var note = "Process.Start(x)";',
+      "    // new BinaryFormatter() would be unsafe here",
+      "  }",
+      "}",
+    ].join("\n")
+    expect(summary(await scanDangerousApis([addedFile("src/A.cs", content)]))).toEqual(["csharp.exec@3", "csharp.deserialization@4", "csharp.sql-interpolation@5", "csharp.tls-disabled@6", "csharp.unsafe@7"])
+  })
 })
 
 describe("scanSensitivePaths", () => {

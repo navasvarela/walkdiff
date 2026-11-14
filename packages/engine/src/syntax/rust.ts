@@ -2,6 +2,7 @@ import { SourceLanguage, UnitKind } from "@walkdiff/review-model"
 import type { Node } from "web-tree-sitter"
 import { classifyWithGrammar, isBindingWithGrammar, namedDefinition, ParameterKind } from "./languageSpec.ts"
 import type { ContainerContext, DefinitionHeader, IdentifierGrammar, LanguageSpec } from "./languageSpec.ts"
+import { parametersByField, returnTypeByField } from "./shape.ts"
 
 const KIND_BY_NODE_TYPE: ReadonlyMap<string, UnitKind> = new Map([
   ["struct_item", UnitKind.Struct],
@@ -83,8 +84,8 @@ export const rustSpec: LanguageSpec = {
   isImplicitlyInvoked: (methodName) => methodName === "drop",
   shape: {
     functionNode: (definition) => definition,
-    signatureNode: (fn) => fn,
-    returnTypeField: "return_type",
+    parameters: parametersByField,
+    returnType: returnTypeByField("return_type"),
     parameterKind: (parameter) => (parameter.type === "self_parameter" ? ParameterKind.Receiver : parameter.type === "variadic_parameter" ? ParameterKind.Rest : ParameterKind.Required),
     calls: new Map([
       ["call_expression", { calleeField: "function", suffix: "" }],

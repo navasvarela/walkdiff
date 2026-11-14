@@ -4,6 +4,7 @@ import { declaredName } from "./declarators.ts"
 import type { DeclaredName } from "./declarators.ts"
 import { classifyWithGrammar, IdentifierUseKind, isBindingWithGrammar, namedDefinition, ParameterKind } from "./languageSpec.ts"
 import type { ContainerContext, DefinitionHeader, IdentifierGrammar, IdentifierUse, LanguageSpec } from "./languageSpec.ts"
+import { parametersByField, returnTypeByField } from "./shape.ts"
 
 // One spec serves both languages: C++ adds node types, such as classes and namespaces, that
 // the C grammar never produces.
@@ -231,8 +232,8 @@ function makeSpec(language: SourceLanguage, grammar: string): LanguageSpec {
     isImplicitlyInvoked: (methodName) => IMPLICITLY_INVOKED.test(methodName),
     shape: {
       functionNode: (definition) => definition,
-      signatureNode: (fn) => declaredName(fn)?.functionDeclarator ?? fn,
-      returnTypeField: "type",
+      parameters: (fn) => parametersByField(declaredName(fn)?.functionDeclarator ?? fn),
+      returnType: returnTypeByField("type"),
       parameterKind,
       calls: new Map([
         ["call_expression", { calleeField: "function", suffix: "" }],

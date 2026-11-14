@@ -19,6 +19,9 @@ describe("languageForPath", () => {
     ["a.b/c.py", HighlightLanguage.Python],
     ["cmd/main.go", HighlightLanguage.Go],
     ["src/main/java/A.java", HighlightLanguage.Java],
+    ["app/src/main/kotlin/A.kt", HighlightLanguage.Kotlin],
+    ["build.gradle.kts", HighlightLanguage.Kotlin],
+    ["src/Server.cs", HighlightLanguage.CSharp],
     ["src/store.c", HighlightLanguage.C],
     ["include/store.h", HighlightLanguage.Cpp],
     ["src/server.cc", HighlightLanguage.Cpp],
@@ -294,6 +297,54 @@ describe("C++", () => {
   })
 })
 
+describe("Kotlin", () => {
+  const language = HighlightLanguage.Kotlin
+
+  it("colours declarations, annotations, types and values", () => {
+    expect(tokens(`@Service\nclass Server(val port: Int) {\n  override fun start(): String = "x" // done\n}`, language)).toEqual([
+      "meta:@Service",
+      "keyword:class",
+      "type:Server",
+      "keyword:val",
+      "type:Int",
+      "keyword:override",
+      "keyword:fun",
+      "function:start",
+      "type:String",
+      'string:"x"',
+      "comment:// done",
+    ])
+  })
+
+  it("carries raw strings across lines", () => {
+    expect(tokens('val sql = """\nSELECT 1\n"""', language)).toEqual(["keyword:val", 'string:"""', "string:SELECT 1", 'string:"""'])
+  })
+})
+
+describe("C#", () => {
+  const language = HighlightLanguage.CSharp
+
+  it("colours keywords, types, calls and interpolated strings", () => {
+    expect(tokens(`public async Task<int> Start(string id) { await Run($"id {id}"); return null; }`, language)).toEqual([
+      "keyword:public",
+      "keyword:async",
+      "type:Task",
+      "type:int",
+      "function:Start",
+      "type:string",
+      "keyword:await",
+      "function:Run",
+      'string:$"id {id}"',
+      "keyword:return",
+      "constant:null",
+    ])
+  })
+
+  it("reads verbatim strings, where a doubled quote doesn't end them", () => {
+    expect(tokens('var p = @"C:\\dir\\""x"""; var n = 1;', language)).toEqual(["keyword:var", 'string:@"C:\\dir\\""x"""', "keyword:var", "constant:1"])
+  })
+})
+
 describe("highlightLines", () => {
   it("returns one entry per line, matching a split on line breaks", () => {
     const text = "a\n\nb\n"
@@ -320,7 +371,7 @@ describe("highlightLines", () => {
   })
 
   // Each of these made Prism or highlight.js take seconds at 100 KB, or targets a lookahead of ours.
-  const HOSTILE_INPUTS = ["<a b=", "<a>", '`${', 'r#"', "/[", "/*", "'", '"""', "foo(", "#[", "{", "<", "\\", "function ", "@", "#include <", 'R"(', "u8'", "1'"]
+  const HOSTILE_INPUTS = ["<a b=", "<a>", '`${', 'r#"', "/[", "/*", "'", '"""', "foo(", "#[", "{", "<", "\\", "function ", "@", "#include <", 'R"(', "u8'", "1'", '@"', '$@"', '"""']
   const HOSTILE_LANGUAGES = Object.values(HighlightLanguage)
   // Far above the few milliseconds these take, and far below the seconds a backtracking pattern takes.
   const SLOW_MS = 1_000
