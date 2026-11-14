@@ -165,6 +165,17 @@ Choose Semgrep's rules in `.walkdiff.json`; an empty list turns Semgrep off:
 
 CI runners need the scanners installed in the job before running Walkdiff.
 
+## Infrastructure
+
+Built-in rules read the lines a PR adds to infrastructure files, outside tests and comments, under the
+"Infrastructure" category, which counts towards the security summary:
+
+| File | Flags |
+| --- | --- |
+| Dockerfiles | Base images without a version (not `scratch` or the file's own stages), `curl … \| sh`, `ADD https://…` without `--checksum`, secrets in `ARG` or `ENV`, `USER root`, and a new Dockerfile that never sets a user |
+| Kubernetes manifests | Privileged containers, the host's network, process or IPC namespaces, privilege escalation, running as root, `hostPath` volumes, added `SYS_ADMIN`, `NET_ADMIN` or `ALL` capabilities, and images without a version |
+| Terraform | Ingress from `0.0.0.0/0` (not egress), public S3 ACLs, public-access blocks turned off, publicly accessible databases, encryption turned off, and IAM wildcard actions |
+
 ## Breaking changes
 
 Walkdiff flags changes that could break other code or a deployment, under the "Breaking change" category

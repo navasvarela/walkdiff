@@ -20,6 +20,7 @@ export const CATEGORY_LABELS: Readonly<Record<RiskCategory, string>> = {
   [RiskCategory.BrokenReference]: "Broken reference",
   [RiskCategory.License]: "Licence",
   [RiskCategory.BreakingChange]: "Breaking change",
+  [RiskCategory.Infrastructure]: "Infrastructure",
 }
 
 /** Findings from one rule, so twenty `unsafe` blocks read as one item with twenty places. */

@@ -3,6 +3,7 @@ import type { ChangedFile, CheckRun, CommitSha, Risk, RiskAssessment, SkippedChe
 import { scanBreakingChanges } from "./breaking/scanBreakingChanges.ts"
 import { scanDangerousApis } from "./dangerousApis.ts"
 import { scanDependencies } from "./dependencies/scanDependencies.ts"
+import { scanInfrastructure } from "./infrastructure.ts"
 import { scanFunctionMetrics } from "./functionMetrics.ts"
 import { languageGaps } from "./languageCoverage.ts"
 import { reviewSignals } from "./reviewSignals.ts"
@@ -46,7 +47,7 @@ const SEVERITY_RANK: Readonly<Record<RiskSeverity, number>> = {
   [RiskSeverity.Low]: 2,
 }
 
-const BUILT_IN_CHECK: CheckRun = { name: "Built-in rules", detail: "secrets, risky APIs, sensitive paths and GitLab CI" }
+const BUILT_IN_CHECK: CheckRun = { name: "Built-in rules", detail: "secrets, risky APIs, sensitive paths, GitLab CI, and Dockerfiles, Kubernetes and Terraform" }
 const BREAKING_CHANGE_CHECK: CheckRun = { name: "Breaking changes", detail: "public APIs, database migrations, environment variables and config keys" }
 const FUNCTION_METRICS_CHECK: CheckRun = { name: "Function metrics", detail: "complexity, nesting, length and parameters" }
 const QUALITY_TURNED_OFF: SkippedCheck = { check: "Code quality checks", reason: `turned off in ${WALKDIFF_CONFIG_PATH}` }
@@ -89,6 +90,7 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
     ...(await scanDangerousApis(scanned)),
     ...scanSensitivePaths(scanned, config),
     ...scanGitlabCi(scanned, pipelineFiles),
+    ...scanInfrastructure(scanned),
     ...codeScan.findings,
     ...dependencies.findings,
     ...reviewSignals(request.files),
