@@ -221,6 +221,18 @@ without the definition changing, and inputs of a GitHub Action's `action.yml`.
 Walkdiff flags poor implementations and bad practice in the code a PR adds, under the "Code quality"
 category in the Risks tab. These findings never count as security findings.
 
+**Error handling** is checked on added code, outside tests:
+
+| Finding | Severity | Languages |
+| --- | --- | --- |
+| Error swallowed: a handler that does nothing, or only `pass` or `...` | Medium | TypeScript, JavaScript, Python, Java, Kotlin, C#, C++, and Go's empty `if err != nil {}` |
+| Catches every error: a bare `except:`, `BaseException`, `Throwable` or `catch (...)` | Low | Python, Java, Kotlin, C++ |
+| May panic: `.unwrap()` or `.expect()` | Low | Rust, outside `mod tests` and `#[test]` functions |
+| Result discarded: `_ = f()` | Low | Go |
+
+A handler holding only a comment counts as a decision someone explained, and isn't flagged. Neither is a
+promise `.catch(() => fallback)` that returns a value.
+
 **Function metrics** are built in and cover Rust, TypeScript, Python, Go, Java, Kotlin, C#, C and C++. A function is flagged when
 the PR adds it over a limit, pushes it over one, or makes one already over the limit at least 20%
 worse. The Changes tab also shows each modified function's complexity change. Test code is left out.
