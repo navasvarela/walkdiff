@@ -3,8 +3,8 @@ import { analyzeChangedFiles, coverageFromArchives, coverageInPullRequest, creat
 import type { AiProvider } from "@walkdiff/engine"
 import { gitHostFor, parsePullRequestUrl, repositoryPath } from "@walkdiff/providers"
 import type { HostTokens, PullRequestRef } from "@walkdiff/providers"
-import { AiReviewStatus, AnalysisStep, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, securitySummary } from "@walkdiff/review-model"
-import type { AiReview, CheckId, CommitSha, FileDiff, ReviewModel, StepReporter, TestCoverage } from "@walkdiff/review-model"
+import { AiReviewStatus, AnalysisStep, LogLevel, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, securitySummary } from "@walkdiff/review-model"
+import type { AiReview, CheckId, CommitSha, FileDiff, Log, ReviewModel, StepReporter, TestCoverage } from "@walkdiff/review-model"
 import type { AiOptions, ReviewOptions } from "./args.ts"
 import { detectPullRequestUrl } from "./ciEnvironment.ts"
 import type { CiEnvironment } from "./ciEnvironment.ts"
@@ -21,7 +21,7 @@ export interface AnalysisDependencies {
   readonly tokens: HostTokens
   readonly cacheDir: string
   readonly now: () => Date
-  readonly log: (message: string) => void
+  readonly log: Log
   /** Told as each step of the analysis starts. */
   readonly reportStep: StepReporter
 }
@@ -52,12 +52,12 @@ export async function runReview(options: ReviewOptions, deps: ReviewDependencies
   const reportDir = options.outDir ?? defaultReportDir(deps.cacheDir, ref)
   await writeReport(model, reportDir)
 
-  deps.log(`${model.files.length} files changed, ${securitySummary(model.risk.findings).toLowerCase()}. Report written to ${reportDir}`)
+  deps.log(`${model.files.length} files changed, ${securitySummary(model.risk.findings).toLowerCase()}. Report written to ${reportDir}`, { fields: { files: model.files.length, findings: model.risk.findings.length, reportDir } })
   if (!options.serve) {
     return
   }
   const server = await serveReportOnPreferredPort(reportDir, options.port)
-  deps.log(`Serving the report at ${server.url} (Ctrl+C to stop)`)
+  deps.log(`Serving the report at ${server.url} (Ctrl+C to stop)`, { fields: { url: server.url } })
 }
 
 /**
@@ -145,7 +145,7 @@ async function coverageFromCi(search: CoverageSearch, deps: AnalysisDependencies
     const archives = await gitHostFor(search.ref, deps.tokens).fetchCoverageArchives(search.headSha)
     return coverageFromArchives(archives, search.diffs, search.patterns)
   } catch (error: unknown) {
-    deps.log(`Could not read CI artifacts: ${error instanceof Error ? error.message : String(error)}`)
+    deps.log(`Could not read CI artifacts: ${error instanceof Error ? error.message : String(error)}`, { level: LogLevel.Warn })
     return undefined
   }
 }

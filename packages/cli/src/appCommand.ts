@@ -1,3 +1,4 @@
+import type { Log } from "@walkdiff/review-model"
 import { mkdir } from "node:fs/promises"
 import { join } from "node:path"
 import { findInstalledScanners } from "@walkdiff/engine"
@@ -17,7 +18,7 @@ const DATABASE_FILE = "walkdiff.db"
 export interface AppDependencies {
   readonly env: Readonly<Record<string, string | undefined>>
   readonly now: () => Date
-  readonly log: (message: string) => void
+  readonly log: Log
 }
 
 /** Runs the local app until the process is stopped. */
@@ -46,7 +47,7 @@ export async function runApp(options: AppOptions, deps: AppDependencies): Promis
     log: deps.log,
   })
   const server = await startAppServer(store, service, { port: options.port, log: deps.log, env: deps.env, offline: !options.network, hostFor })
-  deps.log(`Walkdiff is running at ${server.url} (Ctrl+C to stop)`)
+  deps.log(`Walkdiff is running at ${server.url} (Ctrl+C to stop)`, { fields: { url: server.url } })
   if (options.open && canOpenBrowser(process.platform, deps.env)) openBrowser(server.url, deps.log)
   const scanners = await findInstalledScanners()
   deps.log(`Security scanners: ${scanners.installed.join(", ") || "none"} installed${scanners.missing.length > 0 ? `; not found: ${scanners.missing.join(", ")}` : ""}`)

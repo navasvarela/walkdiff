@@ -139,3 +139,6 @@ export {
 export type { ApprovalBlocked, ApproveStackRequest, ApproveStackResult, BlockedMember, MemberApproval, PullRequestStatus, StackMemberStatus, StackView } from "./stackStatus.ts"
 export { parseProgressRecord, progressKey, progressRecordSchema } from "./browserProgress.ts"
 export type { ProgressRecord } from "./browserProgress.ts"
+
+export { LogLevel } from "./logging.ts"
+export type { Log, LogDetails, LogFields } from "./logging.ts"

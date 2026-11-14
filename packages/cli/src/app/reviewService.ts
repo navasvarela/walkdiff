@@ -1,7 +1,7 @@
 import { displayName, parsePullRequestUrl } from "@walkdiff/providers"
 import type { PullRequestRef } from "@walkdiff/providers"
-import { changedUnitsOf, isBehaviourChange, ReviewStatus, untouchedReferences } from "@walkdiff/review-model"
-import type { AcceptStackRequest, AddReviewRequest, AnalysisStep, PullRequestStack, ReviewModel, ReviewSummary, StackOffer, StepReporter } from "@walkdiff/review-model"
+import { changedUnitsOf, isBehaviourChange, LogLevel, ReviewStatus, untouchedReferences } from "@walkdiff/review-model"
+import type { AcceptStackRequest, AddReviewRequest, AnalysisStep, Log, PullRequestStack, ReviewModel, ReviewSummary, StackOffer, StepReporter } from "@walkdiff/review-model"
 import type { AttachedCoverage } from "../reviewCommand.ts"
 import type { CompletedAnalysis, Detection, ReviewStore } from "./reviewStore.ts"
 import { canonicalUrl, memberUrl, mergedOrder, stackOfferFor } from "./stacks.ts"
@@ -28,7 +28,7 @@ export interface ReviewServiceDependencies {
   readonly generate: ReportGenerator
   /** Run beside each analysis. Its failures are logged, and never fail the review. */
   readonly findStack: StackFinder
-  readonly log: (message: string) => void
+  readonly log: Log
 }
 
 /**
@@ -39,7 +39,7 @@ export class ReviewService {
   readonly #store: ReviewStore
   readonly #generate: ReportGenerator
   readonly #findStack: StackFinder
-  readonly #log: (message: string) => void
+  readonly #log: Log
   readonly #waiting: number[] = []
   /** Where each running analysis is. Only ever one entry while analyses run one at a time. */
   readonly #steps = new Map<number, AnalysisStep>()
@@ -186,7 +186,7 @@ export class ReviewService {
       if (this.#store.get(id) !== undefined) this.#store.markReady(id, summarize(report))
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
-      this.#log(`${review.displayName}: ${message}`)
+      this.#log(`${review.displayName}: ${message}`, { level: LogLevel.Error, fields: { review: review.displayName } })
       if (this.#store.get(id) !== undefined) this.#store.markFailed(id, message)
     } finally {
       this.#steps.delete(id)
@@ -199,7 +199,7 @@ export class ReviewService {
       const stack = await this.#findStack(ref)
       if (this.#store.get(review.id) !== undefined) this.#store.saveDetection(review.id, stack)
     } catch (error: unknown) {
-      this.#log(`${review.displayName}: could not check whether it's part of a stack: ${error instanceof Error ? error.message : String(error)}`)
+      this.#log(`${review.displayName}: could not check whether it's part of a stack: ${error instanceof Error ? error.message : String(error)}`, { level: LogLevel.Warn, fields: { review: review.displayName } })
     }
   }
 }
