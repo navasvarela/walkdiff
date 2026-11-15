@@ -3,7 +3,7 @@ import type { FileVersions } from "../../syntax/compareUnits.ts"
 import type { ScannedFile } from "../scannedFile.ts"
 import { mentionsInCode } from "./codeMentions.ts"
 import { ConfigChangeKind, configChangeFinding, findConfigChanges } from "./configuration.ts"
-import { readLibrarySurface } from "./librarySurface.ts"
+import { readLibrarySurface } from "./readLibrarySurface.ts"
 import { findSchemaChanges, schemaChangeFinding } from "./migrations.ts"
 import { scanPublicApi } from "./publicApi.ts"
 

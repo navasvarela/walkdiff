@@ -3,7 +3,7 @@ import { readBlobs } from "../blobs.ts"
 import { ISOLATED_CONFIG_ENV, runGit } from "../git.ts"
 import { MAX_SOURCE_FILE_BYTES } from "../limits.ts"
 import { isNoiseByPath } from "../noise.ts"
-import { languageSpecFor } from "../syntax/languages.ts"
+import { languageSpecFor } from "../languages/registry.ts"
 
 // Files read and scanned per round, so memory stays bounded on very large repositories
 // (rust-lang/rust has ~140 MB of source at a commit).

@@ -18,7 +18,7 @@ import { functionQualities } from "./syntax/functionQuality.ts"
 import { orderUnits, outlineOf, unitCalls } from "./syntax/fileStructure.ts"
 import type { FileUnits } from "./syntax/definitions.ts"
 import type { LanguageSpec } from "./syntax/languageSpec.ts"
-import { languageSpecFor } from "./syntax/languages.ts"
+import { languageSpecFor } from "./languages/registry.ts"
 import { withSyntaxTree } from "./syntax/parser.ts"
 
 const NUL = 0

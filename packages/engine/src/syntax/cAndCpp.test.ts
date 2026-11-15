@@ -5,7 +5,7 @@ import { compareUnits } from "./compareUnits.ts"
 import { extractUnits } from "./definitions.ts"
 import type { Definition, FileUnits } from "./definitions.ts"
 import type { LanguageSpec } from "./languageSpec.ts"
-import { canReferenceAcross, languageSpecFor } from "./languages.ts"
+import { canReferenceAcross, languageSpecFor } from "../languages/registry.ts"
 import { withSyntaxTree } from "./parser.ts"
 
 function unitsOf(spec: LanguageSpec, source: string): Promise<FileUnits> {

@@ -3,7 +3,7 @@ import type { FileVersions } from "./compareUnits.ts"
 import { extractUnits } from "./definitions.ts"
 import type { FileUnits } from "./definitions.ts"
 import type { LanguageSpec } from "./languageSpec.ts"
-import { languageSpecFor } from "./languages.ts"
+import { languageSpecFor } from "../languages/registry.ts"
 import { withSyntaxTree } from "./parser.ts"
 import { functionQualities } from "./functionQuality.ts"
 
