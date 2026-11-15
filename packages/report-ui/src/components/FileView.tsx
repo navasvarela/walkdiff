@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { ReactElement, RefObject } from "react"
 import { changedUnitsOf, FileChangeStatus, RiskSeverity, SyntaxAnalysisStatus } from "@walkdiff/review-model"
-import type { ChangedFile, PullRequest, Risk, SyntaxAnalysis, UnitRef } from "@walkdiff/review-model"
+import type { ChangedFile, Dimension, PullRequest, Risk, SyntaxAnalysis, UnitRef } from "@walkdiff/review-model"
 import { itemsOfFile, unitItem } from "../reviewProgress.ts"
 import { worstSeverity } from "../risks.ts"
 import type { LinePlace } from "../threadPlaces.ts"
@@ -24,13 +24,14 @@ interface FileViewProps {
   readonly file: ChangedFile
   /** Risk findings located in this file. */
   readonly findings: readonly Risk[]
+  readonly dimensions: readonly Dimension[] | undefined
   readonly pullRequest: PullRequest
   readonly onShowImpact: (unit: UnitRef) => void
   /** A line to scroll to on opening, such as one a discussion thread is on. */
   readonly focus: LinePlace | undefined
 }
 
-export function FileView({ file, findings, pullRequest, onShowImpact, focus }: FileViewProps): ReactElement {
+export function FileView({ file, findings, dimensions, pullRequest, onShowImpact, focus }: FileViewProps): ReactElement {
   const units = changedUnitsOf(file)
   // The line diff shows every line in the diff; the units view can leave the focused one out.
   const [mode, setMode] = useState<ViewMode>(units.length > 0 && focus === undefined ? ViewMode.Units : ViewMode.Lines)
@@ -74,7 +75,7 @@ export function FileView({ file, findings, pullRequest, onShowImpact, focus }: F
           <summary>
             {findings.length} risk {findings.length === 1 ? "finding" : "findings"} in this file
           </summary>
-          <RiskList findings={findings} pullRequest={pullRequest} onOpenFile={undefined} />
+          <RiskList findings={findings} dimensions={dimensions} pullRequest={pullRequest} onOpenFile={undefined} />
         </details>
       )}
       <LineCommentScopeProvider file={file}>

@@ -130,6 +130,7 @@ function Report({ review }: ReportProps): ReactElement {
               key={lineFocus === undefined ? selectedFile.diff.path : `${selectedFile.diff.path}:${lineFocus.side}:${lineFocus.line}`}
               file={selectedFile}
               findings={findingsInFile(review.risk.findings, selectedFile.diff.path)}
+              dimensions={review.risk.dimensions}
               pullRequest={review.pullRequest}
               onShowImpact={showImpact}
               focus={lineFocus}

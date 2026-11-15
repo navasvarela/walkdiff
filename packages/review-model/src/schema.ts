@@ -393,10 +393,41 @@ export const riskLocationSchema = z.object({ path: z.string().min(1), line: line
 export type RiskLocation = z.infer<typeof riskLocationSchema>
 
 /** One reason to look harder at the change, with the evidence that triggered it. */
+/** How a dimension's findings weigh in a review. */
+export const DimensionKind = {
+  /** Counts towards the security summary, and each finding asks the reviewer to decide something. */
+  Security: "security",
+  /** Asks the reviewer to decide something, without counting as security: breaking changes, tests. */
+  Review: "review",
+  /** Background on the change, such as its size or code quality, listed but not asked about. */
+  Context: "context",
+} as const
+export type DimensionKind = (typeof DimensionKind)[keyof typeof DimensionKind]
+
+/**
+ * One kind of thing the review looks at, such as "Supply chain". Findings name theirs in `category`,
+ * and the report carries each one's description, so a check can add a dimension without the readers
+ * of the report knowing it in advance.
+ */
+export const dimensionSchema = z.object({
+  /** What findings put in `category`. */
+  id: z.string().min(1),
+  /** How the report names it: "Supply chain". */
+  label: z.string().min(1),
+  kind: z.enum(DimensionKind),
+  /** What a reviewer should do about a finding, as one sentence: "Check who can reach it." */
+  advice: z.string(),
+})
+export type Dimension = z.infer<typeof dimensionSchema>
+
 export const riskSchema = z.object({
   /** Stable identifier of the rule, e.g. `python.subprocess-shell`. */
   ruleId: z.string(),
-  category: z.enum(RiskCategory),
+  /**
+   * The dimension it belongs to: one of `RiskCategory` for Walkdiff's own checks, or one a check
+   * describes in the assessment's `dimensions`.
+   */
+  category: z.string().min(1),
   severity: z.enum(RiskSeverity),
   title: z.string(),
   /** Why this matters and what to check. */
@@ -429,6 +460,11 @@ export const riskAssessmentSchema = z.object({
   findings: z.array(riskSchema).readonly(),
   checksRun: z.array(checkRunSchema).readonly(),
   notChecked: z.array(skippedCheckSchema).readonly(),
+  /**
+   * What each finding's category means, so readers can show categories they don't know. Missing
+   * from reports written before it existed, whose categories are all in `BUILT_IN_DIMENSIONS`.
+   */
+  dimensions: z.array(dimensionSchema).readonly().optional(),
 })
 export type RiskAssessment = z.infer<typeof riskAssessmentSchema>
 

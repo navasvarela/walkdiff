@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
-import { ModificationWeight, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, RiskCategory, RiskSeverity, SyntaxAnalysisStatus, UnitChangeKind, UnitImpactStatus, UnitKind } from "@walkdiff/review-model"
-import type { ChangedFile, ChangedUnit, ReviewModel, Risk, UnitKind as UnitKindType } from "@walkdiff/review-model"
+import { DimensionKind, ModificationWeight, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, RiskCategory, RiskSeverity, SyntaxAnalysisStatus, UnitChangeKind, UnitImpactStatus, UnitKind } from "@walkdiff/review-model"
+import type { ChangedFile, ChangedUnit, Dimension, ReviewModel, Risk, UnitKind as UnitKindType } from "@walkdiff/review-model"
 import { buildReviewPlan, GuideRouteKind, guideRouteFromHash } from "./reviewPlan.ts"
 
 const SNAPSHOT = { startLine: 1, endLine: 5, text: "body", elidesNestedUnits: false }
@@ -40,14 +40,14 @@ function finding(category: Risk["category"], severity: Risk["severity"], title: 
   return { ruleId: title, category, severity, title, detail: "", location: path === null ? null : { path, line }, evidence: null }
 }
 
-function review(files: readonly ChangedFile[], findings: readonly Risk[] = []): ReviewModel {
+function review(files: readonly ChangedFile[], findings: readonly Risk[] = [], dimensions: readonly Dimension[] | undefined = undefined): ReviewModel {
   // Parsing keeps this fixture honest against the real contract, without a cast.
   return reviewModelSchema.parse({
     schemaVersion: REVIEW_MODEL_SCHEMA_VERSION,
     generatedAt: "2026-10-31T00:00:00.000Z",
     pullRequest: { url: "https://github.com/o/r/pull/1", number: 1, title: "t", description: "", author: "a", baseRef: "main", headRef: "b", baseSha: "a".repeat(40), headSha: "b".repeat(40), mergeBaseSha: "c".repeat(40), repositoryWebUrl: "https://github.com/o/r", host: "github" },
     files,
-    risk: { securityLevel: RiskSeverity.Low, findings, checksRun: [], notChecked: [] },
+    risk: { securityLevel: RiskSeverity.Low, findings, checksRun: [], notChecked: [], dimensions },
     ai: { status: "disabled" },
     feedbackUrl: null,
   })
@@ -86,6 +86,14 @@ describe("buildReviewPlan", () => {
   it("doesn't count size or code quality as findings the path missed", () => {
     const plan = buildReviewPlan(review([file("a.ts", [unit({ name: "a" })])], [finding(RiskCategory.Size, RiskSeverity.High, "big", null), finding(RiskCategory.CodeQuality, RiskSeverity.Low, "messy", "other.ts", 1)]))
     expect(plan.findingsOffPath).toBe(0)
+  })
+
+  it("asks about a dimension the report describes, in its own words, and leaves context ones out", () => {
+    const docs: Dimension = { id: "docsDrift", label: "Docs drift", kind: DimensionKind.Review, advice: "Update the docs that describe it." }
+    const style: Dimension = { id: "style", label: "Style", kind: DimensionKind.Context, advice: "" }
+    const findings = [finding("docsDrift", RiskSeverity.Medium, "README describes the old flag", "a.ts", 1), finding("style", RiskSeverity.Medium, "Long line", "a.ts", 2)]
+    const plan = buildReviewPlan(review([file("a.ts", [unit({ name: "a" })])], findings, [docs, style]))
+    expect(plan.checks.map((check) => check.message)).toEqual(["README describes the old flag in a.ts. Update the docs that describe it."])
   })
 
   it("puts a high finding ahead of everything else", () => {

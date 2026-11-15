@@ -64,18 +64,34 @@ Checks that need something installed, or send data off the machine, can be turne
 3. In `run`, check `request.disabledChecks.has(...)`. When it's turned off, report it in `notChecked`
    with `TURNED_OFF_IN_SETTINGS`. Check `request.network` before anything goes over the network.
 
-## Still outside the check
+## A new dimension
 
-A finding's category, such as `supplyChain`, is a fixed list in the report format. A new category
-still needs:
+A finding's `category` names its dimension, such as `supplyChain` or `attackSurface`. The built-in
+ones are in [`review-model/src/dimensions.ts`](../packages/review-model/src/dimensions.ts). A check
+that looks at something new declares its own:
 
-- an entry in `RiskCategory`;
-- an entry in `SECURITY_CATEGORIES` if it counts towards security;
-- a label in report-ui's `risks.ts`;
-- a sentence in `reviewPlan.ts`;
-- a rule-id prefix in review-model's `checkSummary.ts`, so findings count under the check that raised them.
+```ts
+const DOCS_DRIFT_CHECK: Check = {
+  step: AnalysisStep.ScanningCode,
+  dimensions: [{ id: "docsDrift", label: "Docs drift", kind: DimensionKind.Review, advice: "Update the docs that describe it." }],
+  run: async (context) => ({ findings: docsDriftFindings(context), checksRun: [/* … */], notChecked: [] }),
+}
+```
 
-Making categories data that checks declare is the next step.
+The report carries every dimension's description, and the report page, the review plan, the security
+summary and the PR comment all read it from there.
+
+| Kind | Meaning |
+| --- | --- |
+| `security` | Counts towards the security summary, and the review plan asks about each finding |
+| `review` | The review plan asks about each finding, but it isn't security: breaking changes, licences, tests |
+| `context` | Background the reviewer sees with the code, not asked about: size, code quality |
+
+The review plan's line for a finding is its title, where it is, how many places, then the
+dimension's `advice`.
+
+One place outside the check remains: a rule-id prefix in review-model's `checkSummary.ts`, so the
+Risks tab counts findings under the check that raised them.
 
 ## Testing
 

@@ -26,7 +26,7 @@ export function PullRequestHeader({ pullRequest, files, risk, feedbackUrl }: Pul
     <header className="header">
       <h1>
         <span className={`level-badge level-${risk.securityLevel}`} title={SECURITY_SCAN_LIMITS}>
-          {securitySummary(risk.findings)}
+          {securitySummary(risk)}
         </span>{" "}
         {pullRequest.title}{" "}
         {isHostedPullRequest(pullRequest) ? (

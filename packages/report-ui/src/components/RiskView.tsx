@@ -1,7 +1,7 @@
 import type { ReactElement } from "react"
-import { CheckOutcome, SECURITY_SCAN_LIMITS, securitySummary, summarizeChecks } from "@walkdiff/review-model"
-import type { CheckRow, PullRequest, Risk, RiskAssessment } from "@walkdiff/review-model"
-import { CATEGORY_LABELS, groupByRule, SEVERITY_LABELS } from "../risks.ts"
+import { CheckOutcome, dimensionOf, SECURITY_SCAN_LIMITS, securitySummary, summarizeChecks } from "@walkdiff/review-model"
+import type { CheckRow, Dimension, PullRequest, Risk, RiskAssessment } from "@walkdiff/review-model"
+import { groupByRule, SEVERITY_LABELS } from "../risks.ts"
 import { sourceLineUrl } from "../sourceLinks.ts"
 import { HostLink } from "./HostLink.tsx"
 import { InlineCode } from "./InlineCode.tsx"
@@ -18,7 +18,7 @@ export function RiskView({ risk, pullRequest, onOpenFile }: RiskViewProps): Reac
     <section className="risk-view">
       <div className={`level-box level-${risk.securityLevel}`}>
         <p className="level-title">
-          <strong>{securitySummary(risk.findings)}</strong>
+          <strong>{securitySummary(risk)}</strong>
         </p>
         <p className="level-explanation">{SECURITY_SCAN_LIMITS} The Checks table below lists what ran. Code quality findings aren't counted here.</p>
       </div>
@@ -27,7 +27,7 @@ export function RiskView({ risk, pullRequest, onOpenFile }: RiskViewProps): Reac
       {risk.findings.length === 0 ? (
         <p className="notice">No findings from the checks that ran.</p>
       ) : (
-        <RiskList findings={risk.findings} pullRequest={pullRequest} onOpenFile={onOpenFile} />
+        <RiskList findings={risk.findings} dimensions={risk.dimensions} pullRequest={pullRequest} onOpenFile={onOpenFile} />
       )}
 
       <h2 className="section-title">Checks</h2>
@@ -72,11 +72,13 @@ function resultLabel(row: CheckRow): string {
 
 interface RiskListProps {
   readonly findings: readonly Risk[]
+  /** The report's description of each category; see `dimensionOf`. */
+  readonly dimensions: readonly Dimension[] | undefined
   readonly pullRequest: PullRequest
   readonly onOpenFile: ((path: string) => void) | undefined
 }
 
-export function RiskList({ findings, pullRequest, onOpenFile }: RiskListProps): ReactElement {
+export function RiskList({ findings, dimensions, pullRequest, onOpenFile }: RiskListProps): ReactElement {
   return (
     <ul className="risk-list">
       {groupByRule(findings).map((group) => {
@@ -86,7 +88,7 @@ export function RiskList({ findings, pullRequest, onOpenFile }: RiskListProps): 
           <li key={`${group.ruleId}:${group.title}`} className={`risk risk-${first.severity}`}>
             <div className="risk-header">
               <span className={`severity severity-${first.severity}`}>{SEVERITY_LABELS[first.severity]}</span>
-              <span className="risk-category">{CATEGORY_LABELS[first.category]}</span>
+              <span className="risk-category">{dimensionOf(first.category, dimensions).label}</span>
               <span className="risk-title">
                 <InlineCode text={group.title} />
               </span>

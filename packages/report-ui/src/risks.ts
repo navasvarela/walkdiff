@@ -1,28 +1,10 @@
-import { RiskCategory, RiskSeverity } from "@walkdiff/review-model"
+import { RiskSeverity } from "@walkdiff/review-model"
 import type { Risk } from "@walkdiff/review-model"
 
 export const SEVERITY_LABELS: Readonly<Record<RiskSeverity, string>> = {
   [RiskSeverity.High]: "High",
   [RiskSeverity.Medium]: "Medium",
   [RiskSeverity.Low]: "Low",
-}
-
-export const CATEGORY_LABELS: Readonly<Record<RiskCategory, string>> = {
-  [RiskCategory.Secret]: "Possible secret",
-  [RiskCategory.DangerousApi]: "Risky API",
-  [RiskCategory.SensitivePath]: "Sensitive area",
-  [RiskCategory.Dependency]: "Dependency",
-  [RiskCategory.Vulnerability]: "Known vulnerability",
-  [RiskCategory.CodeScan]: "Code scan",
-  [RiskCategory.CodeQuality]: "Code quality",
-  [RiskCategory.Tests]: "Tests",
-  [RiskCategory.Size]: "Size",
-  [RiskCategory.BrokenReference]: "Broken reference",
-  [RiskCategory.License]: "Licence",
-  [RiskCategory.BreakingChange]: "Breaking change",
-  [RiskCategory.AttackSurface]: "Attack surface",
-  [RiskCategory.Infrastructure]: "Infrastructure",
-  [RiskCategory.SupplyChain]: "Supply chain",
 }
 
 /** Findings from one rule, so twenty `unsafe` blocks read as one item with twenty places. */

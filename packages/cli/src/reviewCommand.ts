@@ -57,7 +57,7 @@ export async function runReview(options: ReviewOptions, deps: ReviewDependencies
   const { model, reportDir } = options.local === undefined ? await reviewPullRequest(options, deps) : await reviewLocalBranch(options.local, options, deps)
   await writeReport(model, reportDir)
 
-  deps.log(`${model.files.length} files changed, ${securitySummary(model.risk.findings).toLowerCase()}. Report written to ${reportDir}`, { fields: { files: model.files.length, findings: model.risk.findings.length, reportDir } })
+  deps.log(`${model.files.length} files changed, ${securitySummary(model.risk).toLowerCase()}. Report written to ${reportDir}`, { fields: { files: model.files.length, findings: model.risk.findings.length, reportDir } })
   if (!options.serve) {
     return
   }

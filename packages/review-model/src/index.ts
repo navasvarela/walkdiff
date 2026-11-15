@@ -2,6 +2,8 @@ export { AnalysisStep, stepLabel, stepPosition } from "./analysisSteps.ts"
 export type { StepPosition, StepReporter } from "./analysisSteps.ts"
 export {
   REVIEW_MODEL_SCHEMA_VERSION,
+  DimensionKind,
+  dimensionSchema,
   GitHostKind,
   DiffLineKind,
   FileContentKind,
@@ -86,6 +88,7 @@ export type {
   Risk,
   RiskLocation,
   RiskAssessment,
+  Dimension,
   SkippedCheck,
   CheckRun,
   TestCoverage,
@@ -104,6 +107,8 @@ export type {
 export { CheckOutcome, summarizeChecks, totalsOf } from "./checkSummary.ts"
 export type { CheckRow, CheckTotals } from "./checkSummary.ts"
 export { changedUnitsOf, codeSpan, isBehaviourChange, isSecurityFinding, isTestKind, namesOfChecks, SECURITY_SCAN_LIMITS, securityFindings, securitySummary, untouchedReferences } from "./queries.ts"
+export type { DescribedFindings } from "./queries.ts"
+export { BUILT_IN_DIMENSIONS, dimensionOf } from "./dimensions.ts"
 export { isTestPath, isTestUnit } from "./testCode.ts"
 export type { NamedUnit } from "./testCode.ts"
 export {

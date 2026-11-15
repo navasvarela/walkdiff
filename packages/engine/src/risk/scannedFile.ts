@@ -1,5 +1,5 @@
 import { DiffLineKind, FileContentKind, NoiseKind } from "@walkdiff/review-model"
-import type { FileDiff, FileNoise, Risk, RiskCategory, RiskSeverity } from "@walkdiff/review-model"
+import type { FileDiff, FileNoise, Risk, RiskSeverity } from "@walkdiff/review-model"
 
 /** What risk scanners see of a changed file. */
 export interface ScannedFile {
@@ -40,7 +40,8 @@ export function isThirdParty(file: ScannedFile): boolean {
 /** The fields every rule shares, from which each finding is made. */
 export interface RuleDescription {
   readonly id: string
-  readonly category: RiskCategory
+  /** A built-in `RiskCategory`, or a dimension the check declares in its `dimensions`. */
+  readonly category: string
   readonly severity: RiskSeverity
   readonly title: string
   readonly detail: string

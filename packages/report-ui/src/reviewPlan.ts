@@ -1,5 +1,5 @@
-import { changedUnitsOf, DiffLineKind, FileContentKind, FileChangeStatus, isBehaviourChange, isTestPath, isTestUnit, RiskCategory, RiskSeverity, UnitChangeKind, UnitImpactStatus, UnitKind, untouchedReferences } from "@walkdiff/review-model"
-import type { ChangedFile, ChangedUnit, ReviewModel, Risk, TestCoverage, UnitChange } from "@walkdiff/review-model"
+import { changedUnitsOf, DiffLineKind, dimensionOf, DimensionKind, FileContentKind, FileChangeStatus, isBehaviourChange, isTestPath, isTestUnit, RiskCategory, RiskSeverity, UnitChangeKind, UnitImpactStatus, UnitKind, untouchedReferences } from "@walkdiff/review-model"
+import type { ChangedFile, ChangedUnit, DescribedFindings, Dimension, ReviewModel, Risk, TestCoverage, UnitChange } from "@walkdiff/review-model"
 
 /*
  * Turns a review into a guided path. The rules are plain points rather than a model, so every
@@ -75,10 +75,13 @@ const DATA_KINDS: ReadonlySet<UnitKind> = new Set([UnitKind.Constant, UnitKind.E
 const DATA_KIND_CALLER_DIVISOR = 3
 
 /**
- * The brief's checks are decisions about risk. Size has its own note, and code quality shows as
- * a reason at each stop, so a PR with many lint findings can't push a security check out.
+ * The brief's checks are decisions about risk, so context dimensions stay out of them: size has its
+ * own note, and code quality shows as a reason at each stop, so a PR with many lint findings can't
+ * push a security check out.
  */
-const CATEGORIES_NOT_IN_CHECKS: ReadonlySet<RiskCategory> = new Set([RiskCategory.Size, RiskCategory.CodeQuality])
+function isDecision(finding: Risk, dimensions: readonly Dimension[] | undefined): boolean {
+  return dimensionOf(finding.category, dimensions).kind !== DimensionKind.Context
+}
 
 const FIRST_SENTENCE = /^.+?[.!?](?=\s|$)/
 
@@ -154,8 +157,9 @@ export function buildReviewPlan(review: ReviewModel): ReviewPlan {
   const qualifying = candidates.filter((stop) => stop.points >= POINTS_TO_BE_ON_THE_PATH).length
   const limit = Math.min(MAX_STOPS, Math.max(qualifying, MIN_STOPS))
   // The limit keeps a path short, but must never be why a flagged change goes unseen.
-  const stops = candidates.filter((stop, index) => index < limit || isFlagged(stop))
-  const groups = groupChecks(review.risk.findings, stops)
+  const { dimensions } = review.risk
+  const stops = candidates.filter((stop, index) => index < limit || stop.findings.some((finding) => isDecision(finding, dimensions)))
+  const groups = groupChecks(review.risk, stops)
   const lowerPriority = summarizeLowerPriority(review.files, stops, testFiles.length)
   return {
     stops,
@@ -164,20 +168,16 @@ export function buildReviewPlan(review: ReviewModel): ReviewPlan {
     lowerPriority,
     lowerPriorityTotal: lowerPriority.newCode + lowerPriority.otherCode + lowerPriority.quiet + lowerPriority.testFiles + lowerPriority.otherFiles,
     pastTheLimit: Math.max(0, qualifying - stops.filter((stop) => stop.points >= POINTS_TO_BE_ON_THE_PATH).length),
-    findingsOffPath: countFindingsOffPath(review.risk.findings, stops),
+    findingsOffPath: countFindingsOffPath(review.risk, stops),
     sizeNote: review.risk.findings.find((finding) => finding.category === RiskCategory.Size)?.title ?? null,
   }
 }
 
-function isFlagged(stop: ReviewStop): boolean {
-  return stop.findings.some((finding) => !CATEGORIES_NOT_IN_CHECKS.has(finding.category))
-}
-
-function countFindingsOffPath(findings: readonly Risk[], stops: readonly ReviewStop[]): number {
+function countFindingsOffPath({ findings, dimensions }: DescribedFindings, stops: readonly ReviewStop[]): number {
   const visited = new Set(stops.flatMap((stop) => stop.findings))
   // A finding about the whole PR, such as no tests changed, has no place to visit, so the path
   // isn't missing it. The brief's checks already show it.
-  return findings.filter((finding) => finding.location !== null && !CATEGORIES_NOT_IN_CHECKS.has(finding.category) && !visited.has(finding)).length
+  return findings.filter((finding) => finding.location !== null && isDecision(finding, dimensions) && !visited.has(finding)).length
 }
 
 function isOnThePathKind(unit: ChangedUnit, findings: readonly Risk[]): boolean {
@@ -354,16 +354,16 @@ function summarizeLowerPriority(files: readonly ChangedFile[], stops: readonly R
 }
 
 /** One line per decision the reviewer has to make, so seven new dependencies read as one. */
-function groupChecks(findings: readonly Risk[], stops: readonly ReviewStop[]): ReviewCheck[] {
+function groupChecks({ findings, dimensions }: DescribedFindings, stops: readonly ReviewStop[]): ReviewCheck[] {
   const groups = new Map<string, Risk[]>()
   for (const finding of findings) {
-    if (CATEGORIES_NOT_IN_CHECKS.has(finding.category)) continue
+    if (!isDecision(finding, dimensions)) continue
     const key = finding.category === RiskCategory.Dependency ? `${finding.category}\0${finding.location?.path ?? ""}` : `${finding.category}\0${finding.title}`
     groups.set(key, [...(groups.get(key) ?? []), finding])
   }
   return [...groups.values()].flatMap((group) => {
     const first = group.at(0)
-    return first === undefined ? [] : [{ severity: first.severity, message: checkMessage(first, group.length), stopIndex: stopIndexOf(group, stops) }]
+    return first === undefined ? [] : [{ severity: first.severity, message: checkMessage(first, group.length, dimensionOf(first.category, dimensions)), stopIndex: stopIndexOf(group, stops) }]
   }).sort((a, b) => POINTS_FOR_FINDING[b.severity] - POINTS_FOR_FINDING[a.severity])
 }
 
@@ -372,39 +372,26 @@ function stopIndexOf(group: readonly Risk[], stops: readonly ReviewStop[]): numb
   return index === -1 ? undefined : index
 }
 
-function checkMessage(finding: Risk, count: number): string {
+/** The checklist line for findings that share a title: the dimension's advice, or wording of its own. */
+function checkMessage(finding: Risk, count: number, dimension: Dimension): string {
   const where = finding.location === null ? "" : ` in ${finding.location.path}`
   const times = count > 1 ? ` (${count} places)` : ""
   switch (finding.category) {
+    // The title names the kind of secret, which says more than needed in a checklist.
     case RiskCategory.Secret:
-      return `Possible secret${where}${times}. If it's real, revoke it.`
-    case RiskCategory.DangerousApi:
-      return `${finding.title}${where}${times}. Check that users can't control the input.`
+      return `${dimension.label}${where}${times}. ${dimension.advice}`
     case RiskCategory.SensitivePath:
-      return `${finding.title} changed${count > 1 ? ` in ${count} files` : where}. Check this is intended.`
+      return `${finding.title} changed${count > 1 ? ` in ${count} files` : where}. ${dimension.advice}`
+    // Grouped by file, so one line covers every package a manifest adds.
     case RiskCategory.Dependency:
-      return count > 1 ? `${count} new dependencies${where}. Check that you trust them.` : `${finding.title}${where}. Check that you trust it.`
-    case RiskCategory.Vulnerability:
-      return `${finding.title}${where}. Upgrade before merging if you can.`
+      return count > 1 ? `${count} new dependencies${where}. Check that you trust them.` : `${finding.title}${where}. ${dimension.advice}`
     case RiskCategory.CodeScan:
-      return `Code scan: ${finding.title}${where}${times}. Check whether it applies here.`
+      return `Code scan: ${finding.title}${where}${times}. ${dimension.advice}`
+    // About the PR as a whole, so it has no place.
     case RiskCategory.Tests:
-      return `${finding.title}. Ask whether this needs tests.`
-    case RiskCategory.License:
-      return `${finding.title}${where}. Check it's acceptable before merging.`
-    case RiskCategory.BrokenReference:
-      return `${finding.title}${where}. Check that nothing still depends on it.`
-    case RiskCategory.BreakingChange:
-      return `${finding.title}${times}${where}. This may break callers or a deployment, so check who depends on it.`
-    case RiskCategory.AttackSurface:
-      return `${finding.title}${where}. Check who can reach it and what it trusts.`
-    case RiskCategory.Infrastructure:
-      return `${finding.title}${where}${times}. Check it's intended for this environment.`
-    case RiskCategory.SupplyChain:
-      return `${finding.title}${where}${times}. Check where the package comes from before installing it.`
-    case RiskCategory.Size:
-    case RiskCategory.CodeQuality:
-      return finding.title
+      return `${finding.title}. ${dimension.advice}`
+    default:
+      return `${finding.title}${where}${times}. ${dimension.advice}`
   }
 }
 

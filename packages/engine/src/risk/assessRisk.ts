@@ -1,5 +1,5 @@
-import { RiskSeverity, isSecurityFinding, securityFindings } from "@walkdiff/review-model"
-import type { ChangedFile, Risk, RiskAssessment, SkippedCheck } from "@walkdiff/review-model"
+import { BUILT_IN_DIMENSIONS, RiskSeverity, isSecurityFinding, securityFindings } from "@walkdiff/review-model"
+import type { ChangedFile, DescribedFindings, Dimension, Risk, RiskAssessment, SkippedCheck } from "@walkdiff/review-model"
 import { languageGaps } from "./languageCoverage.ts"
 import { isIgnored, readWalkdiffConfig, WALKDIFF_CONFIG_PATH } from "../config/walkdiffConfig.ts"
 import { readBlobs } from "../blobs.ts"
@@ -27,10 +27,12 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
     .filter((file) => !isIgnored(config, file.diff.path))
   const context: CheckContext = { request, config, scanned, pipelineFiles: once(() => readPipelineFiles(scanned, (paths) => readHeadTexts(request, paths))) }
   const outcomes = await runChecks(context)
-  const findings = withoutRepeatedFindings(outcomes.flatMap((outcome) => outcome.findings)).sort(byImportance)
+  const dimensions = [...BUILT_IN_DIMENSIONS, ...CHECKS.flatMap((check) => check.dimensions ?? [])]
+  const findings = withoutRepeatedFindings(outcomes.flatMap((outcome) => outcome.findings)).sort(byImportance(dimensions))
   return {
-    securityLevel: securityLevelOf(findings),
+    securityLevel: securityLevelOf({ findings, dimensions }),
     findings,
+    dimensions,
     checksRun: outcomes.flatMap((outcome) => outcome.checksRun),
     notChecked: [...outcomes.flatMap((outcome) => outcome.notChecked), ...coverageGaps(request.files, request.files.length - scanned.length)],
   }
@@ -61,8 +63,8 @@ async function readHeadTexts(request: RiskAssessmentRequest, paths: readonly str
 }
 
 // Kept for sorting and colour. People read securitySummary instead, as a grade would claim too much.
-function securityLevelOf(findings: readonly Risk[]): RiskSeverity {
-  const security = securityFindings(findings)
+function securityLevelOf(described: DescribedFindings): RiskSeverity {
+  const security = securityFindings(described)
   if (security.some((finding) => finding.severity === RiskSeverity.High)) return RiskSeverity.High
   if (security.some((finding) => finding.severity === RiskSeverity.Medium)) return RiskSeverity.Medium
   return RiskSeverity.Low
@@ -77,11 +79,10 @@ function coverageGaps(files: readonly ChangedFile[], ignoredCount: number): Skip
 }
 
 // Most severe first; at equal severity, security findings before review signals, then by place.
-function byImportance(a: Risk, b: Risk): number {
-  return (
+function byImportance(dimensions: readonly Dimension[]): (a: Risk, b: Risk) => number {
+  return (a, b) =>
     SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
-    Number(isSecurityFinding(b)) - Number(isSecurityFinding(a)) ||
+    Number(isSecurityFinding(b, dimensions)) - Number(isSecurityFinding(a, dimensions)) ||
     (a.location?.path ?? "").localeCompare(b.location?.path ?? "") ||
     (a.location?.line ?? 0) - (b.location?.line ?? 0)
-  )
 }

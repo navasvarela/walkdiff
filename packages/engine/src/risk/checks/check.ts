@@ -1,4 +1,4 @@
-import type { AnalysisStep, ChangedFile, CheckId, CommitSha, Risk, StepReporter } from "@walkdiff/review-model"
+import type { AnalysisStep, ChangedFile, CheckId, CommitSha, Dimension, Risk, StepReporter } from "@walkdiff/review-model"
 import type { WalkdiffConfig } from "../../config/walkdiffConfig.ts"
 import type { FileVersions } from "../../syntax/compareUnits.ts"
 import type { FunctionQuality } from "../../syntax/functionQuality.ts"
@@ -43,5 +43,10 @@ export interface CheckContext {
 export interface Check {
   /** What the progress display says while it runs. Checks run in the order of their steps. */
   readonly step: AnalysisStep
+  /**
+   * Dimensions this check's findings use besides the built-in ones (`BUILT_IN_DIMENSIONS`), with
+   * their label, kind and advice. The report carries them, so its readers need no change.
+   */
+  readonly dimensions?: readonly Dimension[]
   run(context: CheckContext): Promise<ScanOutcome<Risk>>
 }

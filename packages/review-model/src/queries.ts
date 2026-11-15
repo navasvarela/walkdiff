@@ -1,5 +1,6 @@
-import { ModificationWeight, RiskCategory, SyntaxAnalysisStatus, UnitChangeKind, UnitImpactStatus, UnitKind } from "./schema.ts"
-import type { ChangedFile, ChangedUnit, CheckRun, Reference, Risk, UnitChange } from "./schema.ts"
+import { dimensionOf } from "./dimensions.ts"
+import { DimensionKind, ModificationWeight, SyntaxAnalysisStatus, UnitChangeKind, UnitImpactStatus, UnitKind } from "./schema.ts"
+import type { ChangedFile, ChangedUnit, CheckRun, Dimension, Reference, Risk, UnitChange } from "./schema.ts"
 
 export function changedUnitsOf(file: ChangedFile): readonly ChangedUnit[] {
   return file.syntax.status === SyntaxAnalysisStatus.Analyzed ? file.syntax.units : []
@@ -44,37 +45,27 @@ export function namesOfChecks(checks: readonly CheckRun[]): string {
   return names.length < 2 ? last : `${names.slice(0, -1).join(", ")} and ${last}`
 }
 
-/**
- * Categories that count as security findings; the others are review signals. Breaking changes
- * stay out: they can take down a deployment, but they expose nothing to an attacker, and security
- * wording raised by a renamed column would teach people to discount it.
- */
-const SECURITY_CATEGORIES: ReadonlySet<RiskCategory> = new Set([
-  RiskCategory.Secret,
-  RiskCategory.DangerousApi,
-  RiskCategory.SensitivePath,
-  RiskCategory.Dependency,
-  RiskCategory.Vulnerability,
-  RiskCategory.CodeScan,
-  RiskCategory.AttackSurface,
-  RiskCategory.Infrastructure,
-  RiskCategory.SupplyChain,
-])
-
-export function isSecurityFinding(finding: Risk): boolean {
-  return SECURITY_CATEGORIES.has(finding.category)
+/** Findings with what their categories mean: an assessment, or one being put together. */
+export interface DescribedFindings {
+  readonly findings: readonly Risk[]
+  readonly dimensions?: readonly Dimension[] | undefined
 }
 
-export function securityFindings(findings: readonly Risk[]): Risk[] {
-  return findings.filter(isSecurityFinding)
+/** Whether a finding counts as security, which its dimension says; the others are review signals. */
+export function isSecurityFinding(finding: Risk, dimensions: readonly Dimension[] | undefined): boolean {
+  return dimensionOf(finding.category, dimensions).kind === DimensionKind.Security
+}
+
+export function securityFindings({ findings, dimensions }: DescribedFindings): Risk[] {
+  return findings.filter((finding) => isSecurityFinding(finding, dimensions))
 }
 
 /**
  * States what was found rather than rating the change. These checks match patterns and secrets
  * on added lines, so a grade such as "low" would claim more than they can know.
  */
-export function securitySummary(findings: readonly Risk[]): string {
-  const count = securityFindings(findings).length
+export function securitySummary(described: DescribedFindings): string {
+  const count = securityFindings(described).length
   if (count === 0) return "No security findings"
   return count === 1 ? "1 security finding" : `${count} security findings`
 }

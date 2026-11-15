@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
-import { commitShaSchema } from "@walkdiff/review-model"
+import { BUILT_IN_DIMENSIONS, commitShaSchema } from "@walkdiff/review-model"
 import type { CommitSha, RiskAssessment } from "@walkdiff/review-model"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { analyzeChangedFiles } from "../analyzeChangedFiles.ts"
@@ -65,6 +65,12 @@ describe("assessRisk", () => {
 
   it("rates the security level from the most severe security finding", () => {
     expect(risk?.securityLevel).toBe("high")
+  })
+
+  it("describes every category its checks use, so readers needn't know them", () => {
+    const described = new Set(risk?.dimensions?.map((dimension) => dimension.id))
+    expect(risk?.dimensions).toEqual(expect.arrayContaining([...BUILT_IN_DIMENSIONS]))
+    expect(risk?.findings.every((finding) => described.has(finding.category))).toBe(true)
   })
 
   it("judges the PR by the rules at its merge base and flags its edit to them", () => {

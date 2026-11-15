@@ -44,14 +44,14 @@ export function renderSummaryComment(model: HostedReviewModel, reportUrl: string
 
 function securityCallout(risk: RiskAssessment, pullRequest: HostedPullRequest): string[] {
   const scanners = risk.checksRun.map((check) => check.name).filter((name) => SECURITY_CHECKS.has(name))
-  const sentence = `**${securitySummary(risk.findings)}** from ${joinNames(scanners.map(inlineCode))}. ${SECURITY_SCAN_LIMITS}`
+  const sentence = `**${securitySummary(risk)}** from ${joinNames(scanners.map(inlineCode))}. ${SECURITY_SCAN_LIMITS}`
   // GitLab only draws these from 17.10, and shows the marker as text before that. GitHub always does.
   if (pullRequest.host !== GitHostKind.GitHub) return [`> ${sentence}`]
   return [`> [!${alertKind(risk)}]`, `> ${sentence}`]
 }
 
 function alertKind(risk: RiskAssessment): AlertKind {
-  const found = securityFindings(risk.findings)
+  const found = securityFindings(risk)
   if (found.some((finding) => finding.severity === RiskSeverity.High)) return AlertKind.Caution
   // Deliberately not GitHub's green tip: nothing found isn't the same as safe.
   return found.length > 0 ? AlertKind.Warning : AlertKind.Note

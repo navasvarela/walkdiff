@@ -25,7 +25,7 @@ describe("securitySummary", () => {
     [[finding("secret")], "1 security finding"],
     [[finding("secret"), finding("codeScan"), finding("codeQuality")], "2 security findings"],
   ])("counts only security findings: %j", (findings, expected) => {
-    expect(securitySummary(findings)).toBe(expected)
+    expect(securitySummary({ findings })).toBe(expected)
   })
 })
 
