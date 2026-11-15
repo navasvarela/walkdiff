@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import type { ReactElement } from "react"
 import { AiProviderKind, aiDestination, aiSettingsSchema, DEFAULT_AI_MODEL } from "@walkdiff/review-model"
-import type { AiConnectionResult, AiSettings, AppSettings, CheckId, CheckStatus, SettingsView } from "@walkdiff/review-model"
+import type { AiConnectionResult, AiSettings, AppSettings, CheckId, CheckStatus, Destination, SettingsView } from "@walkdiff/review-model"
 import { loadSettings, saveSettings, testAiConnection } from "./api.ts"
 
 const LOCAL_MODEL_EXAMPLE = "http://localhost:11434/v1"
@@ -93,7 +93,7 @@ function CheckRow({ check, on, onToggle }: { readonly check: CheckStatus; readon
         <span>
           <strong>{check.name}</strong>
           <span className="check-purpose">{check.purpose}</span>
-          {check.sends !== null && <span className="check-sends">{check.sends}</span>}
+          {check.sends !== null && <span className="check-sends">{`${check.sends.where}: ${check.sends.what}`}</span>}
         </span>
       </label>
       {missing && on && (
@@ -224,12 +224,6 @@ function KeyStatus({ compatible, keys, isLocal }: { readonly compatible: boolean
   )
 }
 
-interface Destination {
-  readonly where: string
-  readonly what: string
-  readonly when: string
-}
-
 function PrivacySection({ settings, checks, offline, anthropicBaseUrl }: { readonly settings: AppSettings; readonly checks: readonly CheckStatus[]; readonly offline: boolean; readonly anthropicBaseUrl: string | undefined }): ReactElement {
   const rows = destinationsFor(settings, checks, offline, anthropicBaseUrl)
   return (
@@ -267,20 +261,27 @@ function aiStaysLocal(settings: AppSettings): boolean {
 }
 
 function destinationsFor(settings: AppSettings, checks: readonly CheckStatus[], offline: boolean, anthropicBaseUrl: string | undefined): Destination[] {
-  const active = (id: CheckId): boolean => !offline && !settings.disabledChecks.includes(id) && checks.find((check) => check.id === id)?.installed !== false
-  const osv = active("osvDatabase") || active("osvScanner")
+  const active = (check: CheckStatus): boolean => !offline && !settings.disabledChecks.includes(check.id) && check.installed !== false
   const parsed = aiSettingsSchema.safeParse(settings.ai)
   const destination = parsed.success ? aiDestination(parsed.data, anthropicBaseUrl) : undefined
   return [
     { where: "The PR's host", what: "Your token, if the host is trusted, to read the PR and its code", when: "Every review" },
-    ...(osv ? [{ where: "OSV", what: "Names and versions of changed dependencies, including private package names unless listed in .walkdiff.json", when: "When dependencies change" }] : []),
-    ...(active("dependencyTrust") ? [{ where: "OSV, npm, PyPI and crates.io", what: "Names of new direct dependencies, unless listed as private in .walkdiff.json", when: "When a PR adds a dependency" }] : []),
-    ...(active("npmReleases") ? [{ where: "npm", what: "Names and versions of upgraded npm packages, unless listed as private in .walkdiff.json", when: "When a PR upgrades npm packages" }] : []),
-    ...(active("semgrep") ? [{ where: "Semgrep registry", what: "A rule download; your code isn't uploaded", when: "Every review" }] : []),
+    ...distinct(checks.filter(active).flatMap((check) => (check.sends === null ? [] : [check.sends]))),
     ...(destination !== undefined && !destination.isLocal
       ? [{ where: destination.label, what: "The changed code, and the PR's title and description, with known credential formats redacted", when: settings.ai.enabledByDefault ? "Reviews with AI ticked, which is the default" : "Only reviews with AI ticked" }]
       : []),
   ]
+}
+
+// Two checks can send the same thing to the same place, as both OSV checks do; list it once.
+function distinct(destinations: readonly Destination[]): Destination[] {
+  const seen = new Set<string>()
+  return destinations.filter((destination) => {
+    const key = `${destination.where}\0${destination.what}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 function messageOf(error: unknown): string {

@@ -105,6 +105,10 @@ export function aiDestination(ai: AiSettings, anthropicBaseUrl?: string): AiDest
 }
 
 /** What the settings page needs to know about one check. */
+/** Something that leaves this machine: where it goes, what it is, and when it's sent. */
+export const destinationSchema = z.object({ where: z.string(), what: z.string(), when: z.string() })
+export type Destination = z.infer<typeof destinationSchema>
+
 export const checkStatusSchema = z.object({
   id: z.enum(CheckId),
   name: z.string(),
@@ -113,7 +117,7 @@ export const checkStatusSchema = z.object({
   installed: z.boolean().nullable(),
   install: z.string().nullable(),
   /** What it sends and where; null when it stays on this machine. */
-  sends: z.string().nullable(),
+  sends: destinationSchema.nullable(),
 })
 export type CheckStatus = z.infer<typeof checkStatusSchema>
 
