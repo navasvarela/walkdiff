@@ -28,7 +28,9 @@ All changes has five tabs, including **Conversation** in the app: **Changes** (f
 - **Blast radius.** For every function, method or type the PR changes, removes or renames, the report
   lists where the rest of the code still uses it, linked to the host at the head commit, and flags the
   callers this PR did not touch. Removed and renamed units show any references left behind.
-- **Risks and security findings.** Built-in rules flag likely secrets (redacted in the report), risky APIs
+- **Risks and security findings.** Built-in rules flag likely secrets (redacted in the report), new
+  HTTP endpoints (and one without the auth its neighbours declare, or code that turns auth or CSRF
+  checks off), risky APIs
   such as `eval`, `shell=True`, raw HTML, `unsafe`, Go's `InsecureSkipVerify`, Java deserialization, C#'s
   `BinaryFormatter` or C's `strcpy` (only in code, not comments or strings), sensitive
   areas such as auth, payments, migrations and CI, new dependencies, and known vulnerabilities in
@@ -165,6 +167,54 @@ Choose Semgrep's rules in `.walkdiff.json`; an empty list turns Semgrep off:
 
 CI runners need the scanners installed in the job before running Walkdiff.
 
+## Infrastructure
+
+Built-in rules read the lines a PR adds to infrastructure files, outside tests and comments, under the
+"Infrastructure" category, which counts towards the security summary:
+
+| File | Flags |
+| --- | --- |
+| Dockerfiles | Base images without a version (not `scratch` or the file's own stages), `curl … \| sh`, `ADD https://…` without `--checksum`, secrets in `ARG` or `ENV`, `USER root`, and a new Dockerfile that never sets a user |
+| Kubernetes manifests | Privileged containers, the host's network, process or IPC namespaces, privilege escalation, running as root, `hostPath` volumes, added `SYS_ADMIN`, `NET_ADMIN` or `ALL` capabilities, and images without a version |
+| Terraform | Ingress from `0.0.0.0/0` (not egress), public S3 ACLs, public-access blocks turned off, publicly accessible databases, encryption turned off, and IAM wildcard actions |
+
+## Supply chain
+
+Built-in rules check how packages reach the build, separately from whether they're vulnerable. They
+compare each lockfile at the merge base and at head, and read the package-manager settings a PR adds.
+They read only the repository, so they also run with `--offline`. Findings use the "Supply chain"
+category, which counts towards the security summary.
+
+Lockfiles read: `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock` (Yarn 1 and 2+),
+`pnpm-lock.yaml`, `Cargo.lock`, `uv.lock`, `poetry.lock` and `go.sum`.
+
+| Flags | Why |
+| --- | --- |
+| The same version with a different content hash | A registry never serves new files for a published version, so a hand edit or a tampered mirror is likely |
+| A private package now resolved from a public registry | Dependency confusion: anyone can publish your private name publicly. Private names come from `dependencies.private` in `.walkdiff.json` |
+| A package that moves to another registry, repository or URL | How a fork or a takeover gets in |
+| A new package from a git repository or a plain URL, or any over `http://` | Nothing records who published it, or anyone on the network can swap it |
+| An upgrade that starts running an install script, or a new package that runs one | Compromised releases often add a `postinstall` (npm and pnpm 6–8 lockfiles record this) |
+| A changed registry in `.npmrc`, `.yarnrc.yml`, `bunfig.toml`, `pip.conf`, requirement files, `uv.toml`, `pyproject.toml` or `.cargo/config.toml` | Changes where every package comes from |
+| `--extra-index-url` for pip | pip installs the highest version from any index, the original dependency confusion attack |
+| Certificate checks turned off, `--trusted-host`, or a registry over `http://` | Packages can be swapped on the way |
+| A changed `preinstall`, `install` or `postinstall` script in `package.json` | npm runs it on every install |
+| `.pnpmfile.cjs` or a Yarn plugin | Code that runs inside the package manager |
+| A `replace` in `go.mod` pointing at another module | Builds use a different module than the one required |
+
+Only entries the PR adds or changes are judged: what was already in the lockfile was already reviewed.
+
+Online, npm packages a lockfile upgrades within a release line (a new minor or patch, which `^` ranges
+install unasked) are also compared with the release they replace, using npm's record of each:
+
+| Flags | Severity |
+| --- | --- |
+| A release without the provenance the previous one had, which is how a release published from a stolen token looks | Medium |
+| A release published by an account that wasn't a maintainer of the previous one, unless it was built by CI with provenance or trusted publishing | Low |
+
+This sends upgraded package names and versions to npm, except those in `dependencies.private`; turn it
+off under Checks in the app's Settings ("npm release history"), or with `--offline`. Up to 300 upgrades are checked per review.
+
 ## Breaking changes
 
 Walkdiff flags changes that could break other code or a deployment, under the "Breaking change" category
@@ -218,6 +268,18 @@ without the definition changing, and inputs of a GitHub Action's `action.yml`.
 
 Walkdiff flags poor implementations and bad practice in the code a PR adds, under the "Code quality"
 category in the Risks tab. These findings never count as security findings.
+
+**Error handling** is checked on added code, outside tests:
+
+| Finding | Severity | Languages |
+| --- | --- | --- |
+| Error swallowed: a handler that does nothing, or only `pass` or `...` | Medium | TypeScript, JavaScript, Python, Java, Kotlin, C#, C++, and Go's empty `if err != nil {}` |
+| Catches every error: a bare `except:`, `BaseException`, `Throwable` or `catch (...)` | Low | Python, Java, Kotlin, C++ |
+| May panic: `.unwrap()` or `.expect()` | Low | Rust, outside `mod tests` and `#[test]` functions |
+| Result discarded: `_ = f()` | Low | Go |
+
+A handler holding only a comment counts as a decision someone explained, and isn't flagged. Neither is a
+promise `.catch(() => fallback)` that returns a value.
 
 **Function metrics** are built in and cover Rust, TypeScript, Python, Go, Java, Kotlin, C#, C and C++. A function is flagged when
 the PR adds it over a limit, pushes it over one, or makes one already over the limit at least 20%

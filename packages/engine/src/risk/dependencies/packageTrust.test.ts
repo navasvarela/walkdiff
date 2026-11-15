@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest"
 import { findMaliciousPackages } from "./osv.ts"
 import { isLicenseAllowed, pypiLicense } from "./licenses.ts"
-import { assessPackageTrust, isFromRegistry, isOneEditAway, isPrivatePackage, lookUpOnRegistry, RegistryUnavailableError } from "./packageTrust.ts"
+import { assessPackageTrust, isFromRegistry, isOneEditAway, isPrivatePackage, lookUpOnRegistry } from "./packageTrust.ts"
+import { RegistryUnavailableError } from "./registryHttp.ts"
 import type { DeclaredPackage, RegistryEntry, TrustSources } from "./packageTrust.ts"
 import { Ecosystem, manifestFormatFor } from "./packages.ts"
 

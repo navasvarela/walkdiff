@@ -8,6 +8,7 @@ import { findMaliciousPackages, OsvUnavailableError } from "./osv.ts"
 import { isLicenseAllowed, pypiLicense } from "./licenses.ts"
 import { Ecosystem, normalizePythonName } from "./packages.ts"
 import { POPULAR_PACKAGES } from "./popularPackages.ts"
+import { getRegistryJson, npmPackagePath, RegistryUnavailableError } from "./registryHttp.ts"
 
 export interface DeclaredPackage {
   readonly ecosystem: Ecosystem
@@ -50,9 +51,6 @@ const MIN_NAME_LENGTH_TO_COMPARE = 5
 // Each lookup is a request to a public service, and a PR chooses how many packages it adds.
 const MAX_LOOKUPS = 100
 const CONCURRENT_LOOKUPS = 8
-const REQUEST_TIMEOUT_MS = 15_000
-// crates.io requires clients to identify themselves.
-const USER_AGENT = "walkdiff (https://github.com/navasvarela/walkdiff)"
 
 const REGISTRY_NAMES: Readonly<Record<Ecosystem, string>> = {
   [Ecosystem.Npm]: "npm",
@@ -192,10 +190,6 @@ export function isOneEditAway(a: string, b: string): boolean {
   return a.length > b.length ? restA.slice(1) === restB : restA === restB.slice(1)
 }
 
-export class RegistryUnavailableError extends Error {
-  override readonly name = "RegistryUnavailableError"
-}
-
 const npmLicenseSchema = z.union([z.string(), z.object({ type: z.string() }).loose()]).optional()
 const npmSchema = z
   .object({
@@ -242,14 +236,8 @@ function npmLicenseText(license: z.infer<typeof npmLicenseSchema>): string | und
   return typeof license === "string" ? license : license?.type
 }
 
-// A scope's leading @ stays as it is and its slash is encoded, as the registry expects. Everything
-// else is encoded, because the name comes from the PR and must stay one path segment.
-function npmPathFor(name: string): string {
-  return name.startsWith("@") ? `@${encodeURIComponent(name.slice(1))}` : encodeURIComponent(name)
-}
-
 const REGISTRIES: Readonly<Record<Ecosystem, RegistryClient>> = {
-  [Ecosystem.Npm]: singleRequest("npm", (name) => `https://registry.npmjs.org/${npmPathFor(name)}`, (body) => {
+  [Ecosystem.Npm]: singleRequest("npm", (name) => `https://registry.npmjs.org/${npmPackagePath(name)}`, (body) => {
     const parsed = npmSchema.parse(body)
     const latest = parsed["dist-tags"]?.latest
     const latestLicense = latest === undefined ? undefined : parsed.versions?.[latest]?.license
@@ -310,24 +298,12 @@ export async function lookUpOnRegistry(ecosystem: Ecosystem, name: string): Prom
   const client = REGISTRIES[ecosystem]
   let facts: PublishedFacts | undefined
   try {
-    facts = await client.facts(name, (url) => getJson(url, client.service))
+    facts = await client.facts(name, (url) => getRegistryJson(url, client.service))
   } catch (error: unknown) {
     if (error instanceof RegistryUnavailableError) throw error
     throw new RegistryUnavailableError(`${client.service} sent an unexpected answer: ${error instanceof Error ? error.message : String(error)}`)
   }
   return facts?.firstPublished === undefined ? { status: RegistryStatus.Missing } : { status: RegistryStatus.Published, firstPublished: facts.firstPublished, license: facts.license }
-}
-
-async function getJson(url: string, service: string): Promise<unknown> {
-  let response: Response
-  try {
-    response = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
-  } catch (error: unknown) {
-    throw new RegistryUnavailableError(`could not reach ${service}: ${error instanceof Error ? error.message : String(error)}`)
-  }
-  if (response.status === 404) return undefined
-  if (!response.ok) throw new RegistryUnavailableError(`${service} responded ${response.status}`)
-  return response.json()
 }
 
 export const LIVE_TRUST_SOURCES = (now: Date): TrustSources => ({ lookUp: lookUpOnRegistry, maliciousNames: findMaliciousPackages, now })

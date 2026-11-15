@@ -380,6 +380,12 @@ export const RiskCategory = {
   BreakingChange: "breakingChange",
   /** A new dependency's licence isn't on the team's allowlist; a policy question, not a security one. */
   License: "license",
+  /** What a change makes reachable from outside: new endpoints, and checks turned off for them. */
+  AttackSurface: "attackSurface",
+  /** Misconfigured infrastructure: Dockerfiles, Kubernetes manifests and Terraform. */
+  Infrastructure: "infrastructure",
+  /** How packages reach the build: lockfile sources and hashes, install scripts and registry settings. */
+  SupplyChain: "supplyChain",
 } as const
 export type RiskCategory = (typeof RiskCategory)[keyof typeof RiskCategory]
 

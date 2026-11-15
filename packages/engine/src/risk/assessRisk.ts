@@ -1,8 +1,12 @@
 import { AnalysisStep, CheckId, RiskSeverity, isSecurityFinding, securityFindings } from "@walkdiff/review-model"
 import type { ChangedFile, CheckRun, CommitSha, Risk, RiskAssessment, SkippedCheck, StepReporter } from "@walkdiff/review-model"
 import { scanBreakingChanges } from "./breaking/scanBreakingChanges.ts"
+import { scanAttackSurface } from "./attackSurface.ts"
 import { scanDangerousApis } from "./dangerousApis.ts"
 import { scanDependencies } from "./dependencies/scanDependencies.ts"
+import { scanErrorHandling } from "./errorHandling.ts"
+import { scanInfrastructure } from "./infrastructure.ts"
+import { scanSupplyChain } from "./supplyChain/scanSupplyChain.ts"
 import { scanFunctionMetrics } from "./functionMetrics.ts"
 import { languageGaps } from "./languageCoverage.ts"
 import { reviewSignals } from "./reviewSignals.ts"
@@ -46,9 +50,10 @@ const SEVERITY_RANK: Readonly<Record<RiskSeverity, number>> = {
   [RiskSeverity.Low]: 2,
 }
 
-const BUILT_IN_CHECK: CheckRun = { name: "Built-in rules", detail: "secrets, risky APIs, sensitive paths and GitLab CI" }
+const BUILT_IN_CHECK: CheckRun = { name: "Built-in rules", detail: "secrets, risky APIs, new endpoints, sensitive paths, GitLab CI, and Dockerfiles, Kubernetes and Terraform" }
 const BREAKING_CHANGE_CHECK: CheckRun = { name: "Breaking changes", detail: "public APIs, database migrations, environment variables and config keys" }
 const FUNCTION_METRICS_CHECK: CheckRun = { name: "Function metrics", detail: "complexity, nesting, length and parameters" }
+const ERROR_HANDLING_CHECK: CheckRun = { name: "Error handling", detail: "swallowed errors, catch-alls, panics and discarded results in added code" }
 const QUALITY_TURNED_OFF: SkippedCheck = { check: "Code quality checks", reason: `turned off in ${WALKDIFF_CONFIG_PATH}` }
 
 /** Runs every risk check over the change and rates its security level. */
@@ -70,6 +75,7 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
     privatePackages: config.dependencies.private,
     allowedLicenses: config.dependencies.allowedLicenses ?? undefined,
   })
+  const supplyChain = await scanSupplyChain({ repoDir: request.repoDir, base: request.base, head: request.head, files: scanned, privatePackages: config.dependencies.private, network: request.network, disabled: request.disabledChecks })
   request.reportStep(AnalysisStep.ScanningCode)
   const pipelineFiles = await readPipelineFiles(scanned, (paths) => readHeadTexts(request, paths))
   const codeScan = await runCodeScanners({ files: scanned, semgrepRules: config.scanners.semgrep.rules, network: request.network, run: request.runScanner, disabled: request.disabledChecks, pipelineFiles })
@@ -87,10 +93,13 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
   const findings = withoutRepeatedFindings([
     ...scanSecrets(scanned),
     ...(await scanDangerousApis(scanned)),
+    ...(await scanAttackSurface(scanned)),
     ...scanSensitivePaths(scanned, config),
     ...scanGitlabCi(scanned, pipelineFiles),
+    ...scanInfrastructure(scanned),
     ...codeScan.findings,
     ...dependencies.findings,
+    ...supplyChain.findings,
     ...reviewSignals(request.files),
     ...breaking,
     ...quality.findings,
@@ -99,8 +108,8 @@ export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAs
   return {
     securityLevel: securityLevelOf(findings),
     findings,
-    checksRun: [BUILT_IN_CHECK, BREAKING_CHANGE_CHECK, ...codeScan.checksRun, ...dependencies.checksRun, ...quality.checksRun],
-    notChecked: [...codeScan.notChecked, ...dependencies.notChecked, ...quality.notChecked, ...coverageGaps(request.files, request.files.length - scanned.length)],
+    checksRun: [BUILT_IN_CHECK, BREAKING_CHANGE_CHECK, ...codeScan.checksRun, ...dependencies.checksRun, ...supplyChain.checksRun, ...quality.checksRun],
+    notChecked: [...codeScan.notChecked, ...dependencies.notChecked, ...supplyChain.notChecked, ...quality.notChecked, ...coverageGaps(request.files, request.files.length - scanned.length)],
   }
 }
 
@@ -113,11 +122,20 @@ async function assessQuality(request: RiskAssessmentRequest, scanned: readonly S
     run: request.runScanner,
     disabled: request.disabledChecks,
   })
+  const errorHandling = await scanErrorHandling(scanned)
   if (request.disabledChecks.has(CheckId.FunctionMetrics)) {
-    return { ...scanners, notChecked: [{ check: "Function measures", reason: TURNED_OFF_IN_SETTINGS }, ...scanners.notChecked] }
+    return {
+      findings: [...errorHandling, ...scanners.findings],
+      checksRun: [ERROR_HANDLING_CHECK, ...scanners.checksRun],
+      notChecked: [{ check: "Function measures", reason: TURNED_OFF_IN_SETTINGS }, ...scanners.notChecked],
+    }
   }
   const functions = request.functions.filter((fn) => !isIgnored(config, fn.path))
-  return { ...scanners, findings: [...scanFunctionMetrics(functions), ...scanners.findings], checksRun: [FUNCTION_METRICS_CHECK, ...scanners.checksRun] }
+  return {
+    ...scanners,
+    findings: [...scanFunctionMetrics(functions), ...errorHandling, ...scanners.findings],
+    checksRun: [FUNCTION_METRICS_CHECK, ERROR_HANDLING_CHECK, ...scanners.checksRun],
+  }
 }
 
 async function readHeadTexts(request: RiskAssessmentRequest, paths: readonly string[]): Promise<(string | undefined)[]> {

@@ -396,6 +396,12 @@ function checkMessage(finding: Risk, count: number): string {
       return `${finding.title}${where}. Check that nothing still depends on it.`
     case RiskCategory.BreakingChange:
       return `${finding.title}${times}${where}. This may break callers or a deployment, so check who depends on it.`
+    case RiskCategory.AttackSurface:
+      return `${finding.title}${where}. Check who can reach it and what it trusts.`
+    case RiskCategory.Infrastructure:
+      return `${finding.title}${where}${times}. Check it's intended for this environment.`
+    case RiskCategory.SupplyChain:
+      return `${finding.title}${where}${times}. Check where the package comes from before installing it.`
     case RiskCategory.Size:
     case RiskCategory.CodeQuality:
       return finding.title
