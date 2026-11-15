@@ -17,6 +17,7 @@ export interface CheckTotals {
 
 const BUILT_IN_CHECK = "Built-in rules"
 const OSV_CHECKS: readonly string[] = ["OSV database", "osv-scanner"]
+// The first prefix that matches wins, so a narrower one goes before the wider one it starts with.
 const CHECK_BY_RULE_PREFIX: ReadonlyMap<string, string> = new Map([
   ["semgrep.", "Semgrep"],
   ["gitleaks.", "gitleaks"],
@@ -30,6 +31,10 @@ const CHECK_BY_RULE_PREFIX: ReadonlyMap<string, string> = new Map([
   ["license.", "Licences"],
   ["zizmor.", "zizmor"],
   ["poutine.", "poutine"],
+  ["errors.", "Error handling"],
+  ["supply-chain.provenance-dropped", "npm release history"],
+  ["supply-chain.new-publisher", "npm release history"],
+  ["supply-chain.", "Supply chain"],
 ])
 
 /**

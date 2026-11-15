@@ -22,8 +22,13 @@ describe("summarizeChecks", () => {
     ["GHSA-1", "vulnerability", "OSV database"],
     ["dependency.added", "dependency", "Built-in rules"],
     ["size.large", "size", "Built-in rules"],
+    ["endpoint.added", "attackSurface", "Built-in rules"],
+    ["errors.swallowed", "codeQuality", "Error handling"],
+    ["supply-chain.integrity-changed", "supplyChain", "Supply chain"],
+    ["supply-chain.provenance-dropped", "supplyChain", "npm release history"],
+    ["supply-chain.new-publisher", "supplyChain", "npm release history"],
   ] as const)("credits %s to the check that found it", (ruleId, category, check) => {
-    const names = ["Built-in rules", "Breaking changes", "Semgrep", "gitleaks", "Function metrics", "oxlint", "Ruff", "jscpd", "OSV database"]
+    const names = ["Built-in rules", "Breaking changes", "Semgrep", "gitleaks", "Function metrics", "oxlint", "Ruff", "jscpd", "OSV database", "Error handling", "Supply chain", "npm release history"]
     expect(summarizeChecks(assessment([finding(ruleId, category)], names)).at(0)).toMatchObject({ outcome: "issues", name: check, issues: 1 })
   })
 
