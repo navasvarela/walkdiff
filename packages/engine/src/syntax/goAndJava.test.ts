@@ -4,7 +4,7 @@ import type { Definition, FileUnits } from "./definitions.ts"
 import { goSpec } from "./go.ts"
 import { javaSpec } from "./java.ts"
 import type { LanguageSpec } from "./languageSpec.ts"
-import { languageSpecFor } from "./languages.ts"
+import { languageSpecFor } from "../languages/registry.ts"
 import { withSyntaxTree } from "./parser.ts"
 
 function unitsOf(spec: LanguageSpec, source: string): Promise<FileUnits> {

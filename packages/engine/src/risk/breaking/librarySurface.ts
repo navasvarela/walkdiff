@@ -1,46 +1,25 @@
 import { dirname, posix } from "node:path"
-import { SourceLanguage } from "@walkdiff/review-model"
 import type { CommitSha } from "@walkdiff/review-model"
 import { z } from "zod"
 import { readBlobs } from "../../blobs.ts"
-import { ISOLATED_CONFIG_ENV, runGit } from "../../git.ts"
-import { languageSpecFor } from "../../syntax/languages.ts"
 
 /** Whether code outside this repository can reach `name` (a top-level item) in the file at `path`. */
 export type LibrarySurface = (path: string, name: string) => boolean
 
-// Code in these folders ships with no one, or is run rather than imported.
-const NON_API_FOLDERS: ReadonlySet<string> = new Set(["examples", "example", "docs", "doc", "scripts", "script", "tools", "benches", "benchmarks", "bench", "fixtures", "testdata", "demo", "demos", "migrations"])
 // Enough for any real package's chain of `export ... from`; a limit because repositories are untrusted input.
 const MAX_REEXPORT_FILES = 300
 
-interface RepositoryFiles {
+/**
+ * How one ecosystem decides what other projects can import from changed files: Cargo's `lib.rs`,
+ * package.json `exports`, Python packages and Go modules. A language without one has no public API
+ * rules, so its breaking-change checks are reported as not run.
+ */
+export type LibrarySurfaceReader = (repository: RepositoryFiles, paths: readonly string[]) => Promise<LibrarySurface>
+
+export interface RepositoryFiles {
   readonly commit: CommitSha
   readonly repoDir: string
   readonly paths: ReadonlySet<string>
-}
-
-/**
- * Works out which changed code other projects can import, at the commit they depend on today.
- * A `pub` or `export` alone is a poor sign: binary crates, private packages and apps use both for
- * their own modules, and every caller of those is in the repository where it can be traced.
- * Anything this can't establish counts as not reachable, so unsure code never raises a false alarm.
- */
-export async function readLibrarySurface(repoDir: string, commit: CommitSha, changedPaths: readonly string[]): Promise<LibrarySurface> {
-  const listing = await runGit(["ls-tree", "-r", "-z", "--name-only", commit], { cwd: repoDir, env: ISOLATED_CONFIG_ENV })
-  const repository: RepositoryFiles = { commit, repoDir, paths: new Set(listing.split("\0").filter((path) => path !== "")) }
-  const candidates = changedPaths.filter((path) => !path.split("/").some((segment) => NON_API_FOLDERS.has(segment)))
-  const pathsIn = (...languages: readonly SourceLanguage[]): string[] => candidates.filter((path) => {
-    const language = languageSpecFor(path)?.language
-    return language !== undefined && languages.includes(language)
-  })
-  const [rust, ecmascript, python] = await Promise.all([
-    rustSurface(repository, pathsIn(SourceLanguage.Rust)),
-    ecmascriptSurface(repository, pathsIn(SourceLanguage.TypeScript, SourceLanguage.Tsx)),
-    pythonSurface(repository, pathsIn(SourceLanguage.Python)),
-  ])
-  const go = goSurface(repository, pathsIn(SourceLanguage.Go))
-  return (path, name) => rust(path, name) || ecmascript(path, name) || python(path, name) || go(path)
 }
 
 async function readTexts(repository: RepositoryFiles, paths: readonly string[]): Promise<Map<string, string>> {
@@ -92,7 +71,7 @@ function isExposedBy(parentText: string, step: ModuleStep, name: string): boolea
   })
 }
 
-async function rustSurface(repository: RepositoryFiles, paths: readonly string[]): Promise<LibrarySurface> {
+export async function rustSurface(repository: RepositoryFiles, paths: readonly string[]): Promise<LibrarySurface> {
   const manifestOf = new Map(paths.flatMap((path) => {
     const manifest = nearestManifest(repository.paths, path, [CARGO_MANIFEST])
     return manifest === undefined ? [] : [[path, manifest] as const]
@@ -195,7 +174,7 @@ async function followReexports(repository: RepositoryFiles, entries: readonly st
   return exposed
 }
 
-async function ecmascriptSurface(repository: RepositoryFiles, paths: readonly string[]): Promise<LibrarySurface> {
+export async function ecmascriptSurface(repository: RepositoryFiles, paths: readonly string[]): Promise<LibrarySurface> {
   const manifestPaths = [...new Set(paths.flatMap((path) => nearestManifest(repository.paths, path, [PACKAGE_MANIFEST]) ?? []))]
   const manifests = await readTexts(repository, manifestPaths)
   const entries = [...manifests].flatMap(([path, text]) => {
@@ -252,7 +231,7 @@ function listedInDunderAll(text: string | undefined, name: string): boolean {
   return listed === undefined || Array.from(listed.matchAll(QUOTED_NAME), (match) => match[1]).includes(name)
 }
 
-async function pythonSurface(repository: RepositoryFiles, paths: readonly string[]): Promise<LibrarySurface> {
+export async function pythonSurface(repository: RepositoryFiles, paths: readonly string[]): Promise<LibrarySurface> {
   const manifestOf = new Map(paths.flatMap((path) => {
     const manifest = nearestManifest(repository.paths, path, PYTHON_MANIFESTS)
     return manifest === undefined ? [] : [[path, manifest] as const]
@@ -274,7 +253,7 @@ const GO_MODULE_MANIFEST = "go.mod"
 const GO_INTERNAL_FOLDER = "internal"
 const GO_TEST_FILE = /_test\.go$/
 
-function goSurface(repository: RepositoryFiles, paths: readonly string[]): (path: string) => boolean {
+export async function goSurface(repository: RepositoryFiles, paths: readonly string[]): Promise<LibrarySurface> {
   const importable = new Set(paths.filter((path) =>
     !GO_TEST_FILE.test(path) &&
     !path.split("/").includes(GO_INTERNAL_FOLDER) &&
