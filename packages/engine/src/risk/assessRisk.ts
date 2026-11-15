@@ -1,48 +1,17 @@
-import { AnalysisStep, CheckId, RiskSeverity, isSecurityFinding, securityFindings } from "@walkdiff/review-model"
-import type { ChangedFile, CheckRun, CommitSha, Risk, RiskAssessment, SkippedCheck, StepReporter } from "@walkdiff/review-model"
-import { scanBreakingChanges } from "./breaking/scanBreakingChanges.ts"
-import { scanAttackSurface } from "./attackSurface.ts"
-import { scanDangerousApis } from "./dangerousApis.ts"
-import { scanDependencies } from "./dependencies/scanDependencies.ts"
-import { scanErrorHandling } from "./errorHandling.ts"
-import { scanInfrastructure } from "./infrastructure.ts"
-import { scanSupplyChain } from "./supplyChain/scanSupplyChain.ts"
-import { scanFunctionMetrics } from "./functionMetrics.ts"
+import { RiskSeverity, isSecurityFinding, securityFindings } from "@walkdiff/review-model"
+import type { ChangedFile, Risk, RiskAssessment, SkippedCheck } from "@walkdiff/review-model"
 import { languageGaps } from "./languageCoverage.ts"
-import { reviewSignals } from "./reviewSignals.ts"
 import { isIgnored, readWalkdiffConfig, WALKDIFF_CONFIG_PATH } from "../config/walkdiffConfig.ts"
-import type { WalkdiffConfig } from "../config/walkdiffConfig.ts"
 import { readBlobs } from "../blobs.ts"
-import type { FileVersions } from "../syntax/compareUnits.ts"
-import type { FunctionQuality } from "../syntax/functionQuality.ts"
 import type { ScannedFile } from "./scannedFile.ts"
-import { scanGitlabCi } from "./pipelines/gitlabCiRules.ts"
 import { readPipelineFiles } from "./pipelines/pipelineFiles.ts"
+import type { PipelineFile } from "./pipelines/pipelineFiles.ts"
 import { withoutRepeatedFindings } from "./repeatedFindings.ts"
-import { scanSecrets } from "./secrets.ts"
-import { runCodeScanners } from "./scanners/runCodeScanners.ts"
-import { runQualityScanners } from "./scanners/runQualityScanners.ts"
-import { TURNED_OFF_IN_SETTINGS } from "./scanners/scanWorkspace.ts"
 import type { ScanOutcome } from "./scanners/scanWorkspace.ts"
-import type { ScannerProcessRunner } from "./scanners/scannerProcess.ts"
-import { scanSensitivePaths } from "./sensitivePaths.ts"
+import type { CheckContext, RiskAssessmentRequest } from "./checks/check.ts"
+import { CHECKS, STEP_ORDER } from "./checks/registry.ts"
 
-export interface RiskAssessmentRequest {
-  readonly repoDir: string
-  readonly base: CommitSha
-  readonly head: CommitSha
-  readonly files: readonly ChangedFile[]
-  /** Head text of each file in `files`, aligned by index; undefined where not read. */
-  readonly headTexts: readonly (string | undefined)[]
-  /** Every function at the head, measured against its previous version. */
-  readonly functions: readonly FunctionQuality[]
-  /** Both parsed versions of each analyzed file, for what the compared units don't keep. */
-  readonly versions: readonly FileVersions[]
-  readonly network: boolean
-  readonly runScanner: ScannerProcessRunner
-  readonly disabledChecks: ReadonlySet<CheckId>
-  readonly reportStep: StepReporter
-}
+export type { RiskAssessmentRequest } from "./checks/check.ts"
 
 const SEVERITY_RANK: Readonly<Record<RiskSeverity, number>> = {
   [RiskSeverity.High]: 0,
@@ -50,92 +19,40 @@ const SEVERITY_RANK: Readonly<Record<RiskSeverity, number>> = {
   [RiskSeverity.Low]: 2,
 }
 
-const BUILT_IN_CHECK: CheckRun = { name: "Built-in rules", detail: "secrets, risky APIs, new endpoints, sensitive paths, GitLab CI, and Dockerfiles, Kubernetes and Terraform" }
-const BREAKING_CHANGE_CHECK: CheckRun = { name: "Breaking changes", detail: "public APIs, database migrations, environment variables and config keys" }
-const FUNCTION_METRICS_CHECK: CheckRun = { name: "Function metrics", detail: "complexity, nesting, length and parameters" }
-const ERROR_HANDLING_CHECK: CheckRun = { name: "Error handling", detail: "swallowed errors, catch-alls, panics and discarded results in added code" }
-const QUALITY_TURNED_OFF: SkippedCheck = { check: "Code quality checks", reason: `turned off in ${WALKDIFF_CONFIG_PATH}` }
-
-/** Runs every risk check over the change and rates its security level. */
+/** Runs every check in the registry over the change and rates its security level. */
 export async function assessRisk(request: RiskAssessmentRequest): Promise<RiskAssessment> {
   const config = await readWalkdiffConfig(request.repoDir, request.base)
   const scanned: ScannedFile[] = request.files
     .map((file, index) => ({ diff: file.diff, noise: file.noise, after: request.headTexts.at(index) }))
     .filter((file) => !isIgnored(config, file.diff.path))
-
-  request.reportStep(AnalysisStep.CheckingDependencies)
-  const dependencies = await scanDependencies({
-    repoDir: request.repoDir,
-    base: request.base,
-    head: request.head,
-    diffs: scanned.map((file) => file.diff),
-    network: request.network,
-    runScanner: request.runScanner,
-    disabled: request.disabledChecks,
-    privatePackages: config.dependencies.private,
-    allowedLicenses: config.dependencies.allowedLicenses ?? undefined,
-  })
-  const supplyChain = await scanSupplyChain({ repoDir: request.repoDir, base: request.base, head: request.head, files: scanned, privatePackages: config.dependencies.private, network: request.network, disabled: request.disabledChecks })
-  request.reportStep(AnalysisStep.ScanningCode)
-  const pipelineFiles = await readPipelineFiles(scanned, (paths) => readHeadTexts(request, paths))
-  const codeScan = await runCodeScanners({ files: scanned, semgrepRules: config.scanners.semgrep.rules, network: request.network, run: request.runScanner, disabled: request.disabledChecks, pipelineFiles })
-  request.reportStep(AnalysisStep.CheckingQuality)
-  const quality = config.quality.enabled ? await assessQuality(request, scanned, config) : { findings: [], checksRun: [], notChecked: [QUALITY_TURNED_OFF] }
-  request.reportStep(AnalysisStep.CheckingBreakingChanges)
-  const breaking = await scanBreakingChanges({
-    repoDir: request.repoDir,
-    base: request.base,
-    head: request.head,
-    files: request.files.filter((file) => !isIgnored(config, file.diff.path)),
-    scanned,
-    versions: request.versions,
-  })
-  const findings = withoutRepeatedFindings([
-    ...scanSecrets(scanned),
-    ...(await scanDangerousApis(scanned)),
-    ...(await scanAttackSurface(scanned)),
-    ...scanSensitivePaths(scanned, config),
-    ...scanGitlabCi(scanned, pipelineFiles),
-    ...scanInfrastructure(scanned),
-    ...codeScan.findings,
-    ...dependencies.findings,
-    ...supplyChain.findings,
-    ...reviewSignals(request.files),
-    ...breaking,
-    ...quality.findings,
-  ]).sort(byImportance)
-
+  const context: CheckContext = { request, config, scanned, pipelineFiles: once(() => readPipelineFiles(scanned, (paths) => readHeadTexts(request, paths))) }
+  const outcomes = await runChecks(context)
+  const findings = withoutRepeatedFindings(outcomes.flatMap((outcome) => outcome.findings)).sort(byImportance)
   return {
     securityLevel: securityLevelOf(findings),
     findings,
-    checksRun: [BUILT_IN_CHECK, BREAKING_CHANGE_CHECK, ...codeScan.checksRun, ...dependencies.checksRun, ...supplyChain.checksRun, ...quality.checksRun],
-    notChecked: [...codeScan.notChecked, ...dependencies.notChecked, ...supplyChain.notChecked, ...quality.notChecked, ...coverageGaps(request.files, request.files.length - scanned.length)],
+    checksRun: outcomes.flatMap((outcome) => outcome.checksRun),
+    notChecked: [...outcomes.flatMap((outcome) => outcome.notChecked), ...coverageGaps(request.files, request.files.length - scanned.length)],
   }
 }
 
-async function assessQuality(request: RiskAssessmentRequest, scanned: readonly ScannedFile[], config: WalkdiffConfig): Promise<ScanOutcome<Risk>> {
-  const scanners = await runQualityScanners({
-    repoDir: request.repoDir,
-    head: request.head,
-    files: scanned,
-    isIgnored: (path) => isIgnored(config, path),
-    run: request.runScanner,
-    disabled: request.disabledChecks,
-  })
-  const errorHandling = await scanErrorHandling(scanned)
-  if (request.disabledChecks.has(CheckId.FunctionMetrics)) {
-    return {
-      findings: [...errorHandling, ...scanners.findings],
-      checksRun: [ERROR_HANDLING_CHECK, ...scanners.checksRun],
-      notChecked: [{ check: "Function measures", reason: TURNED_OFF_IN_SETTINGS }, ...scanners.notChecked],
-    }
+/** Runs the checks step by step, as the progress display shows them, and returns their outcomes in registry order. */
+async function runChecks(context: CheckContext): Promise<ScanOutcome<Risk>[]> {
+  const outcomes = new Map<number, ScanOutcome<Risk>>()
+  // A check on a step missing from STEP_ORDER still runs, after the others.
+  const steps = new Set([...STEP_ORDER, ...CHECKS.map((check) => check.step)])
+  for (const step of steps) {
+    const inStep = CHECKS.flatMap((check, index) => (check.step === step ? [{ check, index }] : []))
+    if (inStep.length === 0) continue
+    context.request.reportStep(step)
+    for (const { check, index } of inStep) outcomes.set(index, await check.run(context))
   }
-  const functions = request.functions.filter((fn) => !isIgnored(config, fn.path))
-  return {
-    ...scanners,
-    findings: [...scanFunctionMetrics(functions), ...errorHandling, ...scanners.findings],
-    checksRun: [FUNCTION_METRICS_CHECK, ERROR_HANDLING_CHECK, ...scanners.checksRun],
-  }
+  return CHECKS.map((_, index) => outcomes.get(index) ?? { findings: [], checksRun: [], notChecked: [] })
+}
+
+function once(read: () => Promise<readonly PipelineFile[]>): () => Promise<readonly PipelineFile[]> {
+  let pending: Promise<readonly PipelineFile[]> | undefined
+  return () => (pending ??= read())
 }
 
 async function readHeadTexts(request: RiskAssessmentRequest, paths: readonly string[]): Promise<(string | undefined)[]> {

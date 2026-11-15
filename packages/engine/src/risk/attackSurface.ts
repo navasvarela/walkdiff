@@ -1,9 +1,11 @@
-import { codeSpan, isTestPath, RiskCategory, RiskSeverity, SourceLanguage } from "@walkdiff/review-model"
+import { codeSpan, isTestPath, RiskCategory, RiskSeverity } from "@walkdiff/review-model"
 import type { Risk } from "@walkdiff/review-model"
 import type { Tree } from "web-tree-sitter"
-import { languageSpecFor } from "../syntax/languages.ts"
+import { languageFor } from "../languages/registry.ts"
 import { withSyntaxTree } from "../syntax/parser.ts"
 import { isInsideCommentOrString } from "./codePositions.ts"
+import { RouteForm } from "./routeSyntax.ts"
+import type { RouteSyntax } from "./routeSyntax.ts"
 import { addedLines, findingAt, isThirdParty, removedLines } from "./scannedFile.ts"
 import type { RuleDescription, ScannedFile } from "./scannedFile.ts"
 
@@ -11,24 +13,9 @@ import type { RuleDescription, ScannedFile } from "./scannedFile.ts"
  * What a change makes reachable from outside: new HTTP endpoints, whether they keep the auth
  * their neighbours declare, and code that opts out of auth or CSRF checks. Routes are read by
  * pattern from the lines a PR adds, so a framework that registers routes some other way is missed;
- * a missed route costs a note, while a wrong one would cost trust.
+ * a missed route costs a note, while a wrong one would cost trust. Each language lists its
+ * frameworks' route syntaxes in its `routes`.
  */
-
-/** Where a route's auth is declared, which says which lines to look for it on. */
-const RouteForm = {
-  /** `router.get("/users", requireAuth, list)`: in the same call, so only on the route's own line. */
-  Call: "call",
-  /** `@app.get("/users")`: in the decorators above it, or the signature just below. */
-  Decorator: "decorator",
-} as const
-type RouteForm = (typeof RouteForm)[keyof typeof RouteForm]
-
-interface RouteSyntax {
-  readonly form: RouteForm
-  readonly languages: ReadonlySet<SourceLanguage>
-  /** Named groups: `path`, and `method` when the syntax names one. */
-  readonly pattern: RegExp
-}
 
 interface Route {
   readonly method: string
@@ -37,36 +24,6 @@ interface Route {
   /** An auth marker sits on the route's own declaration: a decorator, attribute or middleware argument. */
   readonly guarded: boolean
 }
-
-const ECMASCRIPT: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.TypeScript, SourceLanguage.Tsx])
-const PYTHON: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Python])
-const JVM: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Java, SourceLanguage.Kotlin])
-const CSHARP: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.CSharp])
-const GO: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Go])
-const RUST: ReadonlySet<SourceLanguage> = new Set([SourceLanguage.Rust])
-
-const ROUTE_SYNTAXES: readonly RouteSyntax[] = [
-  // Express, Koa, Fastify and Hono: `router.post("/users", …)`.
-  { form: RouteForm.Call, languages: ECMASCRIPT, pattern: /\b(?:app|router|server|api|routes|fastify|hono)\.(?<method>get|post|put|patch|delete|all)\s*\(\s*["'`](?<path>[^"'`]+)/ },
-  // NestJS: `@Post("users")`.
-  { form: RouteForm.Decorator, languages: ECMASCRIPT, pattern: /@(?<method>Get|Post|Put|Patch|Delete|All)\(\s*(?:["'`](?<path>[^"'`]*))?/ },
-  // FastAPI and Flask: `@app.get("/users")`, `@router.post(…)`, `@bp.route(…)`.
-  { form: RouteForm.Decorator, languages: PYTHON, pattern: /@\w+\.(?<method>get|post|put|patch|delete|route|api_route)\(\s*["'](?<path>[^"']+)/ },
-  // Django: `path("users/", views.users)`.
-  { form: RouteForm.Call, languages: PYTHON, pattern: /\b(?:re_)?path\(\s*r?["'](?<path>[^"']*)["']\s*,/ },
-  // Spring: `@PostMapping("/users")`, `@RequestMapping(value = "/users")`; JAX-RS: `@Path("/users")`.
-  { form: RouteForm.Decorator, languages: JVM, pattern: /@(?<method>Get|Post|Put|Patch|Delete|Request)Mapping\s*\(\s*(?:(?:value|path)\s*=\s*)?[{[]?\s*"(?<path>[^"]*)"/ },
-  { form: RouteForm.Decorator, languages: JVM, pattern: /@Path\(\s*"(?<path>[^"]*)"/ },
-  // ASP.NET: `[HttpPost("users")]`, and minimal APIs: `app.MapPost("/users", …)`.
-  { form: RouteForm.Decorator, languages: CSHARP, pattern: /\[Http(?<method>Get|Post|Put|Patch|Delete)\(\s*"(?<path>[^"]*)"/ },
-  { form: RouteForm.Call, languages: CSHARP, pattern: /\.Map(?<method>Get|Post|Put|Patch|Delete)\s*\(\s*"(?<path>[^"]+)"/ },
-  // net/http, including Go 1.22's "POST /users" patterns; gin, echo and chi: `r.POST("/users", …)`.
-  { form: RouteForm.Call, languages: GO, pattern: /\.(?:HandleFunc|Handle)\s*\(\s*"(?<path>[^"]+)"/ },
-  { form: RouteForm.Call, languages: GO, pattern: /\.(?<method>GET|POST|PUT|PATCH|DELETE|Get|Post|Put|Patch|Delete)\s*\(\s*"(?<path>\/[^"]*)"/ },
-  // axum: `.route("/users", post(create))`; actix and Rocket: `#[post("/users")]`.
-  { form: RouteForm.Call, languages: RUST, pattern: /\.route\s*\(\s*"(?<path>[^"]+)"\s*,\s*(?<method>get|post|put|patch|delete)\b/ },
-  { form: RouteForm.Decorator, languages: RUST, pattern: /#\[(?<method>get|post|put|patch|delete)\s*\(\s*"(?<path>[^"]+)"/ },
-]
 
 // Code that turns auth or CSRF checks off for what it decorates.
 const AUTH_OPT_OUT = /\[AllowAnonymous\]|\.permitAll\s*\(|@PermitAll\b|\bAllowAny\b|@csrf_exempt\b|@Public\s*\(\s*\)/
@@ -112,13 +69,13 @@ export async function scanAttackSurface(files: readonly ScannedFile[]): Promise<
   const removedRoutes = new Set(files.flatMap((file) => routesOnLines(file, removedLines(file.diff))).map(routeKey))
   const findings: Risk[] = []
   for (const file of files) {
-    const spec = languageSpecFor(file.diff.path)
-    if (spec === undefined || file.after === undefined || isThirdParty(file) || isTestPath(file.diff.path)) continue
+    const language = languageFor(file.diff.path)
+    if (language === undefined || file.after === undefined || isThirdParty(file) || isTestPath(file.diff.path)) continue
     const added = new Set(addedLines(file.diff).map((line) => line.line))
     if (added.size === 0) continue
-    const syntaxes = ROUTE_SYNTAXES.filter((syntax) => syntax.languages.has(spec.language))
+    const syntaxes = language.routes
     const source = file.after
-    findings.push(...(await withSyntaxTree(spec, source, (tree) => findingsIn(tree, source, syntaxes, added, removedRoutes, file.diff.path))))
+    findings.push(...(await withSyntaxTree(language.spec, source, (tree) => findingsIn(tree, source, syntaxes, added, removedRoutes, file.diff.path))))
   }
   return findings
 }
@@ -172,9 +129,7 @@ function methodAndPath(groups: Record<string, string | undefined> | undefined): 
 // Removed lines are matched without a syntax tree: the base version isn't parsed here, and a route
 // that moved within the PR only needs its method and path recognised.
 function routesOnLines(file: ScannedFile, lines: readonly { readonly line: number; readonly content: string }[]): Route[] {
-  const spec = languageSpecFor(file.diff.path)
-  if (spec === undefined) return []
-  const syntaxes = ROUTE_SYNTAXES.filter((syntax) => syntax.languages.has(spec.language))
+  const syntaxes = languageFor(file.diff.path)?.routes ?? []
   return lines.flatMap(({ line, content }) => {
     const match = syntaxes.map((syntax) => syntax.pattern.exec(content)).find((candidate) => candidate !== null)
     return match === undefined || match === null ? [] : [{ ...methodAndPath(match.groups), line, guarded: false }]

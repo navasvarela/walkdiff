@@ -124,7 +124,7 @@ export {
   settingsViewSchema,
 } from "./settings.ts"
 export type { AiConnectionResult, AiDestination, AiSettings, AppSettings,
-  CurrentSettings, CheckStatus, SettingsView } from "./settings.ts"
+  CurrentSettings, CheckStatus, Destination, SettingsView } from "./settings.ts"
 export { conversationSchema, reviewerSchema, replySchema, resolveThreadSchema, ReviewerState, ReviewEvent, reviewCommentSchema, submitResultSchema, submitReviewSchema, diffLineRefSchema, LineSide, lineRangeSchema, isPlacedComment, lastLineOf } from "./conversation.ts"
 export type { Conversation, Reviewer, ReviewComment, ReviewThread, SubmitResult, SubmitReview, ThreadComment, DiffLineRef, LineRange } from "./conversation.ts"
 export { acceptStackRequestSchema, MAX_STACK_SIZE, pullRequestStackSchema, StackSource, stackMemberSchema, stackOfferSchema, stackPlaceSchema } from "./stack.ts"

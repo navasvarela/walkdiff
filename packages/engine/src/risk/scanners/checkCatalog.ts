@@ -1,6 +1,6 @@
 import { tmpdir } from "node:os"
 import { CheckId } from "@walkdiff/review-model"
-import type { CheckStatus } from "@walkdiff/review-model"
+import type { CheckStatus, Destination } from "@walkdiff/review-model"
 import { OSV_SCANNER_BINARY } from "../dependencies/osvScanner.ts"
 import { GITLEAKS_BINARY } from "./gitleaks.ts"
 import { JSCPD_BINARY } from "./jscpd.ts"
@@ -18,20 +18,20 @@ interface CheckDescription {
   readonly purpose: string
   readonly binary: string | null
   readonly install: string | null
-  readonly sends: string | null
+  readonly sends: Destination | null
 }
 
-const OSV_DESTINATION = "Names and versions of changed dependencies, including private package names, to OSV"
+const OSV_DESTINATION: Destination = { where: "OSV", what: "Names and versions of changed dependencies, including private package names unless listed in .walkdiff.json", when: "When dependencies change" }
 
 const CHECKS: readonly CheckDescription[] = [
   { id: CheckId.Gitleaks, name: "gitleaks", purpose: "Finds secrets in added code", binary: GITLEAKS_BINARY, install: "walkdiff setup", sends: null },
-  { id: CheckId.Semgrep, name: "Semgrep", purpose: "Finds risky code patterns", binary: SEMGREP_BINARY, install: "walkdiff setup, with Python 3.10 or later", sends: "Downloads rules from the Semgrep registry; your code isn't uploaded" },
+  { id: CheckId.Semgrep, name: "Semgrep", purpose: "Finds risky code patterns", binary: SEMGREP_BINARY, install: "walkdiff setup, with Python 3.10 or later", sends: { where: "Semgrep registry", what: "A rule download; your code isn't uploaded", when: "Every review" } },
   { id: CheckId.OsvDatabase, name: "OSV database", purpose: "Finds known vulnerabilities in new dependency versions", binary: null, install: null, sends: OSV_DESTINATION },
   { id: CheckId.OsvScanner, name: "osv-scanner", purpose: "Finds known vulnerabilities in pnpm, yarn and bun lockfiles", binary: OSV_SCANNER_BINARY, install: "walkdiff setup", sends: OSV_DESTINATION },
   { id: CheckId.Zizmor, name: "zizmor", purpose: "Finds security problems in GitHub Actions workflows", binary: ZIZMOR_BINARY, install: "walkdiff setup", sends: null },
   { id: CheckId.Poutine, name: "poutine", purpose: "Finds security problems in GitLab CI, Azure Pipelines and Tekton", binary: POUTINE_BINARY, install: "walkdiff setup", sends: null },
-  { id: CheckId.DependencyTrust, name: "Dependency trust", purpose: "Flags new packages that are malicious, missing from the registry, very new or lookalikes", binary: null, install: null, sends: "Names of new direct dependencies, except those you list as private, to OSV, npm, PyPI and crates.io" },
-  { id: CheckId.NpmReleases, name: "npm release history", purpose: "Flags npm upgrades published by a new account or without the provenance earlier releases had", binary: null, install: null, sends: "Names and versions of upgraded npm packages, except those you list as private, to npm" },
+  { id: CheckId.DependencyTrust, name: "Dependency trust", purpose: "Flags new packages that are malicious, missing from the registry, very new or lookalikes", binary: null, install: null, sends: { where: "OSV, npm, PyPI, crates.io and deps.dev", what: "Names of new direct dependencies, unless listed as private in .walkdiff.json", when: "When a PR adds a dependency" } },
+  { id: CheckId.NpmReleases, name: "npm release history", purpose: "Flags npm upgrades published by a new account or without the provenance earlier releases had", binary: null, install: null, sends: { where: "npm", what: "Names and versions of upgraded npm packages, unless listed as private in .walkdiff.json", when: "When a PR upgrades npm packages" } },
   { id: CheckId.FunctionMetrics, name: "Function measures", purpose: "Flags complex, long or deeply nested functions", binary: null, install: null, sends: null },
   { id: CheckId.Ruff, name: "Ruff", purpose: "Finds likely bugs and insecure code in Python", binary: RUFF_BINARY, install: "walkdiff setup", sends: null },
   { id: CheckId.Oxlint, name: "oxlint", purpose: "Finds likely bugs in TypeScript and JavaScript", binary: OXLINT_BINARY, install: "pnpm install", sends: null },
