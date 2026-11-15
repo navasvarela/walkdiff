@@ -67,6 +67,12 @@ describe("assessRisk", () => {
     expect(risk?.securityLevel).toBe("high")
   })
 
+  it("names on every finding a check that ran, so the Risks tab counts it there", () => {
+    const ran = new Set(risk?.checksRun.map((check) => check.name))
+    expect(risk?.findings.length).toBeGreaterThan(0)
+    expect(risk?.findings.filter((finding) => finding.check === undefined || !ran.has(finding.check))).toEqual([])
+  })
+
   it("describes every category its checks use, so readers needn't know them", () => {
     const described = new Set(risk?.dimensions?.map((dimension) => dimension.id))
     expect(risk?.dimensions).toEqual(expect.arrayContaining([...BUILT_IN_DIMENSIONS]))

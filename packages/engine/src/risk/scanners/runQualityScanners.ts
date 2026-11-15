@@ -6,6 +6,7 @@ import type { CommitSha, Risk } from "@walkdiff/review-model"
 import { readBlobs } from "../../blobs.ts"
 import { listSourceFiles, SCAN_BATCH_FILES } from "../../impact/candidateFiles.ts"
 import { MAX_SOURCE_FILE_BYTES } from "../../limits.ts"
+import { creditedTo } from "../checks/credit.ts"
 import { addedLines, findingAt } from "../scannedFile.ts"
 import type { ScannedFile } from "../scannedFile.ts"
 import { JSCPD_BINARY, jscpdArgs, JSCPD_REPORT_FILE, parseJscpdReport } from "./jscpd.ts"
@@ -99,7 +100,7 @@ async function runLinter(request: QualityScanRequest, candidates: readonly Scann
   const problem = runProblem(result, okExitCodes, scanner)
   if (result === undefined || problem !== undefined) return notRun(scanner.check, problem ?? scanner.install)
   try {
-    return { findings: toRisks(parse(result.stdout), files), checksRun: [{ name: scanner.name, detail: scanner.detail }], notChecked: [] }
+    return { findings: creditedTo(scanner.name, toRisks(parse(result.stdout), files)), checksRun: [{ name: scanner.name, detail: scanner.detail }], notChecked: [] }
   } catch (error: unknown) {
     return notRun(scanner.check, `its output could not be read: ${messageOf(error)}`)
   }
@@ -150,7 +151,7 @@ async function runJscpd(request: QualityScanRequest, candidates: readonly Scanne
   if (problem !== undefined) return notRun(JSCPD.check, problem)
   try {
     const clones = parseJscpdReport(await readFile(join(outputDir, JSCPD_REPORT_FILE), "utf8"))
-    return { findings: cloneFindings(clones, root, reviewable), checksRun: [{ name: JSCPD.name, detail: JSCPD.detail }], notChecked: [] }
+    return { findings: creditedTo(JSCPD.name, cloneFindings(clones, root, reviewable)), checksRun: [{ name: JSCPD.name, detail: JSCPD.detail }], notChecked: [] }
   } catch (error: unknown) {
     return notRun(JSCPD.check, `its report could not be read: ${messageOf(error)}`)
   }

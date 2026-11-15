@@ -438,6 +438,11 @@ export const riskSchema = z.object({
   evidence: z.string().nullable(),
   /** The changed unit this is about, for when no line can say: a removed function has none at head. */
   unit: z.string().optional(),
+  /**
+   * The check that raised it, as `checksRun` names it, so the Risks tab counts it there. Missing
+   * from reports written before findings named their check.
+   */
+  check: z.string().optional(),
 })
 export type Risk = z.infer<typeof riskSchema>
 
@@ -446,7 +451,12 @@ export const skippedCheckSchema = z.object({ check: z.string(), reason: z.string
 export type SkippedCheck = z.infer<typeof skippedCheckSchema>
 
 /** A check that did run, so "not checked" has its counterpart. */
-export const checkRunSchema = z.object({ name: z.string(), detail: z.string() })
+export const checkRunSchema = z.object({
+  name: z.string(),
+  detail: z.string(),
+  /** It looks for security problems, so the PR comment names it among the security checks. */
+  security: z.boolean().optional(),
+})
 export type CheckRun = z.infer<typeof checkRunSchema>
 
 export const riskAssessmentSchema = z.object({

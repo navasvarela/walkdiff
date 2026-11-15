@@ -32,6 +32,16 @@ describe("summarizeChecks", () => {
     expect(summarizeChecks(assessment([finding(ruleId, category)], names)).at(0)).toMatchObject({ outcome: "issues", name: check, issues: 1 })
   })
 
+  it("credits a finding to the check it names, whatever its rule id", () => {
+    const named = { ...finding("semgrep.looks-like-semgrep"), check: "Docs drift" }
+    expect(summarizeChecks(assessment([named], ["Semgrep", "Docs drift"])).at(0)).toMatchObject({ name: "Docs drift", issues: 1 })
+  })
+
+  it("credits a finding naming a check that didn't run to the built-in rules, so the counts still add up", () => {
+    const named = { ...finding("custom.x"), check: "Gone" }
+    expect(summarizeChecks(assessment([named], ["Built-in rules"])).at(0)).toMatchObject({ name: "Built-in rules", issues: 1 })
+  })
+
   it("credits a vulnerability to osv-scanner when that's the OSV check that ran", () => {
     expect(summarizeChecks(assessment([finding("GHSA-1", "vulnerability")], ["osv-scanner"])).at(0)).toMatchObject({ name: "osv-scanner", issues: 1 })
   })

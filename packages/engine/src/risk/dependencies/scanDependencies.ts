@@ -6,7 +6,8 @@ import { findingAt } from "../scannedFile.ts"
 import type { RuleDescription } from "../scannedFile.ts"
 import { findVulnerabilities, isMaliciousAdvisory, OsvUnavailableError } from "./osv.ts"
 import type { VulnerablePackage } from "./osv.ts"
-import { scanUnreadLockfiles } from "./osvScanner.ts"
+import { OSV_SCANNER_CHECK, scanUnreadLockfiles } from "./osvScanner.ts"
+import { BUILT_IN_RULES_NAME, creditedTo } from "../checks/credit.ts"
 import { assessPackageTrust, isFromRegistry, isPrivatePackage, LIVE_TRUST_SOURCES } from "./packageTrust.ts"
 import type { DeclaredPackage, TrustSources } from "./packageTrust.ts"
 import { lockfileFormatFor, manifestFormatFor, UNREAD_LOCKFILES } from "./packages.ts"
@@ -41,12 +42,12 @@ export interface DependencyScan {
 
 // Maven names a package `group:artifact`.
 const MAVEN_SEPARATOR = ":"
-const OSV_DATABASE_CHECK: CheckRun = { name: "OSV database", detail: "package versions new to lockfiles" }
+const OSV_DATABASE_CHECK: CheckRun = { name: "OSV database", detail: "package versions new to lockfiles", security: true }
 
 const VULNERABILITY_CHECK = "Known vulnerabilities in new dependency versions"
 const TRUST_CHECK = "Dependency trust"
 const LICENSE_CHECK_RUN: CheckRun = { name: "Licences", detail: "new direct dependencies against your allowlist" }
-const TRUST_CHECK_RUN: CheckRun = { name: TRUST_CHECK, detail: "new direct dependencies: known malicious, not on the registry, very new or a lookalike name" }
+const TRUST_CHECK_RUN: CheckRun = { name: TRUST_CHECK, detail: "new direct dependencies: known malicious, not on the registry, very new or a lookalike name", security: true }
 
 const NEW_DEPENDENCY: RuleDescription = {
   id: "dependency.added",
@@ -101,7 +102,7 @@ async function readManifestChanges(request: DependencyScanRequest): Promise<Mani
     const before = blobs.at(2 * index)?.toString("utf8")
     const after = blobs.at(2 * index + 1)?.toString("utf8")
     if (after === undefined) return
-    noted.push(...newlyDeclared(diff.path, before, after))
+    noted.push(...creditedTo(BUILT_IN_RULES_NAME, newlyDeclared(diff.path, before, after)))
     declared.push(...newlyDeclaredPackages(diff.path, before, after, privatePackages))
     for (const version of newlyLocked(diff.path, before, after)) {
       if (!isPrivatePackage(version.name, privatePackages)) newVersions.push({ version, lockfile: diff.path, text: after })
@@ -126,7 +127,7 @@ async function checkVulnerabilitiesInto({ declared, newVersions }: ManifestChang
       const source = newVersions.find((entry) => entry.version === found.package)
       // The trust check already says this about a package the PR declares, with what to do about it.
       const alreadyFlagged = isMaliciousAdvisory(found.vulnerability.id) && declared.some((entry) => entry.name === found.package.name)
-      if (source !== undefined && !alreadyFlagged) scan.findings.push(vulnerabilityFinding(found, source.lockfile, source.text))
+      if (source !== undefined && !alreadyFlagged) scan.findings.push({ ...vulnerabilityFinding(found, source.lockfile, source.text), check: OSV_DATABASE_CHECK.name })
     }
     scan.checksRun.push(OSV_DATABASE_CHECK)
   } catch (error: unknown) {
@@ -150,7 +151,8 @@ async function checkTrustInto(declared: readonly DeclaredPackage[], request: Dep
   const flagged = new Set(findings.map(placeOf))
   const routineNotes = scan.findings.filter((finding) => finding.ruleId === NEW_DEPENDENCY.id && flagged.has(placeOf(finding)))
   for (const note of routineNotes) scan.findings.splice(scan.findings.indexOf(note), 1)
-  scan.findings.push(...findings)
+  // One lookup answers both: whether the package can be trusted, and its licence.
+  scan.findings.push(...findings.map((finding) => ({ ...finding, check: finding.category === RiskCategory.License ? LICENSE_CHECK_RUN.name : TRUST_CHECK_RUN.name })))
   if (problem === undefined) scan.checksRun.push(TRUST_CHECK_RUN, ...(request.allowedLicenses === undefined ? [] : [LICENSE_CHECK_RUN]))
   else scan.notChecked.push({ check: TRUST_CHECK, reason: problem })
 }
@@ -166,7 +168,7 @@ async function scanUnreadLockfilesInto(request: DependencyScanRequest, scan: Dep
   scan.checksRun.push(...result.checksRun)
   for (const found of withoutAliasDuplicates(result.vulnerable.map((entry) => entry.found))) {
     const source = result.vulnerable.find((entry) => entry.found === found)
-    if (source !== undefined) scan.findings.push(vulnerabilityFinding(found, source.lockfile, source.text))
+    if (source !== undefined) scan.findings.push({ ...vulnerabilityFinding(found, source.lockfile, source.text), check: OSV_SCANNER_CHECK.name })
   }
 }
 

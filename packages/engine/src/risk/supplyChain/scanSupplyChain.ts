@@ -6,6 +6,7 @@ import { Ecosystem } from "../dependencies/ecosystem.ts"
 import { TURNED_OFF_IN_SETTINGS } from "../scanners/scanWorkspace.ts"
 import type { ScannedFile } from "../scannedFile.ts"
 import type { ScanOutcome } from "../scanners/scanWorkspace.ts"
+import { creditedTo } from "../checks/credit.ts"
 import { packageConfigFindings } from "./configRules.ts"
 import type { LockfileReader } from "./lockedPackage.ts"
 import { lockfileFindings } from "./lockfileRules.ts"
@@ -36,9 +37,9 @@ interface ReadLockfile extends LockfileVersions {
   readonly reader: LockfileReader
 }
 
-const SUPPLY_CHAIN_CHECK: CheckRun = { name: "Supply chain", detail: "lockfile sources, content hashes and install scripts, and package-manager settings" }
+const SUPPLY_CHAIN_CHECK: CheckRun = { name: "Supply chain", detail: "lockfile sources, content hashes and install scripts, and package-manager settings", security: true }
 const NPM_RELEASES_CHECK = "npm release history"
-const NPM_RELEASES_RUN: CheckRun = { name: NPM_RELEASES_CHECK, detail: "who published upgraded npm packages, and whether they kept provenance" }
+const NPM_RELEASES_RUN: CheckRun = { name: NPM_RELEASES_CHECK, detail: "who published upgraded npm packages, and whether they kept provenance", security: true }
 const LOCKFILE_READERS: readonly LockfileReader[] = [PACKAGE_LOCK, YARN_LOCK, PNPM_LOCK, CARGO_LOCK, UV_LOCK, POETRY_LOCK, GO_SUM]
 
 /**
@@ -49,9 +50,9 @@ const LOCKFILE_READERS: readonly LockfileReader[] = [PACKAGE_LOCK, YARN_LOCK, PN
  * releases were published.
  */
 export async function scanSupplyChain(request: SupplyChainScanRequest): Promise<ScanOutcome<Risk>> {
-  const outcome: ScanOutcome<Risk> = { findings: packageConfigFindings(request.files), checksRun: [SUPPLY_CHAIN_CHECK], notChecked: [] }
+  const outcome: ScanOutcome<Risk> = { findings: creditedTo(SUPPLY_CHAIN_CHECK.name, packageConfigFindings(request.files)), checksRun: [SUPPLY_CHAIN_CHECK], notChecked: [] }
   const lockfiles = await readLockfiles(request, outcome)
-  for (const lockfile of lockfiles) outcome.findings.push(...lockfileFindings(lockfile, request.privatePackages))
+  for (const lockfile of lockfiles) outcome.findings.push(...creditedTo(SUPPLY_CHAIN_CHECK.name, lockfileFindings(lockfile, request.privatePackages)))
   const upgrades = lockfiles.filter((lockfile) => lockfile.reader.ecosystem === Ecosystem.Npm).flatMap((lockfile) => npmUpgrades(lockfile, request.privatePackages))
   if (upgrades.length > 0) await checkNpmReleasesInto(upgrades, request, outcome)
   return outcome
@@ -67,7 +68,7 @@ async function checkNpmReleasesInto(upgrades: readonly PackageUpgrade[], request
     return
   }
   const { findings, problem } = await checkNpmUpgrades(upgrades, request.lookUpRelease ?? lookUpNpmRelease)
-  outcome.findings.push(...findings)
+  outcome.findings.push(...creditedTo(NPM_RELEASES_RUN.name, findings))
   if (problem === undefined) outcome.checksRun.push(NPM_RELEASES_RUN)
   else outcome.notChecked.push({ check: NPM_RELEASES_CHECK, reason: problem })
 }

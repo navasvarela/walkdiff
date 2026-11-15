@@ -17,8 +17,12 @@ export interface CheckTotals {
 
 const BUILT_IN_CHECK = "Built-in rules"
 const OSV_CHECKS: readonly string[] = ["OSV database", "osv-scanner"]
-// The first prefix that matches wins, so a narrower one goes before the wider one it starts with.
-const CHECK_BY_RULE_PREFIX: ReadonlyMap<string, string> = new Map([
+/**
+ * For reports saved before findings named their check: which check raised a finding, by its rule
+ * id. Frozen; new checks name themselves on their findings. The first prefix that matches wins, so
+ * a narrower one goes before the wider one it starts with.
+ */
+const LEGACY_CHECK_BY_RULE_PREFIX: ReadonlyMap<string, string> = new Map([
   ["semgrep.", "Semgrep"],
   ["gitleaks.", "gitleaks"],
   ["oxlint.", "oxlint"],
@@ -42,7 +46,8 @@ const CHECK_BY_RULE_PREFIX: ReadonlyMap<string, string> = new Map([
  * check always add up to the total a reviewer sees in the findings list.
  */
 function checkThatFound(finding: Risk, ran: ReadonlySet<string>): string {
-  const byRule = [...CHECK_BY_RULE_PREFIX].find(([prefix]) => finding.ruleId.startsWith(prefix))?.[1]
+  if (finding.check !== undefined) return ran.has(finding.check) ? finding.check : BUILT_IN_CHECK
+  const byRule = [...LEGACY_CHECK_BY_RULE_PREFIX].find(([prefix]) => finding.ruleId.startsWith(prefix))?.[1]
   // Both OSV checks report the same kind of finding with nothing to tell them apart; they're close enough to share a row.
   const named = finding.category === RiskCategory.Vulnerability ? OSV_CHECKS.find((check) => ran.has(check)) : byRule
   return named !== undefined && ran.has(named) ? named : BUILT_IN_CHECK

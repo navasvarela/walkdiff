@@ -7,6 +7,7 @@ import { scanGitlabCi } from "../pipelines/gitlabCiRules.ts"
 import { scanSecrets } from "../secrets.ts"
 import { scanSensitivePaths } from "../sensitivePaths.ts"
 import type { Check, CheckContext } from "./check.ts"
+import { BUILT_IN_RULES_NAME, creditedTo } from "./credit.ts"
 
 /** A rule set that ships with Walkdiff and needs no scanner installed, so it always runs. */
 interface BuiltInRule {
@@ -31,7 +32,7 @@ export const BUILT_IN_RULES_CHECK: Check = {
   run: async (context) => {
     const findings: Risk[] = []
     for (const rule of RULES) findings.push(...(await rule.find(context)))
-    return { findings, checksRun: [{ name: "Built-in rules", detail: inWords(RULES.map((rule) => rule.covers)) }], notChecked: [] }
+    return { findings: creditedTo(BUILT_IN_RULES_NAME, findings), checksRun: [{ name: BUILT_IN_RULES_NAME, detail: inWords(RULES.map((rule) => rule.covers)), security: true }], notChecked: [] }
   },
 }
 

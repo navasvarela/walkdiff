@@ -44,6 +44,12 @@ findings with `findingAt(rule, path, line, evidence)` from
 - **Added lines:** `addedLines(diff)` gives the lines a PR adds. Judging only those keeps a check
   from flagging code that was already there.
 - **Comments and strings:** for rules on code, `isInsideCommentOrString` skips matches inside them.
+- **Name the check:** pass findings through `creditedTo(runName, findings)`
+  ([`checks/credit.ts`](../packages/engine/src/risk/checks/credit.ts)), where `runName` is the `name`
+  of the run you report. The Risks tab counts each finding under that check. A test makes sure every
+  finding in a review names a check that ran.
+- **Security checks:** give the run `security: true` if it looks for security problems. The PR comment
+  then names it among the security checks behind its summary.
 
 The registry's order matters: where two checks flag the same line, the first is kept. Add a new check
 after the built-in rules.
@@ -89,9 +95,6 @@ summary and the PR comment all read it from there.
 
 The review plan's line for a finding is its title, where it is, how many places, then the
 dimension's `advice`.
-
-One place outside the check remains: a rule-id prefix in review-model's `checkSummary.ts`, so the
-Risks tab counts findings under the check that raised them.
 
 ## Testing
 

@@ -7,6 +7,7 @@ import { runQualityScanners } from "../scanners/runQualityScanners.ts"
 import { TURNED_OFF_IN_SETTINGS } from "../scanners/scanWorkspace.ts"
 import type { ScanOutcome } from "../scanners/scanWorkspace.ts"
 import type { Check, CheckContext } from "./check.ts"
+import { creditedTo } from "./credit.ts"
 
 const FUNCTION_METRICS_CHECK: CheckRun = { name: "Function metrics", detail: "complexity, nesting, length and parameters" }
 const ERROR_HANDLING_CHECK: CheckRun = { name: "Error handling", detail: "swallowed errors, catch-alls, panics and discarded results in added code" }
@@ -31,7 +32,7 @@ async function assessQuality({ request, scanned, config }: CheckContext): Promis
     run: request.runScanner,
     disabled: request.disabledChecks,
   })
-  const errorHandling = await scanErrorHandling(scanned)
+  const errorHandling = creditedTo(ERROR_HANDLING_CHECK.name, await scanErrorHandling(scanned))
   if (request.disabledChecks.has(CheckId.FunctionMetrics)) {
     return {
       findings: [...errorHandling, ...scanners.findings],
@@ -42,7 +43,7 @@ async function assessQuality({ request, scanned, config }: CheckContext): Promis
   const functions = request.functions.filter((fn) => !isIgnored(config, fn.path))
   return {
     ...scanners,
-    findings: [...scanFunctionMetrics(functions), ...errorHandling, ...scanners.findings],
+    findings: [...creditedTo(FUNCTION_METRICS_CHECK.name, scanFunctionMetrics(functions)), ...errorHandling, ...scanners.findings],
     checksRun: [FUNCTION_METRICS_CHECK, ERROR_HANDLING_CHECK, ...scanners.checksRun],
   }
 }

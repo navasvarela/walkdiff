@@ -106,7 +106,7 @@ describe("the comment's wording and links", () => {
   const finding = (title: string, category: Risk["category"], severity: Risk["severity"] = "low"): Risk => ({ ruleId: "r", category, severity, title, detail: "d", location: { path: "src/a|b.ts", line: 3 }, evidence: null })
   const model = (findings: readonly Risk[], host: "github" | "gitlab" = "github"): HostedReviewModel => {
     const base = modelWith("https://github.com/acme/app/pull/7")
-    return { ...base, pullRequest: { ...base.pullRequest, host }, risk: { ...base.risk, findings: [...findings], checksRun: [{ name: "Semgrep", detail: "d" }, { name: "oxlint", detail: "d" }], notChecked: [] } }
+    return { ...base, pullRequest: { ...base.pullRequest, host }, risk: { ...base.risk, findings: [...findings], checksRun: [{ name: "Semgrep", detail: "d", security: true }, { name: "oxlint", detail: "d" }], notChecked: [] } }
   }
   const URL = "https://example.com/r"
 

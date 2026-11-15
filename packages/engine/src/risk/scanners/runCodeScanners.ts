@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { CheckId } from "@walkdiff/review-model"
 import type { CheckRun, Risk, SkippedCheck } from "@walkdiff/review-model"
 import type { PipelineFile } from "../pipelines/pipelineFiles.ts"
+import { creditedTo } from "../checks/credit.ts"
 import { isThirdParty } from "../scannedFile.ts"
 import type { ScannedFile } from "../scannedFile.ts"
 import { GITLEAKS_BINARY, gitleaksArgs, parseGitleaksReport } from "./gitleaks.ts"
@@ -84,13 +85,20 @@ export async function runCodeScanners(request: CodeScanRequest): Promise<CodeSca
     await writeFile(join(root, EMPTY_IGNORE_FILE), "")
     const outcomes = await Promise.all([runSemgrep(request, root), runGitleaks(request, root, workspace), runZizmor(request, root, workspace), runRuffSecurity(request, root), runPoutine(request, workspace)])
     return {
-      findings: toRisks(outcomes.flatMap((outcome) => outcome.findings), candidates),
+      findings: outcomes.flatMap((outcome) => creditedToItsRun(outcome, candidates)),
       checksRun: outcomes.flatMap((outcome) => outcome.checksRun),
       notChecked: outcomes.flatMap((outcome) => outcome.notChecked),
     }
   } finally {
     await rm(workspace, { recursive: true, force: true })
   }
+}
+
+// Each scanner that ran reports one run, under whose name its findings are counted.
+function creditedToItsRun(outcome: ScanOutcome, files: readonly ScannedFile[]): Risk[] {
+  const risks = toRisks(outcome.findings, files)
+  const run = outcome.checksRun.at(0)
+  return run === undefined ? risks : creditedTo(run.name, risks)
 }
 
 // Any segment, not only the file name: a folder called `.semgrepignore` would stop the empty
@@ -111,7 +119,7 @@ async function runSemgrep(request: CodeScanRequest, root: string): Promise<ScanO
   if (result === undefined) return notRun(SEMGREP_CHECK, SEMGREP_INSTALL)
   if (result.exitCode !== SEMGREP_SUCCESS_EXIT_CODE) return notRun(SEMGREP_CHECK, `it failed: ${firstErrorLine(result)}`)
   try {
-    return { findings: parseSemgrepOutput(result.stdout), checksRun: [{ name: "Semgrep", detail: `rules: ${request.semgrepRules.join(", ")}` }], notChecked: [] }
+    return { findings: parseSemgrepOutput(result.stdout), checksRun: [{ name: "Semgrep", detail: `rules: ${request.semgrepRules.join(", ")}`, security: true }], notChecked: [] }
   } catch (error: unknown) {
     return notRun(SEMGREP_CHECK, `its output could not be read: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -127,7 +135,7 @@ async function runZizmor(request: CodeScanRequest, root: string, workspace: stri
   if (result === undefined) return notRun(ZIZMOR_CHECK, ZIZMOR_INSTALL)
   if (result.exitCode !== 0) return notRun(ZIZMOR_CHECK, `it failed: ${firstErrorLine(result)}`)
   try {
-    return { findings: parseZizmorOutput(result.stdout, root), checksRun: [{ name: "zizmor", detail: "GitHub Actions workflows" }], notChecked: [] }
+    return { findings: parseZizmorOutput(result.stdout, root), checksRun: [{ name: "zizmor", detail: "GitHub Actions workflows", security: true }], notChecked: [] }
   } catch (error: unknown) {
     return notRun(ZIZMOR_CHECK, `its output could not be read: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -151,7 +159,7 @@ async function runPoutine(request: CodeScanRequest, workspace: string): Promise<
   if (result.exitCode !== 0) return notRun(POUTINE_CHECK, `it failed: ${firstErrorLine(result)}`)
   try {
     const texts = new Map(pipeline.map((file) => [file.path, file.text]))
-    return { findings: parsePoutineOutput(result.stdout, root, texts), checksRun: [{ name: "poutine", detail: "GitLab CI, Azure Pipelines and Tekton" }], notChecked: [] }
+    return { findings: parsePoutineOutput(result.stdout, root, texts), checksRun: [{ name: "poutine", detail: "GitLab CI, Azure Pipelines and Tekton", security: true }], notChecked: [] }
   } catch (error: unknown) {
     return notRun(POUTINE_CHECK, `its output could not be read: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -165,7 +173,7 @@ async function runRuffSecurity(request: CodeScanRequest, root: string): Promise<
   if (result === undefined) return notRun(RUFF_SECURITY_CHECK, RUFF_INSTALL)
   if (result.exitCode !== 0) return notRun(RUFF_SECURITY_CHECK, `it failed: ${firstErrorLine(result)}`)
   try {
-    return { findings: parseRuffSecurityOutput(result.stdout, root), checksRun: [{ name: RUFF_SECURITY_CHECK, detail: "Bandit's rules for Python, outside tests" }], notChecked: [] }
+    return { findings: parseRuffSecurityOutput(result.stdout, root), checksRun: [{ name: RUFF_SECURITY_CHECK, detail: "Bandit's rules for Python, outside tests", security: true }], notChecked: [] }
   } catch (error: unknown) {
     return notRun(RUFF_SECURITY_CHECK, `its output could not be read: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -179,7 +187,7 @@ async function runGitleaks(request: CodeScanRequest, root: string, workspace: st
   if (result === undefined) return notRun(GITLEAKS_CHECK, GITLEAKS_INSTALL)
   if (result.exitCode !== 0) return notRun(GITLEAKS_CHECK, `it failed: ${firstErrorLine(result)}`)
   try {
-    return { findings: parseGitleaksReport(await readFile(reportPath, "utf8")), checksRun: [{ name: "gitleaks", detail: "default rules" }], notChecked: [] }
+    return { findings: parseGitleaksReport(await readFile(reportPath, "utf8")), checksRun: [{ name: "gitleaks", detail: "default rules", security: true }], notChecked: [] }
   } catch (error: unknown) {
     return notRun(GITLEAKS_CHECK, `its report could not be read: ${error instanceof Error ? error.message : String(error)}`)
   }

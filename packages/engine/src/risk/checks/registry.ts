@@ -7,6 +7,7 @@ import { runCodeScanners } from "../scanners/runCodeScanners.ts"
 import { scanSupplyChain } from "../supplyChain/scanSupplyChain.ts"
 import { BUILT_IN_RULES_CHECK } from "./builtInRules.ts"
 import type { Check } from "./check.ts"
+import { BUILT_IN_RULES_NAME, creditedTo } from "./credit.ts"
 import { QUALITY_CHECK } from "./quality.ts"
 
 const BREAKING_CHANGES_RUN = { name: "Breaking changes", detail: "public APIs, database migrations, environment variables and config keys" }
@@ -40,22 +41,23 @@ const SUPPLY_CHAIN_CHECK: Check = {
 }
 
 // Large PRs and code changed without its tests: where to look harder, read from every changed file.
+// Reported among the built-in rules, which always run.
 const REVIEW_SIGNALS_CHECK: Check = {
   step: AnalysisStep.ScanningCode,
-  run: async ({ request }) => ({ findings: reviewSignals(request.files), checksRun: [], notChecked: [] }),
+  run: async ({ request }) => ({ findings: creditedTo(BUILT_IN_RULES_NAME, reviewSignals(request.files)), checksRun: [], notChecked: [] }),
 }
 
 const BREAKING_CHANGES_CHECK: Check = {
   step: AnalysisStep.CheckingBreakingChanges,
   run: async ({ request, scanned, config }) => ({
-    findings: await scanBreakingChanges({
+    findings: creditedTo(BREAKING_CHANGES_RUN.name, await scanBreakingChanges({
       repoDir: request.repoDir,
       base: request.base,
       head: request.head,
       files: request.files.filter((file) => !isIgnored(config, file.diff.path)),
       scanned,
       versions: request.versions,
-    }),
+    })),
     checksRun: [BREAKING_CHANGES_RUN],
     notChecked: [],
   }),

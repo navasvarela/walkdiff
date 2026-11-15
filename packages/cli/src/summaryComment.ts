@@ -18,8 +18,6 @@ const SEVERITY_LABELS: Readonly<Record<RiskSeverity, string>> = {
 }
 const SEVERITY_ORDER: readonly RiskSeverity[] = [RiskSeverity.High, RiskSeverity.Medium, RiskSeverity.Low]
 const MAX_FINDINGS_SHOWN = 5
-// The checks that look for security problems, as opposed to code quality or breaking changes.
-const SECURITY_CHECKS: ReadonlySet<string> = new Set(["Built-in rules", "Semgrep", "gitleaks", "OSV database", "osv-scanner", "Dependency trust", "zizmor", "poutine", "Ruff security rules", "Supply chain", "npm release history"])
 
 const AlertKind = { Note: "NOTE", Warning: "WARNING", Caution: "CAUTION" } as const
 type AlertKind = (typeof AlertKind)[keyof typeof AlertKind]
@@ -43,7 +41,8 @@ export function renderSummaryComment(model: HostedReviewModel, reportUrl: string
 }
 
 function securityCallout(risk: RiskAssessment, pullRequest: HostedPullRequest): string[] {
-  const scanners = risk.checksRun.map((check) => check.name).filter((name) => SECURITY_CHECKS.has(name))
+  // The checks that look for security problems, as opposed to code quality or breaking changes.
+  const scanners = risk.checksRun.filter((check) => check.security === true).map((check) => check.name)
   const sentence = `**${securitySummary(risk)}** from ${joinNames(scanners.map(inlineCode))}. ${SECURITY_SCAN_LIMITS}`
   // GitLab only draws these from 17.10, and shows the marker as text before that. GitHub always does.
   if (pullRequest.host !== GitHostKind.GitHub) return [`> ${sentence}`]
