@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.12.0
+
+- **Attack surface:** new HTTP endpoints are noted where a PR adds them, in Express, Koa, Fastify, Hono, NestJS, FastAPI, Flask, Django, Spring, JAX-RS, ASP.NET, Go's `net/http`, gin, echo, chi, axum, actix and Rocket. A new endpoint without the auth its neighbours in the file declare is flagged, as is code that turns auth or CSRF checks off, such as `[AllowAnonymous]`, `permitAll()` or `@csrf_exempt`. A route moved within the PR isn't counted as new.
+- **Error handling that hides failures:** in added code, empty `catch` and `except` blocks, `.catch(() => {})`, Go's empty `if err != nil {}` and `_ = call()`, catch-alls such as a bare `except:`, `catch (Throwable)` or `catch (...)`, and Rust's `unwrap()` and `expect()` outside tests. A handler that holds a comment counts as an explained decision. These are code-quality findings, so they don't count towards security.
+- **Infrastructure as code:** a new "Infrastructure" category, counted towards security, for the lines a PR adds to infrastructure files.
+  - **Dockerfiles:** base images without a version, `curl … | sh`, `ADD` of a URL without `--checksum`, secrets in `ARG` or `ENV`, `USER root`, and new Dockerfiles that never set a user.
+  - **Kubernetes manifests:** privileged containers, the host's network, process or IPC namespaces, privilege escalation, running as root, `hostPath` volumes, added `SYS_ADMIN`, `NET_ADMIN` or `ALL` capabilities, and images without a version.
+  - **Terraform:** ingress from `0.0.0.0/0`, public S3 ACLs, public-access blocks turned off, publicly accessible databases, encryption turned off, and IAM wildcard actions.
+- **Supply chain:** a new "Supply chain" category, counted towards security, for how packages reach the build. It works offline.
+  - **Lockfiles:** `package-lock.json`, `yarn.lock` (Yarn 1 and 2+), `pnpm-lock.yaml` (including pnpm 10's two-document form), `Cargo.lock`, `uv.lock`, `poetry.lock` and `go.sum` are compared before and after the PR. Walkdiff flags the same version with a different content hash, a private package (from `dependencies.private`) now resolved from a public registry, a package that moves to another registry, repository or URL, new packages from git, a URL or plain `http://`, and upgrades that start running an install script.
+  - **Package-manager settings:** changed registries in `.npmrc`, `.yarnrc.yml`, `bunfig.toml`, `pip.conf`, requirement files, `uv.toml`, `pyproject.toml` and `.cargo/config.toml`, pip's `--extra-index-url`, TLS checks turned off, changed npm `preinstall`, `install` and `postinstall` scripts, `.pnpmfile.cjs` and Yarn plugins, and Go `replace` lines pointing at another module.
+- **npm release history:** online, npm packages a lockfile upgrades within a release line are compared with the release they replace. A release without the provenance its predecessor had is flagged as Medium. One published by an account that wasn't a maintainer before is flagged as Low, unless CI built it with provenance or trusted publishing. Upgraded package names and versions go to npm, except private ones. Turn it off in Settings as "npm release history", or with `--offline`.
+- **Settings say more accurately what leaves your machine:** the list is now built from the checks themselves, and includes deps.dev, which the dependency trust check uses for Go and Maven packages.
+- **Review checklist wording:** grouped findings now say how many places for every kind of finding, including known vulnerabilities, licences and new endpoints.
+- **Easier to extend:**
+  - Each language's rules live in one module, and the review's checks in one list.
+  - A check can add a new kind of finding, and the report describes it, so the report page, review plan, security summary and PR comment show it with no other changes.
+  - Findings name the check that raised them.
+  - [Adding a language](docs/adding-a-language.md) and [Adding a check](docs/adding-a-check.md) explain how.
+
 ## 0.11.0
 
 - **Review your own branch before opening a pull request:** `walkdiff review --local` reviews the committed work on the current branch of the repository you're in, against the remote's default branch or `--base <ref>`. It reads the repository in place without fetching or changing anything, and says how many files have uncommitted changes it left out. The report is the same, without what needs a host: the PR link, links to files, posting a review, and coverage from CI.
