@@ -10,7 +10,7 @@ import type { Check } from "./check.ts"
 import { BUILT_IN_RULES_NAME, creditedTo } from "./credit.ts"
 import { QUALITY_CHECK } from "./quality.ts"
 
-const BREAKING_CHANGES_RUN = { name: "Breaking changes", detail: "public APIs, database migrations, environment variables and config keys" }
+const BREAKING_CHANGES_RUN = { name: "Breaking changes", detail: "public APIs, OpenAPI, GraphQL and protobuf schemas, database migrations, environment variables and config keys" }
 
 const CODE_SCANNERS_CHECK: Check = {
   step: AnalysisStep.ScanningCode,
@@ -49,18 +49,17 @@ const REVIEW_SIGNALS_CHECK: Check = {
 
 const BREAKING_CHANGES_CHECK: Check = {
   step: AnalysisStep.CheckingBreakingChanges,
-  run: async ({ request, scanned, config }) => ({
-    findings: creditedTo(BREAKING_CHANGES_RUN.name, await scanBreakingChanges({
+  run: async ({ request, scanned, config }) => {
+    const breaking = await scanBreakingChanges({
       repoDir: request.repoDir,
       base: request.base,
       head: request.head,
       files: request.files.filter((file) => !isIgnored(config, file.diff.path)),
       scanned,
       versions: request.versions,
-    })),
-    checksRun: [BREAKING_CHANGES_RUN],
-    notChecked: [],
-  }),
+    })
+    return { findings: creditedTo(BREAKING_CHANGES_RUN.name, breaking.findings), checksRun: [BREAKING_CHANGES_RUN], notChecked: breaking.notChecked }
+  },
 }
 
 /**

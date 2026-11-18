@@ -246,6 +246,20 @@ functions under a framework's decorator are skipped, as the decorator can change
 name that's still available after its definition went, through an alias, a `__getattr__` shim or a move to
 another file. A removal that untouched code still uses shows up as a broken reference instead.
 
+**API schemas:** each OpenAPI, GraphQL or protobuf file the PR changes or deletes is compared with its version at
+the merge base. A new schema file can't break anyone, so it isn't compared on its own. What breaks clients
+already running, such as a removed operation, is high, and what breaks code built against the schema is medium.
+
+| Format | Flags |
+| --- | --- |
+| OpenAPI 3 and Swagger 2 (YAML or JSON) | Removed operations; new or newly required parameters, request bodies and request fields; enum values clients can no longer send; removed or retyped response fields, and ones that are no longer always there. Bodies are compared at their top level, following `$ref`s and `allOf` within the file |
+| GraphQL (`.graphql`, `.graphqls`, `.gql`) | Removed types, fields, arguments and enum values; retyped fields and arguments; output fields that can now be null; arguments and input fields that became required, or are new and required |
+| Protobuf (`.proto`) | Removed RPCs, messages and enums; retyped RPCs and fields; fields and enum values whose number changed; fields and enum values removed or renamed without reserving their number |
+
+GraphQL and protobuf schemas are often split across files, so the PR's files of each are read as one. A type
+that moves to another file is compared with itself there. A schema Walkdiff can't parse is listed under "Not
+checked" with the file and why.
+
 **Database migrations:** dropped or renamed tables and columns and changed column types, in raw SQL (including
 Prisma, Goose, dbmate and Flyway files), Alembic, Django, Rails, Knex, Sequelize and TypeORM. Only the added lines
 that run on the way up count, so rollbacks aren't flagged. Neither are temporary tables, or names the
@@ -261,7 +275,8 @@ mentions an unusual name. Django's `AlterField` isn't checked, since it mostly c
 - A key removed from a config file (`config/*.yml`, `settings.toml`, `appsettings.json`, `*.example.json` and
   similar) while code still reads it. Ordinary words like `name` are left out, as matches on them mean little.
 
-Not covered yet: public struct fields and interface members, new required trait methods, re-exports removed from an entry point
+Not covered yet: GraphQL union members and directives, OpenAPI `$ref`s to other files, and nested body
+fields beyond the top level; public struct fields and interface members, new required trait methods, re-exports removed from an entry point
 without the definition changing, and inputs of a GitHub Action's `action.yml`.
 
 ## Code quality

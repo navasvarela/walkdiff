@@ -181,6 +181,7 @@ walkdiff review https://github.com/owner/repo/pull/123</code></pre>
         <p>Walkdiff flags changes that could break other code or a deployment, and puts them on the review path:</p>
         <ul>
           <li><strong>Public APIs</strong> in Rust, TypeScript, JavaScript, Python and Go libraries: removed or renamed functions and types, lost visibility, new required or removed parameters, and changed types. Only code other projects can reach counts, such as a crate's public modules or a package's entry point.</li>
+          <li><strong>API schemas</strong>: OpenAPI, GraphQL and protobuf files compared with their earlier versions, for removed operations, types, fields and enum values, new or newly required inputs, changed types, and protobuf field numbers that changed or weren't reserved.</li>
           <li><strong>Database migrations</strong> that drop or rename tables and columns, or change column types, in SQL and the common migration frameworks.</li>
           <li><strong>Configuration</strong>: renamed or removed environment variables and config keys that code still reads.</li>
         </ul>
