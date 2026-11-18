@@ -279,6 +279,25 @@ Not covered yet: GraphQL union members and directives, OpenAPI `$ref`s to other 
 fields beyond the top level; public struct fields and interface members, new required trait methods, re-exports removed from an entry point
 without the definition changing, and inputs of a GitHub Action's `action.yml`.
 
+## Docs drift
+
+Walkdiff flags docs a PR leaves out of date, under its own "Docs drift" category. These are review signals,
+not security findings.
+
+- **Names the docs still use:** a command-line option (a quoted `--flag` in code), an environment variable, a
+  config key, or a function or type that the PR removes or renames, while Markdown, reStructuredText or AsciiDoc
+  files at head still mention it.
+  - **Severity:** options and settings are medium, because whoever follows the docs gets an error or a setting
+    that silently does nothing. Code names are low.
+  - **What's skipped:** a name that code at head still uses anywhere doesn't count, since it may be defined
+    elsewhere. Neither do changelogs, release notes, upgrade and migration guides, or a line that names the
+    replacement too, which is describing the rename.
+- **Doc comments that no longer match:** a function the PR changes whose doc comment still describes a parameter
+  it removed, or doesn't describe one it added while describing the others. This reads JSDoc, Javadoc and KDoc
+  `@param`, Python's `Args:`, NumPy `Parameters` and `:param:` sections, and Rust's `# Arguments`.
+
+Only what the PR changes is compared, so docs that were already out of date aren't flagged.
+
 ## Code quality
 
 Walkdiff flags poor implementations and bad practice in the code a PR adds, under the "Code quality"

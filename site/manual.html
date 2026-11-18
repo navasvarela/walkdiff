@@ -34,6 +34,7 @@
         <li><a href="#risks">Risks and security</a></li>
         <li><a href="#dependencies">Dependencies</a></li>
         <li><a href="#breaking">Breaking changes</a></li>
+        <li><a href="#docs-drift">Docs drift</a></li>
         <li><a href="#quality">Code quality</a></li>
         <li><a href="#coverage">Test coverage</a></li>
         <li><a href="#ai">AI review</a></li>
@@ -186,6 +187,11 @@ walkdiff review https://github.com/owner/repo/pull/123</code></pre>
           <li><strong>Configuration</strong>: renamed or removed environment variables and config keys that code still reads.</li>
         </ul>
         <p>These rules read syntax rather than types, so they say "may break" and would rather stay quiet than raise a false alarm.</p>
+      </section>
+
+      <section id="docs-drift">
+        <h2>Docs drift</h2>
+        <p>Docs a PR leaves out of date: Markdown, reStructuredText or AsciiDoc that still mentions a command-line option, environment variable, config key, function or type the PR removes or renames, and doc comments that still describe a parameter a changed function no longer takes. Changelogs and upgrade guides, and lines that also name the replacement, are left alone.</p>
       </section>
 
       <section id="quality">
