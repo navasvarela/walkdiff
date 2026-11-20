@@ -4,9 +4,10 @@ name: Release
 # version's changelog section as its notes. npm's trusted publishing checks this
 # workflow's identity through OIDC, so no npm token is stored in the repository, and the package
 # carries provenance linking it to this commit. Set it up once on npmjs.com; see docs/releasing.md.
+# Only full version tags: the moving major tag (`v0`) must never start a release, however it's moved.
 on:
   push:
-    tags: ["v*"]
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
 
 permissions:
   contents: read
@@ -80,7 +81,7 @@ jobs:
           node scripts/releaseNotes.ts "$TAG" > "$RUNNER_TEMP/notes.md"
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Walkdiff ${TAG#v}" --notes-file "$RUNNER_TEMP/notes.md"
       # Users of the GitHub Action can pin `@v0` and get each release of that major version. The tag
-      # is moved through the API with this job's token, so it doesn't start another Release run, and
+      # is moved through the API with this job's token, which doesn't start workflows, and
       # only to the newest release of its major, so re-running an old release never moves it back.
       # It's a lightweight tag: the signed release tags stay the ones to verify.
       - name: Move the major version tag
