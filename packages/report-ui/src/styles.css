@@ -737,7 +737,7 @@ code {
 }
 
 .risk-view {
-  max-width: 960px;
+  max-width: 1120px;
 }
 
 .level-box {
@@ -2364,4 +2364,107 @@ button.guide-button-primary:hover {
 
 .line-comment-text {
   color: var(--text-muted);
+}
+
+/* The Risks overview: an index of its sections that stays in view, beside the sections. */
+.overview-headline {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.overview {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  margin-top: 16px;
+}
+
+.overview-index {
+  position: sticky;
+  top: 16px;
+  font-size: 13px;
+}
+
+.overview-index-group + .overview-index-group {
+  margin-top: 12px;
+}
+
+.overview-index-kind {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.overview-index ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.overview-index a {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.overview-index a:hover,
+.overview-index a:focus-visible {
+  background: var(--selected-bg);
+}
+
+.overview-index-count {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.overview-section {
+  scroll-margin-top: 16px;
+}
+
+.overview-section + .overview-section {
+  margin-top: 24px;
+}
+
+.overview-section .section-title {
+  margin-top: 0;
+}
+
+.overview-section-count {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.overview-advice {
+  margin: -4px 0 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.guide-glance a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.guide-glance a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .overview-index {
+    position: static;
+  }
 }

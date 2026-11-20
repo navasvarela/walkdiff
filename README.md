@@ -15,6 +15,13 @@ The report opens on a brief: what to check, how many changes need attention, and
 
 All changes has five tabs, including **Conversation** in the app: **Changes** (files, the map of each file and the changed units), **Impact** (where other code uses what changed), **Risks** (each check's result and every finding) and **AI review**. Each tab shows a count, and its name in the URL lets you link to it, as in `#risks`.
 
+**Risks** is a one-page overview:
+- **Headline:** the security summary, with how many findings need a decision or are background.
+- **Index:** a row per kind of finding (supply chain, breaking change, docs drift and so on), grouped into security, decisions and background, with counts coloured by the worst finding. It stays in view as you scroll.
+- **Sections:** one per kind of finding, with what to check and its findings, then the checks that ran and didn't.
+
+Each section has a link of its own, as in `#risks/supplyChain`, and the review brief's **At a glance** card links straight to them.
+
 - **Changed units, not hunks.** For Rust, TypeScript/JavaScript, Python, Go, Java, Kotlin, C#, C and C++, each changed function,
   method, type, class or macro appears once, whole, before and after, with edited words marked. A class shows only the
   code it owns; its methods are separate cards. In JavaScript and TypeScript tests, each `describe`,

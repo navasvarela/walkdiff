@@ -6,9 +6,9 @@ export type ReportTab = (typeof ReportTab)[keyof typeof ReportTab]
 
 const ALL_TABS: readonly ReportTab[] = [ReportTab.Changes, ReportTab.Impact, ReportTab.Risks, ReportTab.AiReview, ReportTab.Conversation]
 
-/** The tab named in the URL, so a link or the back button can return to it. */
+/** The tab named in the URL, so a link or the back button can return to it. `#risks/supplyChain` is the Risks tab, at a section. */
 export function tabFromHash(hash: string): ReportTab {
-  return ALL_TABS.find((tab) => `#${tab}` === hash) ?? ReportTab.Changes
+  return ALL_TABS.find((tab) => `#${tab}` === hash || hash.startsWith(`#${tab}/`)) ?? ReportTab.Changes
 }
 
 export interface TabSummary {

@@ -11,6 +11,7 @@ import type { GuideRoute, LineCoverage, ReviewPlan, ReviewStop } from "../review
 import { commentsAsMarkdown, commentsOnItems, isReviewed, ItemKind, nextUnreviewedStop, overallProgress, pathProgress, remainingOffPath, reviewPlanFor, stopItems } from "../reviewProgress.ts"
 import type { ItemComment, Progress, RemainingCounts, ReviewState } from "../reviewProgress.ts"
 import { useReviewState } from "../reviewState.tsx"
+import { CHECKS_SECTION, dimensionSections, overviewHash } from "../overview.ts"
 import { ReportTab } from "../tabs.ts"
 import { factPhrases } from "../unitChange.ts"
 import { SideBySide } from "./CodeViews.tsx"
@@ -168,14 +169,36 @@ function BriefSidebar({ review, plan }: { readonly review: ReviewModel; readonly
           </dd>
         </div>
       </dl>
+      <GlanceCard risk={risk} />
       <section className="guide-card">
         <h2 className="guide-card-title">
-          Checks <a href={RISKS_HASH}>Details</a>
+          Checks <a href={overviewHash(CHECKS_SECTION)}>Details</a>
         </h2>
         <ChecksList risk={risk} />
       </section>
       <AiCard review={review} />
     </aside>
+  )
+}
+
+/** Findings by dimension, each a link to its section of the Risks overview. */
+function GlanceCard({ risk }: { readonly risk: RiskAssessment }): ReactElement | null {
+  const sections = dimensionSections(risk)
+  if (sections.length === 0) return null
+  return (
+    <section className="guide-card">
+      <h2 className="guide-card-title">
+        At a glance <a href={RISKS_HASH}>All findings</a>
+      </h2>
+      <ul className="guide-check-summary guide-glance">
+        {sections.map((section) => (
+          <li key={section.dimension.id}>
+            <a href={overviewHash(section.dimension.id)}>{section.dimension.label}</a>
+            <span className={`severity severity-${section.worst}`}>{section.findings.length}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 

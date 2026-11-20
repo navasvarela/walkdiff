@@ -28,7 +28,7 @@ Everything else is under **All changes**:
 
 - **Changes:** each changed function or type, whole, before and after.
 - **Impact:** where other code uses what changed, and which of those callers the PR did not touch.
-- **Risks:** a summary of security findings, the findings, the checks that ran and the checks that did not. Findings include [breaking changes](../README.md#breaking-changes), which never change the security level.
+- **Risks:** a one-page overview with a summary of security findings, an index by kind of finding, a section per kind, and the checks that ran and the checks that did not. The review brief's **At a glance** card links to each section. Findings include [breaking changes](../README.md#breaking-changes), which never change the security level.
 - **AI review:** a reading order and questions, only if you ask for it with `--ai`.
 
 "No security findings" means the checks that ran found nothing on the lines this PR adds. It isn't a security audit and doesn't mean the change is safe, so see which checks ran.
