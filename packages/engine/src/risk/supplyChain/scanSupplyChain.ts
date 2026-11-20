@@ -1,4 +1,3 @@
-import { basename } from "node:path"
 import { CheckId, FileChangeStatus, isTestPath, NoiseKind } from "@walkdiff/review-model"
 import type { CheckRun, CommitSha, FileDiff, Risk } from "@walkdiff/review-model"
 import { readBlobs } from "../../blobs.ts"
@@ -14,8 +13,7 @@ import type { LockfileVersions } from "./lockfileRules.ts"
 import { checkNpmUpgrades, lookUpNpmRelease } from "./npmReleases.ts"
 import type { PackageUpgrade, ReleaseLookup } from "./npmReleases.ts"
 import { npmUpgrades } from "./upgrades.ts"
-import { PACKAGE_LOCK, PNPM_LOCK, YARN_LOCK } from "./npmLockfiles.ts"
-import { CARGO_LOCK, GO_SUM, POETRY_LOCK, UV_LOCK } from "./otherLockfiles.ts"
+import { lockfileReaderFor } from "./lockfileReaders.ts"
 
 export interface SupplyChainScanRequest {
   readonly repoDir: string
@@ -40,7 +38,6 @@ interface ReadLockfile extends LockfileVersions {
 const SUPPLY_CHAIN_CHECK: CheckRun = { name: "Supply chain", detail: "lockfile sources, content hashes and install scripts, and package-manager settings", security: true }
 const NPM_RELEASES_CHECK = "npm release history"
 const NPM_RELEASES_RUN: CheckRun = { name: NPM_RELEASES_CHECK, detail: "who published upgraded npm packages, and whether they kept provenance", security: true }
-const LOCKFILE_READERS: readonly LockfileReader[] = [PACKAGE_LOCK, YARN_LOCK, PNPM_LOCK, CARGO_LOCK, UV_LOCK, POETRY_LOCK, GO_SUM]
 
 /**
  * How the packages a PR depends on reach the build, separately from whether they're vulnerable:
@@ -87,7 +84,7 @@ async function readLockfiles(request: SupplyChainScanRequest, outcome: ScanOutco
   return lockfiles.flatMap(({ diff }, index) => {
     const before = blobs.at(2 * index)?.toString("utf8")
     const after = blobs.at(2 * index + 1)?.toString("utf8")
-    const reader = readerFor(diff.path)
+    const reader = lockfileReaderFor(diff.path)
     if (after === undefined || reader === undefined) return []
     try {
       return [{ reader, path: diff.path, before: before === undefined ? [] : reader.read(before), after: reader.read(after), text: after }]
@@ -102,11 +99,7 @@ async function readLockfiles(request: SupplyChainScanRequest, outcome: ScanOutco
 // only vendored copies of someone else's lockfile are skipped.
 function isReadableLockfile(file: ScannedFile): boolean {
   if (file.diff.status === FileChangeStatus.Deleted || file.noise?.kind === NoiseKind.Vendored || isTestPath(file.diff.path)) return false
-  return readerFor(file.diff.path) !== undefined
-}
-
-function readerFor(path: string): LockfileReader | undefined {
-  return LOCKFILE_READERS.find((reader) => reader.matches(basename(path)))
+  return lockfileReaderFor(file.diff.path) !== undefined
 }
 
 function previousPathOf(diff: FileDiff): string {

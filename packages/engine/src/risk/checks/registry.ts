@@ -10,6 +10,7 @@ import type { Check } from "./check.ts"
 import { BUILT_IN_RULES_NAME, creditedTo } from "./credit.ts"
 import { DOCS_DRIFT_CHECK } from "../docsDrift/docsDriftCheck.ts"
 import { HOTSPOTS_CHECK } from "../hotspots/hotspotsCheck.ts"
+import { SCOPE_CHECK } from "../scope/scopeCheck.ts"
 import { QUALITY_CHECK } from "./quality.ts"
 
 const BREAKING_CHANGES_RUN = { name: "Breaking changes", detail: "public APIs, OpenAPI, GraphQL and protobuf schemas, database migrations, environment variables and config keys" }
@@ -78,6 +79,7 @@ export const CHECKS: readonly Check[] = [
   BREAKING_CHANGES_CHECK,
   DOCS_DRIFT_CHECK,
   HOTSPOTS_CHECK,
+  SCOPE_CHECK,
   QUALITY_CHECK,
 ]
 

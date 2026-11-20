@@ -320,6 +320,23 @@ review plan doesn't list them, but a hotspot file ranks higher on the review pat
 Offline, without a GitHub token, or in a shallow clone, the Risks tab lists Hotspots under "Not checked". It
 looks at up to 60 changed code files, and can be turned off in the app's Settings.
 
+## Scope
+
+Walkdiff flags PRs that mix concerns, under the "Scope" category, as a question for the review plan: should it be
+split? Each changed file is sorted by what it carries:
+
+- **Behaviour:** code units added, removed, or edited beyond formatting and comments.
+- **Tidy-up:** code that's only reformatted, re-commented, renamed or moved.
+- **Dependencies:** lockfiles.
+- **Neither:** tests, docs, CI and config, which travel with the change they belong to.
+
+It flags two things:
+
+| Note | When |
+| --- | --- |
+| Mixes a tidy-up or upgrades with behaviour changes | Alongside behaviour changes, 5 or more tidy-up files, or 10 or more packages the lockfiles already had moved to new versions. New packages don't count, since they come with the code that uses them |
+| Changes packages that don't use each other | Behaviour changes in two or more workspace packages (folders with their own `package.json`, `Cargo.toml`, `go.mod` and so on), each with at least 3 changed units, where neither declares a dependency on the other, names something the other changes, or calls it |
+
 ## Code quality
 
 Walkdiff flags poor implementations and bad practice in the code a PR adds, under the "Code quality"

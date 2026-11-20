@@ -36,6 +36,7 @@
         <li><a href="#breaking">Breaking changes</a></li>
         <li><a href="#docs-drift">Docs drift</a></li>
         <li><a href="#hotspots">Hotspots</a></li>
+        <li><a href="#scope">Scope</a></li>
         <li><a href="#quality">Code quality</a></li>
         <li><a href="#coverage">Test coverage</a></li>
         <li><a href="#ai">AI review</a></li>
@@ -198,6 +199,11 @@ walkdiff review https://github.com/owner/repo/pull/123</code></pre>
       <section id="hotspots">
         <h2>Hotspots</h2>
         <p>Changed files whose history in the year before the PR says to look harder: a change reverted in the last 90 days, at least 5 fixes making up a quarter of its changes, or 30 or more commits. They raise the file on the review path, with the reason. Hosted reviews read history from GitHub's or GitLab's API; local reviews read it from git.</p>
+      </section>
+
+      <section id="scope">
+        <h2>Scope</h2>
+        <p>PRs that mix concerns: a tidy-up of reformatted or moved code, or a bulk dependency upgrade, riding along with behaviour changes, or behaviour changes in workspace packages that neither depend on nor use each other. The review plan asks whether to split them.</p>
       </section>
 
       <section id="quality">
