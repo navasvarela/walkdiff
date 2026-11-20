@@ -9,6 +9,55 @@ Status: early release, [v0.13.0](CHANGELOG.md). To run it on your team's PRs, se
 
 **Documentation:** [website](https://navasvarela.github.io/walkdiff/), [getting started](docs/getting-started.md), [configuration](docs/configuration.md), [troubleshooting](docs/troubleshooting.md), [security policy](SECURITY.md).
 
+## Quick start: the GitHub Action
+
+Add `.github/workflows/walkdiff.yml` to your repository:
+
+```yaml
+name: Walkdiff
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    # Walkdiff only reports; it should never block a merge.
+    continue-on-error: true
+    steps:
+      - uses: navasvarela/walkdiff@v0.13.0
+```
+
+Each PR then gets one comment, updated on every push. It has a summary of security findings, counts, the top findings linked into the diff, and a link to the full report, which is kept as an artifact of the workflow run. Opening the report needs a GitHub account with access to the repository.
+
+- **No checkout needed.** The Action reads the PR through GitHub's API and never runs its code, so it's safe on PRs from forks. Those get a read-only token, so instead of a comment, the summary goes on the workflow run's page.
+- **Pinning:** `@v0.13.0` stays on this release. `@v0` follows every 0.x release, and a full commit SHA gives the strongest guarantee.
+- **Permissions:** `pull-requests: write` is only for the comment.
+
+| Input | Default | What it does |
+| --- | --- | --- |
+| `token` | `github.token` | Reads the repository and comments on the PR |
+| `ai` | `"false"` | `"true"` sends the changed code to an AI provider for a review |
+| `anthropic-api-key` | | Anthropic API key, for AI review with Anthropic |
+| `ai-provider` | `anthropic` | `anthropic`, or `openai-compatible` for OpenAI and other services |
+| `ai-model` | | The model to use; required with `openai-compatible` |
+| `ai-base-url` | | With `openai-compatible`, the provider's address |
+| `ai-api-key` | | With `openai-compatible`, the provider's API key |
+| `coverage-file` | | An LCOV or Cobertura report from an earlier step, to show whether changed lines ran in tests |
+| `retention-days` | `14` | Days to keep the report artifact |
+| `package` | this release | Which Walkdiff to install, as an npm package spec |
+
+The `report-url` output links to the report artifact. For AI review, give the step these inputs, and see [AI review](#ai-review) for what's sent:
+
+```yaml
+      - uses: navasvarela/walkdiff@v0.13.0
+        with:
+          ai: "true"
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+On GitLab, see the [pilot guide](docs/pilot.md#gitlab). To review a PR on your own machine instead, see [Usage](#usage).
+
 ## What the report shows
 
 The report opens on a brief: what to check, how many changes need attention, and where to start. A review path then takes you through the changes that matter most, one at a time, with why each one is there, its code, callers and tests. You can mark changes as reviewed and leave comments, and everything else stays one link away under **All changes**. In the app, you can then post your review to the PR and join the discussion.
