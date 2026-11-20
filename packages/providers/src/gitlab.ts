@@ -1,5 +1,5 @@
 import { commitShaSchema, GitHostKind, PullRequestState, ReviewerState, ReviewEvent, isPlacedComment, lastLineOf, LineSide } from "@walkdiff/review-model"
-import type { Conversation, PullRequestStack, PullRequestStatus, ReviewComment, StackMember, SubmitResult, SubmitReview, DiffLineRef } from "@walkdiff/review-model"
+import type { Conversation, FileHistory, FileHistoryRequest, PullRequestStack, PullRequestStatus, ReviewComment, StackMember, SubmitResult, SubmitReview, DiffLineRef } from "@walkdiff/review-model"
 import { z } from "zod"
 import { COVERAGE_ARCHIVE_NAME, MAX_COVERAGE_ARCHIVE_BYTES, MAX_COVERAGE_ARCHIVES } from "./gitHost.ts"
 import type { GitHost, GitHttpAuth, PullRequestSnapshot, CiArchive } from "./gitHost.ts"
@@ -7,6 +7,7 @@ import { downloadFile, getJson, HostApiError, writeIgnoringReply, writeJson } fr
 import type { WriteMethod } from "./http.ts"
 import { COMMENTS_PER_PAGE, upsertMarkedComment } from "./markedComment.ts"
 import type { MarkedComment } from "./markedComment.ts"
+import { gitlabFileHistory } from "./fileHistory.ts"
 import type { GitLabMergeRequestRef } from "./pullRequestUrl.ts"
 import { inStackOrder, stackFromHost, walkStack } from "./stack.ts"
 import type { OpenPullRequests, StackCandidate } from "./stack.ts"
@@ -356,6 +357,10 @@ export class GitLabHost implements GitHost {
     const projectApi = this.#projectApi()
     const [mergeRequest, project] = await Promise.all([this.#get(this.#mergeRequestApi(), listedMergeRequestSchema), this.#get(projectApi, projectSchema)])
     return walkStack({ pullRequest: stackCandidate(mergeRequest), defaultBranch: project.default_branch }, this.#openMergeRequests(projectApi))
+  }
+
+  fetchFileHistory(request: FileHistoryRequest): Promise<ReadonlyMap<string, FileHistory>> {
+    return gitlabFileHistory(<T>(url: string, schema: z.ZodType<T>): Promise<T> => this.#get(url, schema), this.#projectApi(), request)
   }
 
   #openMergeRequests(projectApi: string): OpenPullRequests {

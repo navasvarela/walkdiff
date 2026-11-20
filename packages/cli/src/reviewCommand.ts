@@ -3,8 +3,8 @@ import { analyzeChangedFiles, coverageFromArchives, coverageInPullRequest, creat
 import type { AiProvider } from "@walkdiff/engine"
 import { gitHostFor, parsePullRequestUrl, repositoryPath } from "@walkdiff/providers"
 import type { HostTokens, PullRequestRef } from "@walkdiff/providers"
-import { AiReviewStatus, AnalysisStep, LOCAL_CHANGE_HOST, LogLevel, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, securitySummary } from "@walkdiff/review-model"
-import type { AiReview, CheckId, CommitSha, FileDiff, LocalChange, Log, PullRequest, ReviewModel, StepReporter, TestCoverage } from "@walkdiff/review-model"
+import { AiReviewStatus, AnalysisStep, HistoryUnavailableError, LOCAL_CHANGE_HOST, LogLevel, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, securitySummary } from "@walkdiff/review-model"
+import type { AiReview, CheckId, CommitSha, FileDiff, FileHistoryReader, LocalChange, Log, PullRequest, ReviewModel, StepReporter, TestCoverage } from "@walkdiff/review-model"
 import type { AiOptions, LocalReviewOptions, ReviewOptions } from "./args.ts"
 import { detectPullRequestUrl } from "./ciEnvironment.ts"
 import type { CiEnvironment } from "./ciEnvironment.ts"
@@ -98,7 +98,10 @@ async function reviewLocalBranch(local: LocalReviewOptions, options: ReviewOptio
 
 export async function analyzePullRequest(ref: PullRequestRef, options: AnalysisRequest, deps: AnalysisDependencies): Promise<ReviewModel> {
   deps.reportStep(AnalysisStep.FetchingPullRequest)
-  const snapshot = await gitHostFor(ref, deps.tokens).fetchPullRequest()
+  const host = gitHostFor(ref, deps.tokens)
+  const snapshot = await host.fetchPullRequest()
+  // The commits were fetched without history, so hotspots ask the host, unless the review is offline.
+  const history: FileHistoryReader = options.network ? (request) => host.fetchFileHistory(request) : offlineHistory
   const { pullRequest } = snapshot
 
   deps.reportStep(AnalysisStep.FetchingCommits)
@@ -108,7 +111,11 @@ export async function analyzePullRequest(ref: PullRequestRef, options: AnalysisR
     credentials: snapshot.gitAuth,
     commits: [pullRequest.mergeBaseSha, pullRequest.headSha],
   })
-  return analyzeChange({ repoDir, pullRequest, ref }, options, deps)
+  return analyzeChange({ repoDir, pullRequest, ref, history }, options, deps)
+}
+
+async function offlineHistory(): Promise<never> {
+  throw new HistoryUnavailableError("offline mode: the host was not asked")
 }
 
 /** A change whose commits are in `repoDir`. `ref` names its pull request, when it has one. */
@@ -116,10 +123,13 @@ interface ChangeToAnalyze {
   readonly repoDir: string
   readonly pullRequest: PullRequest
   readonly ref: PullRequestRef | undefined
+  /** Where hotspots read history; undefined reads the repository's own. */
+  readonly history?: FileHistoryReader | undefined
 }
 
-async function analyzeChange({ repoDir, pullRequest, ref }: ChangeToAnalyze, options: AnalysisRequest, deps: AnalysisDependencies): Promise<ReviewModel> {
+async function analyzeChange({ repoDir, pullRequest, ref, history }: ChangeToAnalyze, options: AnalysisRequest, deps: AnalysisDependencies): Promise<ReviewModel> {
   const { files, risk } = await analyzeChangedFiles(repoDir, pullRequest.mergeBaseSha, pullRequest.headSha, {
+    history,
     network: options.network,
     disabledChecks: options.disabledChecks ?? [],
     reportStep: deps.reportStep,

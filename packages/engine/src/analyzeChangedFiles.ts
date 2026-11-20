@@ -1,5 +1,5 @@
 import { AnalysisStep, FileChangeStatus, FileContentKind, SyntaxAnalysisStatus } from "@walkdiff/review-model"
-import type { StepReporter } from "@walkdiff/review-model"
+import type { FileHistoryReader, StepReporter } from "@walkdiff/review-model"
 import type { ChangedFile, ChangedUnit, CheckId, CommitSha, ComparedUnit, FileDiff, FileNoise, RiskAssessment, SyntaxAnalysis } from "@walkdiff/review-model"
 import { readBlobs } from "./blobs.ts"
 import type { BlobRequest } from "./blobs.ts"
@@ -9,6 +9,7 @@ import { MAX_SOURCE_FILE_BYTES } from "./limits.ts"
 import type { AnalyzedFile } from "./impact/traceImpact.ts"
 import { classifyNoise, isNoiseByPath } from "./noise.ts"
 import { assessRisk } from "./risk/assessRisk.ts"
+import { gitHistoryReader } from "./risk/hotspots/gitHistory.ts"
 import { runScannerProcess } from "./risk/scanners/scannerProcess.ts"
 import type { ScannerProcessRunner } from "./risk/scanners/scannerProcess.ts"
 import { compareUnits } from "./syntax/compareUnits.ts"
@@ -41,6 +42,11 @@ export interface AnalysisOptions {
   readonly disabledChecks?: readonly CheckId[]
   /** Told as each step starts, to show progress. */
   readonly reportStep?: StepReporter
+  /**
+   * Reads changed files' recent commits, for hotspots. Defaults to the repository's own history,
+   * which a hosted review's depth-1 fetch doesn't have, so hosted reviews pass the host's.
+   */
+  readonly history?: FileHistoryReader | undefined
 }
 
 export interface PullRequestAnalysis {
@@ -88,6 +94,7 @@ export async function analyzeChangedFiles(
     runScanner: options.runScanner ?? runScannerProcess,
     disabledChecks: new Set(options.disabledChecks),
     reportStep,
+    history: options.history ?? gitHistoryReader(repoDir),
   })
   return { files, risk }
 }

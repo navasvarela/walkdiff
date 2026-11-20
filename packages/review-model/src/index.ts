@@ -155,3 +155,5 @@ export type { ProgressRecord } from "./browserProgress.ts"
 
 export { LogLevel } from "./logging.ts"
 export type { Log, LogDetails, LogFields } from "./logging.ts"
+export { HistoryUnavailableError } from "./fileHistory.ts"
+export type { FileCommit, FileHistory, FileHistoryReader, FileHistoryRequest } from "./fileHistory.ts"

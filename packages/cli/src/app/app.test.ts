@@ -344,6 +344,7 @@ describe("the app server", () => {
       fetchCoverageArchives: async () => [],
       fetchStatus: async () => ({ state: "open", headSha: commitShaSchema.parse(HEAD), baseRef: "main" }),
       fetchStack: async () => undefined,
+      fetchFileHistory: async () => new Map(),
     }
     let hostServer: AppServer
     let hostBase = ""

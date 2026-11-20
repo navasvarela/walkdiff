@@ -1,4 +1,4 @@
-import type { AnalysisStep, ChangedFile, CheckId, CommitSha, Dimension, Risk, StepReporter } from "@walkdiff/review-model"
+import type { AnalysisStep, ChangedFile, CheckId, CommitSha, Dimension, FileHistoryReader, Risk, StepReporter } from "@walkdiff/review-model"
 import type { WalkdiffConfig } from "../../config/walkdiffConfig.ts"
 import type { FileVersions } from "../../syntax/compareUnits.ts"
 import type { FunctionQuality } from "../../syntax/functionQuality.ts"
@@ -22,6 +22,8 @@ export interface RiskAssessmentRequest {
   readonly runScanner: ScannerProcessRunner
   readonly disabledChecks: ReadonlySet<CheckId>
   readonly reportStep: StepReporter
+  /** Reads changed files' recent commits: from git for a local review, from the host for a hosted one. */
+  readonly history: FileHistoryReader
 }
 
 /** What every check is given: the review request, the team's config, and the files to read. */

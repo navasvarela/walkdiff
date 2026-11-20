@@ -270,6 +270,7 @@ describe("the stack endpoints", () => {
     setThreadResolved: async () => undefined,
     fetchCoverageArchives: async () => [],
     fetchStack: async () => undefined,
+      fetchFileHistory: async () => new Map(),
   })
 
   beforeEach(async () => {

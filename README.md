@@ -298,6 +298,28 @@ not security findings.
 
 Only what the PR changes is compared, so docs that were already out of date aren't flagged.
 
+## Hotspots
+
+Walkdiff notes changed files whose recent history says to look harder. It reads each file's commits in the
+year before the merge base, so the PR's own commits never count:
+
+| Note | When |
+| --- | --- |
+| Had a change reverted recently | A commit starting with "Revert" touched it in the 90 days before the PR |
+| Often fixed | At least 5 commits that fixed something touched it, a quarter or more of its changes. Fixes are commits with "fix", "bug", "hotfix", "regression", "crash" or "broken" in their subject, but not ones about typos, lint, formatting, docs, tests, CI, builds or dependencies |
+| Changes often | 30 or more commits touched it |
+
+These go under the "Hotspot" category. They're context, not questions: they don't count as security and the
+review plan doesn't list them, but a hotspot file ranks higher on the review path and says why.
+
+**Where the history comes from:**
+- **`--local` reviews and checkouts with history:** the repository itself.
+- **Hosted PRs and MRs:** these fetch only the PR's own commits, so Walkdiff asks the host. On GitHub that's one
+  GraphQL query for up to 20 files, which needs a token. On GitLab it's one request per file.
+
+Offline, without a GitHub token, or in a shallow clone, the Risks tab lists Hotspots under "Not checked". It
+looks at up to 60 changed code files, and can be turned off in the app's Settings.
+
 ## Code quality
 
 Walkdiff flags poor implementations and bad practice in the code a PR adds, under the "Code quality"

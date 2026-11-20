@@ -9,6 +9,7 @@ import { BUILT_IN_RULES_CHECK } from "./builtInRules.ts"
 import type { Check } from "./check.ts"
 import { BUILT_IN_RULES_NAME, creditedTo } from "./credit.ts"
 import { DOCS_DRIFT_CHECK } from "../docsDrift/docsDriftCheck.ts"
+import { HOTSPOTS_CHECK } from "../hotspots/hotspotsCheck.ts"
 import { QUALITY_CHECK } from "./quality.ts"
 
 const BREAKING_CHANGES_RUN = { name: "Breaking changes", detail: "public APIs, OpenAPI, GraphQL and protobuf schemas, database migrations, environment variables and config keys" }
@@ -76,6 +77,7 @@ export const CHECKS: readonly Check[] = [
   REVIEW_SIGNALS_CHECK,
   BREAKING_CHANGES_CHECK,
   DOCS_DRIFT_CHECK,
+  HOTSPOTS_CHECK,
   QUALITY_CHECK,
 ]
 

@@ -1,4 +1,4 @@
-import type { Conversation, PullRequest, PullRequestStack, PullRequestStatus, SubmitResult, SubmitReview } from "@walkdiff/review-model"
+import type { Conversation, FileHistory, FileHistoryRequest, PullRequest, PullRequestStack, PullRequestStatus, SubmitResult, SubmitReview } from "@walkdiff/review-model"
 import type { MarkedComment } from "./markedComment.ts"
 import type { TrustedOrigins } from "./trustedHosts.ts"
 
@@ -42,6 +42,8 @@ export interface GitHost {
   fetchCoverageArchives(headSha: string): Promise<readonly CiArchive[]>
   /** The open PRs stacked with this one, from the host's own stacks or by following branches. Undefined when it stands alone. */
   fetchStack(): Promise<PullRequestStack | undefined>
+  /** Recent commits of some files, for hotspots. Throws `HistoryUnavailableError` when the host can't say. */
+  fetchFileHistory(request: FileHistoryRequest): Promise<ReadonlyMap<string, FileHistory>>
 }
 
 export interface HostTokens {

@@ -1,5 +1,5 @@
 import { commitShaSchema, GitHostKind, PullRequestState, ReviewerState, ReviewEvent, isPlacedComment, LineSide } from "@walkdiff/review-model"
-import type { CommitSha, Conversation, DiffLineRef, PullRequestStack, PullRequestStatus, ReviewComment, SubmitResult, SubmitReview } from "@walkdiff/review-model"
+import type { CommitSha, Conversation, DiffLineRef, FileHistory, FileHistoryRequest, PullRequestStack, PullRequestStatus, ReviewComment, SubmitResult, SubmitReview } from "@walkdiff/review-model"
 import { z } from "zod"
 import { COVERAGE_ARCHIVE_NAME, MAX_COVERAGE_ARCHIVE_BYTES, MAX_COVERAGE_ARCHIVES } from "./gitHost.ts"
 import type { GitHost, GitHttpAuth, PullRequestSnapshot, CiArchive } from "./gitHost.ts"
@@ -7,6 +7,7 @@ import { downloadFile, getJson, HostApiError, writeIgnoringReply, writeJson } fr
 import type { WriteMethod } from "./http.ts"
 import { COMMENTS_PER_PAGE, upsertMarkedComment } from "./markedComment.ts"
 import type { MarkedComment } from "./markedComment.ts"
+import { githubFileHistory } from "./fileHistory.ts"
 import type { GitHubPullRequestRef } from "./pullRequestUrl.ts"
 import { keptAround, stackFromHost, walkStack } from "./stack.ts"
 import type { OpenPullRequests, StackCandidate } from "./stack.ts"
@@ -287,6 +288,11 @@ export class GitHubHost implements GitHost {
       withHead: (branch) => list(`head=${encodeURIComponent(`${this.#ref.owner}:${branch}`)}`),
       withBase: (branch) => list(`base=${encodeURIComponent(branch)}`),
     }
+  }
+
+  fetchFileHistory(request: FileHistoryRequest): Promise<ReadonlyMap<string, FileHistory>> {
+    const graphql = this.#token === undefined ? undefined : <T>(query: string, variables: Readonly<Record<string, string>>, schema: z.ZodType<T>): Promise<T> => this.#graphql(query, variables, schema)
+    return githubFileHistory(graphql, this.#ref.owner, this.#ref.repo, request)
   }
 
   async #graphql<T>(query: string, variables: Readonly<Record<string, string | number>>, schema: z.ZodType<T>): Promise<T> {
