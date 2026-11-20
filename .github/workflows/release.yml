@@ -79,3 +79,25 @@ jobs:
           fi
           node scripts/releaseNotes.ts "$TAG" > "$RUNNER_TEMP/notes.md"
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Walkdiff ${TAG#v}" --notes-file "$RUNNER_TEMP/notes.md"
+      # Users of the GitHub Action can pin `@v0` and get each release of that major version. The tag
+      # is moved through the API with this job's token, so it doesn't start another Release run, and
+      # only to the newest release of its major, so re-running an old release never moves it back.
+      # It's a lightweight tag: the signed release tags stay the ones to verify.
+      - name: Move the major version tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          tags=$(git ls-remote --tags --refs "https://github.com/$GITHUB_REPOSITORY.git" 'v*' | sed 's#.*refs/tags/##')
+          # shellcheck disable=SC2086 # one argument per tag
+          major=$(node scripts/majorTag.ts "$TAG" $tags)
+          if [ -z "$major" ]; then
+            echo "A newer release than $TAG exists; leaving its major version tag alone."
+            exit 0
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$major" > /dev/null 2>&1; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$major" -f sha="$GITHUB_SHA" -F force=true > /dev/null
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$major" -f sha="$GITHUB_SHA" > /dev/null
+          fi
+          echo "$major now points at $TAG ($GITHUB_SHA)."

@@ -124,7 +124,7 @@ Tokens and code stay on your machine, apart from the host itself, package names 
 
 ## In CI
 
-The GitHub Action (`navasvarela/walkdiff@v0.13.0`) and the GitLab template (`ci/gitlab-ci.yml`) generate the report for each PR, keep it as a job artifact, and post one summary comment that is updated on each push. The [pilot guide](docs/pilot.md) has the setup. Locally, `walkdiff review` also works without a URL inside a CI job, and `walkdiff comment --report <dir> --report-url <url>` posts the summary.
+The GitHub Action (`navasvarela/walkdiff@v0.13.0`, or `@v0` to follow every 0.x release) and the GitLab template (`ci/gitlab-ci.yml`) generate the report for each PR, keep it as a job artifact, and post one summary comment that is updated on each push. The [pilot guide](docs/pilot.md) has the setup. Locally, `walkdiff review` also works without a URL inside a CI job, and `walkdiff comment --report <dir> --report-url <url>` posts the summary.
 
 ## AI review
 

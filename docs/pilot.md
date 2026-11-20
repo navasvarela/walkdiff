@@ -20,6 +20,7 @@ jobs:
     continue-on-error: true
     steps:
       # For the strongest guarantee, replace the tag with the full commit SHA it points to.
+      # `@v0` instead follows every 0.x release.
       - uses: navasvarela/walkdiff@v0.13.0
         # For AI review:
         # with:
