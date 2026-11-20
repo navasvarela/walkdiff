@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.13.0
+
+- **The Risks tab is a one-page overview:**
+  - **Headline:** the security summary, plus what else needs a decision or is background.
+  - **Index:** a row per kind of finding (supply chain, breaking change, docs drift and so on), grouped into security, decisions and background, with counts coloured by the worst finding. It stays in view as you scroll.
+  - **Sections:** one per kind, with what to check and its findings, ordered by kind and then severity. The checks that ran and didn't come last.
+  - **Links:** each section has a link of its own, such as `#risks/supplyChain`, and the review brief's new **At a glance** card links straight to them.
+- **Breaking changes in API schemas:** each OpenAPI, GraphQL or protobuf file a PR changes or deletes is compared with its version at the merge base. A change that breaks clients already running is high; one that only breaks code built against the schema is medium.
+  - **OpenAPI 3 and Swagger 2:** removed operations; new or newly required parameters and request fields; enum values clients can no longer send; and response fields that were removed, retyped, or are no longer always there.
+  - **GraphQL:** removed types, fields, arguments and enum values; changed types; output fields that can now be null; and inputs that became required.
+  - **Protobuf:** removed RPCs, messages and enums; changed types; field numbers that changed; and fields removed or renamed without reserving their number.
+  - **Split schemas:** GraphQL and protobuf files are read together, so a type that moves to another file is compared with itself there. A schema that can't be parsed is listed under "Not checked".
+- **Docs drift:** a new check flags docs a PR leaves out of date.
+  - **Stale mentions:** Markdown, reStructuredText or AsciiDoc that still mentions a command-line option, environment variable, config key, function or type the PR removes or renames. Changelogs and upgrade guides, and lines that also name the replacement, are left alone.
+  - **Doc comments:** a comment that still describes a parameter its changed function dropped, or leaves out one it gained.
+- **Hotspots:** a new check notes changed files that had a change reverted in the last 90 days, keep needing fixes, or change far more often than most, from their commits in the year before the PR. A hotspot ranks higher on the review path and says why.
+  - **Where the history comes from:** git for local reviews. For hosted PRs, GitHub's or GitLab's API, which reads only the changed files' paths; on GitHub this needs a token.
+  - **Settings:** it can be turned off, and the list of what leaves your machine names it.
+- **Mixed-concern PRs:** a new Scope check asks whether a PR should be split.
+  - **Tidy-ups and upgrades:** behaviour changes buried among 5 or more files that are only reformatted, renamed or moved, or among 10 or more upgraded packages.
+  - **Unrelated packages:** behaviour changes in workspace packages that neither depend on nor use each other.
+
 ## 0.12.0
 
 - **Attack surface:** new HTTP endpoints are noted where a PR adds them, in Express, Koa, Fastify, Hono, NestJS, FastAPI, Flask, Django, Spring, JAX-RS, ASP.NET, Go's `net/http`, gin, echo, chi, axum, actix and Rocket. A new endpoint without the auth its neighbours in the file declare is flagged, as is code that turns auth or CSRF checks off, such as `[AllowAnonymous]`, `permitAll()` or `@csrf_exempt`. A route moved within the PR isn't counted as new.
