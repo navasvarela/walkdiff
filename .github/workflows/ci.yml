@@ -41,3 +41,11 @@ jobs:
       - run: pnpm test
       - run: pnpm build:ui
       - run: pnpm build:vscode
+      # The oldest Neovim the plugin supports, pinned by checksum.
+      - name: Install Neovim 0.10.4
+        run: |
+          curl --fail --silent --show-error --location --output "$RUNNER_TEMP/nvim.tar.gz" https://github.com/neovim/neovim/releases/download/v0.10.4/nvim-linux-x86_64.tar.gz
+          echo "95aaa8e89473f5421114f2787c13ae0ec6e11ebbd1a13a1bd6fcf63420f8073f  $RUNNER_TEMP/nvim.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/nvim.tar.gz" -C "$RUNNER_TEMP"
+      - name: Test the Neovim plugin
+        run: '"$RUNNER_TEMP/nvim-linux-x86_64/bin/nvim" --headless -l packages/nvim/tests/run.lua'

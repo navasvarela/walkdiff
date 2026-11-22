@@ -11,6 +11,7 @@ Walkdiff is a review companion for GitHub pull requests and GitLab merge request
 | [Adding a language](adding-a-language.md) | You want Walkdiff to read another language |
 | [Adding a check](adding-a-check.md) | You want the review to look for something new |
 | [VS Code extension](../packages/vscode/README.md) | You want to review PRs from VS Code |
+| [Neovim plugin](../packages/nvim/README.md) | You want to review PRs from Neovim |
 | [The local app's API](app-api.md) | You're writing an editor plugin or a script that talks to `walkdiff app` |
 | [Security policy](../SECURITY.md) | You want to know what Walkdiff guarantees, or need to report a vulnerability |
 
