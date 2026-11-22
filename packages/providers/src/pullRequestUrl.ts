@@ -1,22 +1,29 @@
 import { GitHostKind } from "@walkdiff/review-model"
 
-export interface GitHubPullRequestRef {
+export interface GitHubRepositoryRef {
   readonly host: typeof GitHostKind.GitHub
   readonly webOrigin: string
   readonly owner: string
   readonly repo: string
+}
+
+export interface GitHubPullRequestRef extends GitHubRepositoryRef {
   readonly number: number
 }
 
-export interface GitLabMergeRequestRef {
+export interface GitLabProjectRef {
   readonly host: typeof GitHostKind.GitLab
   readonly webOrigin: string
   /** Full namespace path; GitLab allows nested groups, e.g. `group/subgroup/project`. */
   readonly projectPath: string
+}
+
+export interface GitLabMergeRequestRef extends GitLabProjectRef {
   /** The merge request's project-scoped number (GitLab's `iid`), as shown in its URL. */
   readonly number: number
 }
 
+export type RepositoryRef = GitHubRepositoryRef | GitLabProjectRef
 export type PullRequestRef = GitHubPullRequestRef | GitLabMergeRequestRef
 
 export class InvalidPullRequestUrlError extends Error {
@@ -82,7 +89,7 @@ function parsePositiveInteger(digits: string, input: string): number {
 }
 
 /** The repository's path on its host, e.g. `owner/repo` or `group/subgroup/project`. */
-export function repositoryPath(ref: PullRequestRef): string {
+export function repositoryPath(ref: RepositoryRef): string {
   return ref.host === GitHostKind.GitHub ? `${ref.owner}/${ref.repo}` : ref.projectPath
 }
 

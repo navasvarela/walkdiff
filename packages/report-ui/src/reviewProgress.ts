@@ -1,8 +1,8 @@
-import { changedUnitsOf, DiffLineKind, FileChangeStatus, FileContentKind, isBehaviourChange, isTestPath, isTestUnit, UnitChangeKind, unitSnapshotSchema } from "@walkdiff/review-model"
+import { changedUnitsOf, describeRange, previousPathOf, DiffLineKind, FileContentKind, isBehaviourChange, isTestPath, isTestUnit, UnitChangeKind, unitSnapshotSchema } from "@walkdiff/review-model"
 import type { ChangedFile, ChangedUnit, ReviewComment, ReviewModel, UnitSnapshot } from "@walkdiff/review-model"
 import { buildReviewPlan, stopFor } from "./reviewPlan.ts"
 import type { ReviewPlan, ReviewStop } from "./reviewPlan.ts"
-import { describeRange, reviewCommentFromLines } from "./lineComments.ts"
+import { reviewCommentFromLines } from "./lineComments.ts"
 import type { LineComment } from "./lineComments.ts"
 
 /**
@@ -209,11 +209,7 @@ export function commentsOnItems(files: readonly ChangedFile[], state: ReviewStat
  * it goes in the review's text instead.
  */
 export function reviewCommentsFrom(comments: readonly ItemComment[], lineComments: readonly LineComment[] = [], files: readonly ChangedFile[] = []): ReviewComment[] {
-  return [...comments.map(({ item, text }) => ({ path: item.path, previousPath: previousPathOf(item.file), line: firstAddedLine(item), label: item.label, range: null, body: text })), ...lineComments.map((comment) => reviewCommentFromLines(comment, files))]
-}
-
-function previousPathOf(file: ChangedFile): string {
-  return file.diff.status === FileChangeStatus.Renamed || file.diff.status === FileChangeStatus.Copied ? file.diff.previousPath : file.diff.path
+  return [...comments.map(({ item, text }) => ({ path: item.path, previousPath: previousPathOf(item.file.diff), line: firstAddedLine(item), label: item.label, range: null, body: text })), ...lineComments.map((comment) => reviewCommentFromLines(comment, files))]
 }
 
 function firstAddedLine(item: ReviewItem): number | null {

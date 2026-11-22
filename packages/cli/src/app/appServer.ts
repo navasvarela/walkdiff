@@ -3,16 +3,19 @@ import { readFile } from "node:fs/promises"
 import { createServer } from "node:http"
 import type { IncomingMessage, Server, ServerResponse } from "node:http"
 import { join, resolve } from "node:path"
-import { gitHostFor, HostApiError, InvalidPullRequestUrlError, parsePullRequestUrl } from "@walkdiff/providers"
-import type { GitHost, PullRequestRef } from "@walkdiff/providers"
-import { AI_API_KEY_VARIABLE, AiUnavailableError, CoverageFileError, createAiProvider, describeChecks, firstExisting } from "@walkdiff/engine"
+import { gitHostFor, HostApiError, InvalidPullRequestUrlError, parsePullRequestUrl, pullRequestDirectoryFor } from "@walkdiff/providers"
+import type { GitHost, PullRequestDirectory, PullRequestRef, RepositoryRef, TrustedOrigins } from "@walkdiff/providers"
+import { AI_API_KEY_VARIABLE, AiUnavailableError, CoverageFileError, createAiProvider, describeChecks, firstExisting, readBlobs } from "@walkdiff/engine"
 import { acceptStackRequestSchema, addReviewRequestSchema, anthropicBaseUrlFrom, approveStackRequestSchema, appSettingsSchema, attachCoverageRequestSchema, LogLevel, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
-import { MemberCheck, ReportChange, ReviewStatus } from "@walkdiff/review-model"
-import type { AiConnectionResult, ApproveStackRequest, CheckStatus, Log, SettingsView, StackView } from "@walkdiff/review-model"
+import { MemberCheck, ReportChange, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, ReviewStatus } from "@walkdiff/review-model"
+import type { AiConnectionResult, ApproveStackRequest, CheckStatus, Log, ReviewModel, SettingsView, StackView } from "@walkdiff/review-model"
 import { readHostTokens } from "../environment.ts"
-import { REPORT_FILE_POLICY_TAG, REPORT_PAGE_FILE, writeReport } from "../report.ts"
+import { REPORT_FILE_POLICY_TAG, REPORT_PAGE_FILE, REVIEW_MODEL_FILE, writeReport } from "../report.ts"
+import { walkdiffVersion } from "../version.ts"
 import { addressOf, BASE_POLICY, listen, LOOPBACK_HOST, REPORT_PAGE_POLICY, respond, SECURITY_HEADERS } from "../server.ts"
 import { attachCoverage } from "./attachCoverage.ts"
+import { lookUpPullRequests, PullRequestLookup } from "./pullRequestLookup.ts"
+import type { DirectoryResolver } from "./pullRequestLookup.ts"
 import type { ReportWriter } from "./attachCoverage.ts"
 import type { ReviewService } from "./reviewService.ts"
 import type { ReviewStore } from "./reviewStore.ts"
@@ -24,6 +27,15 @@ import type { HostResolver } from "./stackStatus.ts"
 export type { HostResolver } from "./stackStatus.ts"
 
 export const API_KEY_HEADER = "x-walkdiff-key"
+/**
+ * The version of the API editor plugins use, described in docs/app-api.md. It goes up only when a
+ * change could break a plugin written for the previous one: a removed or renamed endpoint or field.
+ */
+export const PLUGIN_API_VERSION = 1
+const PULL_REQUEST_LOOKUPS: ReadonlyMap<string, PullRequestLookup> = new Map([
+  ["/api/pull-requests", PullRequestLookup.FromBranch],
+  ["/api/review-requests", PullRequestLookup.AwaitingMyReview],
+])
 const API_KEY_META = "walkdiff-api-key"
 const HOME_META = "walkdiff-home"
 const REVIEW_ID_META = "walkdiff-review-id"
@@ -55,6 +67,8 @@ interface AppContext {
   readonly env: Readonly<Record<string, string | undefined>>
   readonly offline: boolean
   readonly hostFor: HostResolver
+  readonly directoryFor: DirectoryResolver
+  readonly trustedOrigins: TrustedOrigins
   readonly writeReport: ReportWriter
   readonly describeChecks: () => Promise<CheckStatus[]>
 }
@@ -77,6 +91,8 @@ export interface AppServerOptions {
   readonly offline?: boolean
   /** How to reach a PR's host, with its token. Tests replace it. */
   readonly hostFor?: HostResolver
+  /** How to reach a repository's host, to find PRs for a plugin. Tests replace it. */
+  readonly directoryFor?: DirectoryResolver
   /** How to rewrite a report. Tests replace it, since the real one needs the built UI. */
   readonly writeReport?: ReportWriter
   /**
@@ -90,8 +106,10 @@ export interface AppServerOptions {
 export async function startAppServer(store: ReviewStore, service: ReviewService, options: AppServerOptions): Promise<AppServer> {
   const { port, log, apiKey = newApiKey(), env = {}, offline = false } = options
   const hostFor = options.hostFor ?? ((ref: PullRequestRef): Promise<GitHost> => Promise.resolve(gitHostFor(ref, readHostTokens(env))))
+  const directoryFor = options.directoryFor ?? ((repository: RepositoryRef): Promise<PullRequestDirectory> => Promise.resolve(pullRequestDirectoryFor(repository, readHostTokens(env))))
+  const { trustedOrigins } = readHostTokens(env)
   const allowedHosts = new Set<string>()
-  const context: AppContext = { store, service, apiKey, allowedHosts, env, offline, hostFor, writeReport: options.writeReport ?? writeReport, describeChecks: options.describeChecks ?? (() => describeChecks()) }
+  const context: AppContext = { store, service, apiKey, allowedHosts, env, offline, hostFor, directoryFor, trustedOrigins, writeReport: options.writeReport ?? writeReport, describeChecks: options.describeChecks ?? (() => describeChecks()) }
   const server = createServer((request, response) => {
     handle(request, response, context).catch((error: unknown) => {
       // Details such as file paths go to the terminal, not to whatever made the request.
@@ -109,8 +127,11 @@ export async function startAppServer(store: ReviewStore, service: ReviewService,
   }
 }
 
-// Created fresh each run and never stored, so it lasts only as long as the process.
-function newApiKey(): string {
+/**
+ * A key for the API. Made fresh each run and kept only in memory and in the connection file, which
+ * is removed when the app stops, so it lasts only as long as the process.
+ */
+export function newApiKey(): string {
   return randomBytes(API_KEY_BYTES).toString("hex")
 }
 
@@ -151,6 +172,26 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, pat
     return
   }
   const method = request.method ?? "GET"
+  if (pathname === "/api/info" && method === "GET") {
+    sendJson(response, 200, { apiVersion: PLUGIN_API_VERSION, reportSchemaVersion: REVIEW_MODEL_SCHEMA_VERSION, version: walkdiffVersion() })
+    return
+  }
+  const reportData = /^\/api\/reviews\/(\d+)\/report$/.exec(pathname)
+  if (reportData !== null && method === "GET") {
+    await sendReportData(response, Number(reportData[1]), context)
+    return
+  }
+  const lookup = PULL_REQUEST_LOOKUPS.get(pathname)
+  if (lookup !== undefined && method === "GET") {
+    const answer = await lookUpPullRequests(lookup, new URL(request.url ?? "/", "http://localhost").searchParams, context)
+    sendJson(response, answer.status, answer.body)
+    return
+  }
+  const changedFile = /^\/api\/reviews\/(\d+)\/file$/.exec(pathname)
+  if (changedFile !== null && method === "GET") {
+    await sendChangedFile(request, response, Number(changedFile[1]), context)
+    return
+  }
   if (pathname === "/api/reviews") {
     if (method === "GET") {
       sendJson(response, 200, context.service.list())
@@ -471,6 +512,68 @@ async function sendReportPage(response: ServerResponse, id: number, context: App
     return
   }
   sendHtml(response, withReviewId(withMeta(page.replace(REPORT_FILE_POLICY_TAG, ""), context.apiKey), id), REPORT_PAGE_POLICY)
+}
+
+/** A review's report as data, as its page shows it. */
+async function sendReportData(response: ServerResponse, id: number, context: AppContext): Promise<void> {
+  const model = await readReviewModel(context.store.reportDirOf(id))
+  if (model === undefined) {
+    sendJson(response, 404, { error: "This review has no report. Refresh it to create one." })
+    return
+  }
+  sendJson(response, 200, model)
+}
+
+const FileSide = { Base: "base", Head: "head" } as const
+type FileSide = (typeof FileSide)[keyof typeof FileSide]
+
+function isFileSide(value: string | null): value is FileSide {
+  return value === FileSide.Base || value === FileSide.Head
+}
+
+/**
+ * One of a review's changed files at the PR's merge base or head, from the repository the app
+ * fetched its commits into, for showing a diff of a PR that isn't checked out. Only the PR's
+ * changed files can be read, so this never serves anything else from the repository.
+ */
+async function sendChangedFile(request: IncomingMessage, response: ServerResponse, id: number, context: AppContext): Promise<void> {
+  const query = new URL(request.url ?? "/", "http://localhost").searchParams
+  const side = query.get("side")
+  const path = query.get("path")
+  if (!isFileSide(side) || path === null || path === "") {
+    sendJson(response, 400, { error: "Ask for side=base or side=head, and a path." })
+    return
+  }
+  const model = await readReviewModel(context.store.reportDirOf(id))
+  const repoDir = context.store.repoDirOf(id)
+  if (model === undefined || repoDir === undefined) {
+    sendJson(response, 404, { error: "This review's files aren't available. Refresh it to fetch them." })
+    return
+  }
+  const isChanged = model.files.some(({ diff }) => diff.path === path || ("previousPath" in diff && diff.previousPath === path))
+  if (!isChanged) {
+    sendJson(response, 404, { error: "That file isn't one this PR changes." })
+    return
+  }
+  const commit = side === FileSide.Base ? model.pullRequest.mergeBaseSha : model.pullRequest.headSha
+  const [blob] = await readBlobs(repoDir, [{ commit, path }])
+  if (blob === undefined) {
+    sendJson(response, 404, { error: `That file doesn't exist at the PR's ${side}.` })
+    return
+  }
+  sendJson(response, 200, { path, side, commit, text: blob.toString("utf8") })
+}
+
+/** Undefined when there's no report, it's gone from disk, or it was written in an older format. */
+async function readReviewModel(reportDir: string | undefined): Promise<ReviewModel | undefined> {
+  if (reportDir === undefined) return undefined
+  try {
+    const parsed = reviewModelSchema.safeParse(JSON.parse(await readFile(join(reportDir, REVIEW_MODEL_FILE), "utf8")))
+    return parsed.success ? parsed.data : undefined
+  } catch (error: unknown) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined
+    throw error
+  }
 }
 
 /** Undefined when the file is gone, which happens after the cache folder is cleared. */

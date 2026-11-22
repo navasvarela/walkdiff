@@ -164,6 +164,19 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
+  packages/vscode:
+    dependencies:
+      '@walkdiff/review-model':
+        specifier: workspace:*
+        version: link:../review-model
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/vscode':
+        specifier: 1.100.0
+        version: 1.100.0
+
 packages:
 
   '@anthropic-ai/sdk@1.8.0':
@@ -558,6 +571,9 @@ packages:
 
   '@types/react@19.3.0':
     resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
+
+  '@types/vscode@1.100.0':
+    resolution: {integrity: sha512-4uNyvzHoraXEeCamR3+fzcBlh7Afs4Ifjs4epINyUX/jvdk0uzLnwiDY35UKDKnkCHP5Nu3dljl2H8lR6s+rQw==}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
@@ -1417,6 +1433,8 @@ snapshots:
   '@types/react@19.3.0':
     dependencies:
       csstype: 3.2.3
+
+  '@types/vscode@1.100.0': {}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true

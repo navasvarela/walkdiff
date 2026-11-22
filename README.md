@@ -5,7 +5,7 @@
 A review companion for GitHub pull requests and GitLab merge requests. `walkdiff review <url>` fetches the
 change, analyzes it, and serves a local report.
 
-Status: early release, [v0.13.0](CHANGELOG.md). To run it on your team's PRs, see the [pilot guide](docs/pilot.md).
+Status: early release, [v0.14.0](CHANGELOG.md). To run it on your team's PRs, see the [pilot guide](docs/pilot.md).
 
 **Documentation:** [website](https://navasvarela.github.io/walkdiff/), [getting started](docs/getting-started.md), [configuration](docs/configuration.md), [troubleshooting](docs/troubleshooting.md), [security policy](SECURITY.md).
 
@@ -25,13 +25,13 @@ jobs:
     # Walkdiff only reports; it should never block a merge.
     continue-on-error: true
     steps:
-      - uses: navasvarela/walkdiff@v0.13.0
+      - uses: navasvarela/walkdiff@v0.14.0
 ```
 
 Each PR then gets one comment, updated on every push. It has a summary of security findings, counts, the top findings linked into the diff, and a link to the full report, which is kept as an artifact of the workflow run. Opening the report needs a GitHub account with access to the repository.
 
 - **No checkout needed.** The Action reads the PR through GitHub's API and never runs its code, so it's safe on PRs from forks. Those get a read-only token, so instead of a comment, the summary goes on the workflow run's page.
-- **Pinning:** `@v0.13.0` stays on this release. `@v0` follows every 0.x release, and a full commit SHA gives the strongest guarantee.
+- **Pinning:** `@v0.14.0` stays on this release. `@v0` follows every 0.x release, and a full commit SHA gives the strongest guarantee.
 - **Permissions:** `pull-requests: write` is only for the comment.
 
 | Input | Default | What it does |
@@ -50,7 +50,7 @@ Each PR then gets one comment, updated on every push. It has a summary of securi
 The `report-url` output links to the report artifact. For AI review, give the step these inputs, and see [AI review](#ai-review) for what's sent:
 
 ```yaml
-      - uses: navasvarela/walkdiff@v0.13.0
+      - uses: navasvarela/walkdiff@v0.14.0
         with:
           ai: "true"
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -149,7 +149,7 @@ npx walkdiff app
 
 This runs a local page at `http://127.0.0.1:4317/`. Paste a pull request or merge request link to add it; analyses run one at a time, and the list shows each review's status and counts, and flags medium or high severity security findings. Refresh re-runs a review after new commits. The list is kept in SQLite under `~/.local/share/walkdiff`, so it survives restarts. If `GITHUB_TOKEN` is not set, the app asks the GitHub CLI for its login on that PR's host.
 
-The server listens only on your machine, refuses requests for any other host name, and its API needs a key that is created each run.
+The server listens only on your machine, refuses requests for any other host name, and its API needs a key that is created each run. The [VS Code extension](packages/vscode/README.md) uses it to review PRs from the editor, and other plugins and scripts can use the same API; [docs/app-api.md](docs/app-api.md) describes how to find the running app and call it.
 
 ## Private repositories
 
@@ -173,7 +173,7 @@ Tokens and code stay on your machine, apart from the host itself, package names 
 
 ## In CI
 
-The GitHub Action (`navasvarela/walkdiff@v0.13.0`, or `@v0` to follow every 0.x release) and the GitLab template (`ci/gitlab-ci.yml`) generate the report for each PR, keep it as a job artifact, and post one summary comment that is updated on each push. The [pilot guide](docs/pilot.md) has the setup. Locally, `walkdiff review` also works without a URL inside a CI job, and `walkdiff comment --report <dir> --report-url <url>` posts the summary.
+The GitHub Action (`navasvarela/walkdiff@v0.14.0`, or `@v0` to follow every 0.x release) and the GitLab template (`ci/gitlab-ci.yml`) generate the report for each PR, keep it as a job artifact, and post one summary comment that is updated on each push. The [pilot guide](docs/pilot.md) has the setup. Locally, `walkdiff review` also works without a URL inside a CI job, and `walkdiff comment --report <dir> --report-url <url>` posts the summary.
 
 ## AI review
 

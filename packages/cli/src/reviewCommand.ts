@@ -81,7 +81,7 @@ async function serveReportOnPreferredPort(reportDir: string, port: number | unde
 
 async function reviewPullRequest(options: ReviewOptions, deps: ReviewDependencies): Promise<Review> {
   const ref = parsePullRequestUrl(options.url ?? (await detectPullRequestUrl(deps.env)))
-  const model = await analyzePullRequest(ref, options, deps)
+  const { model } = await analyzePullRequest(ref, options, deps)
   return { model, reportDir: options.outDir ?? defaultReportDir(deps.cacheDir, ref) }
 }
 
@@ -96,7 +96,13 @@ async function reviewLocalBranch(local: LocalReviewOptions, options: ReviewOptio
   return { model, reportDir: options.outDir ?? localReportDir(deps.cacheDir, change) }
 }
 
-export async function analyzePullRequest(ref: PullRequestRef, options: AnalysisRequest, deps: AnalysisDependencies): Promise<ReviewModel> {
+/** A PR's report, and the cached repository its commits were fetched into. */
+export interface AnalyzedPullRequest {
+  readonly model: ReviewModel
+  readonly repoDir: string
+}
+
+export async function analyzePullRequest(ref: PullRequestRef, options: AnalysisRequest, deps: AnalysisDependencies): Promise<AnalyzedPullRequest> {
   deps.reportStep(AnalysisStep.FetchingPullRequest)
   const host = gitHostFor(ref, deps.tokens)
   const snapshot = await host.fetchPullRequest()
@@ -111,7 +117,7 @@ export async function analyzePullRequest(ref: PullRequestRef, options: AnalysisR
     credentials: snapshot.gitAuth,
     commits: [pullRequest.mergeBaseSha, pullRequest.headSha],
   })
-  return analyzeChange({ repoDir, pullRequest, ref, history }, options, deps)
+  return { model: await analyzeChange({ repoDir, pullRequest, ref, history }, options, deps), repoDir }
 }
 
 async function offlineHistory(): Promise<never> {

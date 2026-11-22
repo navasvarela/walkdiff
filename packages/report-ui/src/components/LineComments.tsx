@@ -1,9 +1,8 @@
 import { createContext, useContext, useId, useMemo, useState } from "react"
 import type { ReactElement, ReactNode } from "react"
-import { LineSide } from "@walkdiff/review-model"
-import type { ChangedFile } from "@walkdiff/review-model"
-import { commentableLines, commentedLinesOf, describeRange, lineCommentKey, lineCommentsIn, lineNumberOf, rangeBetween } from "../lineComments.ts"
-import type { CommentableLines } from "../lineComments.ts"
+import { commentableLines, describeRange, lineNumberOf, LineSide, rangeBetween } from "@walkdiff/review-model"
+import type { ChangedFile, CommentableLines } from "@walkdiff/review-model"
+import { commentedLinesOf, lineCommentKey, lineCommentsIn } from "../lineComments.ts"
 import { useReviewState } from "../reviewState.tsx"
 
 interface Selection {
