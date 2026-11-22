@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.14.0
+
+- **Review from VS Code:** a VS Code extension, in `packages/vscode`, reviews PRs with the local app. It isn't on the Marketplace yet; [its README](packages/vscode/README.md) says how to run it from the repository.
+  - **Starting a review:** of the current branch's PR, of a PR waiting for your review, or of a pasted link. If the app isn't running, the extension offers to start it in a terminal.
+  - **Reading it:** the Walkdiff view lists your reviews with their progress. A finished review opens onto its changed files and their findings, and each file opens in VS Code's diff editor without checking the PR out.
+  - **Commenting and posting:** comments on any line the diff shows stay pending until you submit the review as Comment, Approve or Request changes. The PR's threads appear on their lines, where you can reply, resolve and reopen. As on the report page, nothing is posted once the PR has new commits.
+- **An API for editor plugins and scripts:** while `walkdiff app` runs, it writes `app.json` to its data directory, readable by you only, with its address and API key, and removes it when it stops. [docs/app-api.md](docs/app-api.md) describes it and each endpoint, and what changes the API's version.
+  - **Report and files:** a review's report as JSON, and any file the PR changes at its merge base or head.
+  - **Finding PRs:** the open PR for a branch, from the repository's git remote, and the open PRs waiting for your review on that host, including requests to your teams on GitHub. Remotes over HTTPS and SSH work for github.com, gitlab.com and the hosts in `WALKDIFF_TRUSTED_GITHUB_HOSTS` and `WALKDIFF_TRUSTED_GITLAB_HOSTS`.
+- **GitHub Action:** `navasvarela/walkdiff@v0` now follows each release of 0.x, and the README starts with a quick start for the Action.
+
 ## 0.13.0
 
 - **The Risks tab is a one-page overview:**
