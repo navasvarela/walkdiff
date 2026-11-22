@@ -68,7 +68,7 @@ describe("AppClient", () => {
 
   it.each([
     [SUPPORTED_API_VERSION + 1, REVIEW_MODEL_SCHEMA_VERSION, "Update the Walkdiff extension"],
-    [SUPPORTED_API_VERSION, REVIEW_MODEL_SCHEMA_VERSION - 1, "Update Walkdiff (npx walkdiff@latest app)"],
+    [SUPPORTED_API_VERSION, REVIEW_MODEL_SCHEMA_VERSION - 1, "Update Walkdiff (npx walkdiff@latest)"],
   ])("says which side to update when the app speaks API %i and reports %i", async (apiVersion, reportSchemaVersion, advice) => {
     const client = new AppClient(CONNECTION, answering(200, { apiVersion, reportSchemaVersion, version: "0.14.0" }))
     await expect(client.checkVersions()).rejects.toThrow(AppVersionError)

@@ -153,6 +153,6 @@ export class AppClient {
 }
 
 function versionAdvice(what: string, appSpeaks: number, extensionSpeaks: number, appVersion: string): string {
-  const update = appSpeaks > extensionSpeaks ? "Update the Walkdiff extension" : "Update Walkdiff (npx walkdiff@latest app)"
+  const update = appSpeaks > extensionSpeaks ? "Update the Walkdiff extension" : "Update Walkdiff (npx walkdiff@latest)"
   return `The Walkdiff app (${appVersion}) uses ${what} version ${appSpeaks}, and this extension reads version ${extensionSpeaks}. ${update}.`
 }

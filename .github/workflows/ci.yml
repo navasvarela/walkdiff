@@ -40,4 +40,5 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build:ui
-      - run: pnpm build:vscode
+      # Packaging also runs vsce's checks of the manifest the Marketplace and Open VSX read.
+      - run: pnpm --filter walkdiff-vscode package

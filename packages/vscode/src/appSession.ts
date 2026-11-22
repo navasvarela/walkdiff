@@ -1,11 +1,17 @@
+import { exec } from "node:child_process"
+import { promisify } from "node:util"
 import * as vscode from "vscode"
 import { AppClient, AppGoneError } from "./appClient.ts"
 import { connectionFilePath, readConnection } from "./connection.ts"
 import { CancelledError, UserFacingError } from "./userFacingError.ts"
+import { versionProblem } from "./walkdiffVersion.ts"
 
 const TERMINAL_NAME = "Walkdiff app"
+/** Matches the default in package.json: the newest release, without npx asking first. */
+const DEFAULT_COMMAND = "npx --yes walkdiff@latest"
+const runShell = promisify(exec)
 const START_CHOICE = "Start"
-// The first `npx walkdiff` downloads the package and its parsers, which can take a minute or two.
+// The first run through npx downloads the package and its parsers, which can take a minute or two.
 const START_TIMEOUT_MS = 180_000
 const START_POLL_MS = 500
 
@@ -37,11 +43,14 @@ export class AppSession {
   async start(): Promise<AppClient> {
     const running = await this.existing()
     if (running !== undefined) return running
-    const command = vscode.workspace.getConfiguration("walkdiff").get<string>("command", "npx walkdiff")
-    const terminal = vscode.window.terminals.find((open) => open.name === TERMINAL_NAME) ?? vscode.window.createTerminal({ name: TERMINAL_NAME })
-    terminal.sendText(`${command} app --no-open`)
-    terminal.show(true)
-    this.#client = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Starting the Walkdiff app…", cancellable: true }, (_progress, cancel) => waitForApp(cancel))
+    const command = vscode.workspace.getConfiguration("walkdiff").get<string>("command", DEFAULT_COMMAND)
+    this.#client = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Starting the Walkdiff app…", cancellable: true }, async (_progress, cancel) => {
+      await checkVersion(command)
+      const terminal = vscode.window.terminals.find((open) => open.name === TERMINAL_NAME) ?? vscode.window.createTerminal({ name: TERMINAL_NAME })
+      terminal.sendText(`${command} app --no-open`)
+      terminal.show(true)
+      return waitForApp(cancel)
+    })
     return this.#client
   }
 
@@ -49,6 +58,21 @@ export class AppSession {
   forget(): void {
     this.#client = undefined
   }
+}
+
+/**
+ * Refuses a Walkdiff too old to write the connection file, which the extension would otherwise wait
+ * for until it gave up. A command whose version can't be read is left to try.
+ */
+async function checkVersion(command: string): Promise<void> {
+  let output: string
+  try {
+    output = (await runShell(`${command} --version`, { timeout: START_TIMEOUT_MS })).stdout
+  } catch {
+    return
+  }
+  const problem = versionProblem(output)
+  if (problem !== undefined) throw new UserFacingError(problem)
 }
 
 /** A client for the app the connection file points at; undefined when there's no file. */

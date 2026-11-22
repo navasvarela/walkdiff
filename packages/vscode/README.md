@@ -22,13 +22,13 @@ Comments go only on lines the diff shows, as on GitHub and GitLab themselves. Th
 
 Reviews run in the Walkdiff app on your machine (`npx walkdiff app`), the same one that serves the review list in your browser. The extension finds the running app from the connection file it writes, and starts it in a terminal if it isn't running. Your GitHub or GitLab login stays with the app: the extension never sees a token.
 
-The app needs Walkdiff 0.14.0 or later, which `npx walkdiff` fetches, Node.js 22.18 or later, and a login for private repositories: `GITHUB_TOKEN`, the GitHub CLI's login, or `GITLAB_TOKEN`. For GitHub Enterprise or self-managed GitLab, add the host to `WALKDIFF_TRUSTED_GITHUB_HOSTS` or `WALKDIFF_TRUSTED_GITLAB_HOSTS`, as the [configuration guide](https://github.com/navasvarela/walkdiff/blob/main/docs/configuration.md) describes.
+The app needs Walkdiff 0.14.0 or later, which the extension fetches from npm by default, Node.js 22.18 or later, and a login for private repositories: `GITHUB_TOKEN`, the GitHub CLI's login, or `GITLAB_TOKEN`. For GitHub Enterprise or self-managed GitLab, add the host to `WALKDIFF_TRUSTED_GITHUB_HOSTS` or `WALKDIFF_TRUSTED_GITLAB_HOSTS`, as the [configuration guide](https://github.com/navasvarela/walkdiff/blob/main/docs/configuration.md) describes.
 
 ## Settings
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `walkdiff.command` | `npx walkdiff` | How the extension runs Walkdiff when it starts the app: `<command> app --no-open` |
+| `walkdiff.command` | `npx --yes walkdiff@latest` | How the extension runs Walkdiff when it starts the app: `<command> app --no-open`. Use `walkdiff` if you installed it yourself |
 | `walkdiff.dataDir` | empty | The app's data directory, if you start it with `--data-dir` |
 | `walkdiff.aiReview` | `false` | Ask for the AI review too, if the app has one set up |
 
@@ -44,4 +44,11 @@ pnpm build:vscode
 code --extensionDevelopmentPath="$PWD/packages/vscode"
 ```
 
-The extension is bundled into `dist/extension.cjs` with rolldown. Its logic that doesn't need VS Code (the connection file, the API client, the rows of the reviews view) has unit tests that run with the rest: `pnpm test`. The app's API is described in [docs/app-api.md](../../docs/app-api.md).
+To install a build in your own VS Code, package it and install the `.vsix`:
+
+```sh
+pnpm --filter walkdiff-vscode package
+code --install-extension packages/vscode/walkdiff-vscode-0.1.0.vsix
+```
+
+The extension is bundled into `dist/extension.cjs` with rolldown. Its logic that doesn't need VS Code (the connection file, the API client, the rows of the reviews view) has unit tests that run with the rest: `pnpm test`. The app's API is described in [docs/app-api.md](https://github.com/navasvarela/walkdiff/blob/main/docs/app-api.md).
