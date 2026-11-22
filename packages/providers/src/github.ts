@@ -305,7 +305,7 @@ export class GitHubHost implements GitHost {
 
   #repoApi(): string {
     const { owner, repo, webOrigin } = this.#ref
-    return `${apiBase(webOrigin)}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`
+    return `${githubApiBase(webOrigin)}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`
   }
 
   async #mergeBase(repoApi: string, base: CommitSha, head: CommitSha): Promise<CommitSha> {
@@ -322,15 +322,7 @@ export class GitHubHost implements GitHost {
   }
 
   #headers(): Record<string, string> {
-    const headers: Record<string, string> = {
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": GITHUB_API_VERSION,
-      "User-Agent": USER_AGENT,
-    }
-    if (this.#token !== undefined) {
-      headers.Authorization = `Bearer ${this.#token}`
-    }
-    return headers
+    return githubHeaders(this.#token)
   }
 
   #gitAuth(): GitHttpAuth | undefined {
@@ -366,8 +358,17 @@ function graphqlUrl(webOrigin: string): string {
   return webOrigin === GITHUB_DOT_COM_ORIGIN ? `${GITHUB_DOT_COM_API}/graphql` : `${webOrigin}/api/graphql`
 }
 
+export function githubHeaders(token: string | undefined): Record<string, string> {
+  return {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": GITHUB_API_VERSION,
+    "User-Agent": USER_AGENT,
+    ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
+  }
+}
+
 // GitHub Enterprise Server serves its REST API under /api/v3 on the web host.
-function apiBase(webOrigin: string): string {
+export function githubApiBase(webOrigin: string): string {
   return webOrigin === GITHUB_DOT_COM_ORIGIN ? GITHUB_DOT_COM_API : `${webOrigin}/api/v3`
 }
 

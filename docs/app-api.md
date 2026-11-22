@@ -1,6 +1,6 @@
 # The local app's API
 
-`walkdiff app` serves a JSON API on the loopback interface. Its own page uses it, and so can an editor plugin or a script: add a review, wait for it, read the report, open a changed file at either side of the PR, then post the review. This page describes how to find the app, how to call it, and what each endpoint returns.
+`walkdiff app` serves a JSON API on the loopback interface. Its own page uses it, and so can an editor plugin or a script: find a PR to review, add it, wait for it, read the report, open a changed file at either side of the PR, then post the review. This page describes how to find the app, how to call it, and what each endpoint returns.
 
 The API only listens on `127.0.0.1`. Anything that can read your connection file can act with your GitHub or GitLab login, so the file is readable by you alone.
 
@@ -55,6 +55,36 @@ Which API and report format the app speaks.
 ```json
 { "apiVersion": 1, "reportSchemaVersion": 11, "version": "0.13.0" }
 ```
+
+### `GET api/pull-requests?remote=<url>&branch=<name>`
+
+The open PRs from a branch of the repository: usually one, for the branch checked out in the editor. `remote` is the repository's git remote, as `git remote get-url origin` prints it, over HTTPS or SSH. Answers a list of PR listings (`pullRequestListingSchema` in `packages/review-model`):
+
+```json
+[
+  {
+    "url": "https://github.com/acme/app/pull/7",
+    "host": "github",
+    "displayName": "acme/app#7",
+    "repository": "acme/app",
+    "number": 7,
+    "title": "Cap retries",
+    "author": "dev",
+    "draft": false,
+    "updatedAt": "2026-11-20T09:30:00Z"
+  }
+]
+```
+
+There can be several, into different base branches, or none. Only PRs from the repository's own branch are listed, not from a fork's branch of the same name. To review one, send its `url` to `POST api/reviews`.
+
+The remote's host must be github.com, gitlab.com, or a host listed in `WALKDIFF_TRUSTED_GITHUB_HOSTS` or `WALKDIFF_TRUSTED_GITLAB_HOSTS`, since a remote doesn't show which kind of host it is; any other is `400`. A remote over SSH is taken to have its web pages over HTTPS on the same host name. When the host refuses, such as for a token that can't read the repository, the answer is `502` with the host's reason.
+
+### `GET api/review-requests?remote=<url>`
+
+Open PRs anywhere on the remote's host that ask you for a review, most recently updated first, up to 50, as the same listings. On GitHub that includes requests to your teams. GitLab keeps a reviewer on a merge request after they review it, so there the list also has open merge requests you've already reviewed.
+
+This needs your login on that host: without one the answer is `403`, with what to set.
 
 ### `GET api/reviews`
 

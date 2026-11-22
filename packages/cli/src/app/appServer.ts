@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises"
 import { createServer } from "node:http"
 import type { IncomingMessage, Server, ServerResponse } from "node:http"
 import { join, resolve } from "node:path"
-import { gitHostFor, HostApiError, InvalidPullRequestUrlError, parsePullRequestUrl } from "@walkdiff/providers"
-import type { GitHost, PullRequestRef } from "@walkdiff/providers"
+import { gitHostFor, HostApiError, InvalidPullRequestUrlError, parsePullRequestUrl, pullRequestDirectoryFor } from "@walkdiff/providers"
+import type { GitHost, PullRequestDirectory, PullRequestRef, RepositoryRef, TrustedOrigins } from "@walkdiff/providers"
 import { AI_API_KEY_VARIABLE, AiUnavailableError, CoverageFileError, createAiProvider, describeChecks, firstExisting, readBlobs } from "@walkdiff/engine"
 import { acceptStackRequestSchema, addReviewRequestSchema, anthropicBaseUrlFrom, approveStackRequestSchema, appSettingsSchema, attachCoverageRequestSchema, LogLevel, replySchema, resolveThreadSchema, submitReviewSchema } from "@walkdiff/review-model"
 import { MemberCheck, ReportChange, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, ReviewStatus } from "@walkdiff/review-model"
@@ -14,6 +14,8 @@ import { REPORT_FILE_POLICY_TAG, REPORT_PAGE_FILE, REVIEW_MODEL_FILE, writeRepor
 import { walkdiffVersion } from "../version.ts"
 import { addressOf, BASE_POLICY, listen, LOOPBACK_HOST, REPORT_PAGE_POLICY, respond, SECURITY_HEADERS } from "../server.ts"
 import { attachCoverage } from "./attachCoverage.ts"
+import { lookUpPullRequests, PullRequestLookup } from "./pullRequestLookup.ts"
+import type { DirectoryResolver } from "./pullRequestLookup.ts"
 import type { ReportWriter } from "./attachCoverage.ts"
 import type { ReviewService } from "./reviewService.ts"
 import type { ReviewStore } from "./reviewStore.ts"
@@ -30,6 +32,10 @@ export const API_KEY_HEADER = "x-walkdiff-key"
  * change could break a plugin written for the previous one: a removed or renamed endpoint or field.
  */
 export const PLUGIN_API_VERSION = 1
+const PULL_REQUEST_LOOKUPS: ReadonlyMap<string, PullRequestLookup> = new Map([
+  ["/api/pull-requests", PullRequestLookup.FromBranch],
+  ["/api/review-requests", PullRequestLookup.AwaitingMyReview],
+])
 const API_KEY_META = "walkdiff-api-key"
 const HOME_META = "walkdiff-home"
 const REVIEW_ID_META = "walkdiff-review-id"
@@ -61,6 +67,8 @@ interface AppContext {
   readonly env: Readonly<Record<string, string | undefined>>
   readonly offline: boolean
   readonly hostFor: HostResolver
+  readonly directoryFor: DirectoryResolver
+  readonly trustedOrigins: TrustedOrigins
   readonly writeReport: ReportWriter
   readonly describeChecks: () => Promise<CheckStatus[]>
 }
@@ -83,6 +91,8 @@ export interface AppServerOptions {
   readonly offline?: boolean
   /** How to reach a PR's host, with its token. Tests replace it. */
   readonly hostFor?: HostResolver
+  /** How to reach a repository's host, to find PRs for a plugin. Tests replace it. */
+  readonly directoryFor?: DirectoryResolver
   /** How to rewrite a report. Tests replace it, since the real one needs the built UI. */
   readonly writeReport?: ReportWriter
   /**
@@ -96,8 +106,10 @@ export interface AppServerOptions {
 export async function startAppServer(store: ReviewStore, service: ReviewService, options: AppServerOptions): Promise<AppServer> {
   const { port, log, apiKey = newApiKey(), env = {}, offline = false } = options
   const hostFor = options.hostFor ?? ((ref: PullRequestRef): Promise<GitHost> => Promise.resolve(gitHostFor(ref, readHostTokens(env))))
+  const directoryFor = options.directoryFor ?? ((repository: RepositoryRef): Promise<PullRequestDirectory> => Promise.resolve(pullRequestDirectoryFor(repository, readHostTokens(env))))
+  const { trustedOrigins } = readHostTokens(env)
   const allowedHosts = new Set<string>()
-  const context: AppContext = { store, service, apiKey, allowedHosts, env, offline, hostFor, writeReport: options.writeReport ?? writeReport, describeChecks: options.describeChecks ?? (() => describeChecks()) }
+  const context: AppContext = { store, service, apiKey, allowedHosts, env, offline, hostFor, directoryFor, trustedOrigins, writeReport: options.writeReport ?? writeReport, describeChecks: options.describeChecks ?? (() => describeChecks()) }
   const server = createServer((request, response) => {
     handle(request, response, context).catch((error: unknown) => {
       // Details such as file paths go to the terminal, not to whatever made the request.
@@ -167,6 +179,12 @@ async function handleApi(request: IncomingMessage, response: ServerResponse, pat
   const reportData = /^\/api\/reviews\/(\d+)\/report$/.exec(pathname)
   if (reportData !== null && method === "GET") {
     await sendReportData(response, Number(reportData[1]), context)
+    return
+  }
+  const lookup = PULL_REQUEST_LOOKUPS.get(pathname)
+  if (lookup !== undefined && method === "GET") {
+    const answer = await lookUpPullRequests(lookup, new URL(request.url ?? "/", "http://localhost").searchParams, context)
+    sendJson(response, answer.status, answer.body)
     return
   }
   const changedFile = /^\/api\/reviews\/(\d+)\/file$/.exec(pathname)

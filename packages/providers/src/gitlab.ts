@@ -8,7 +8,7 @@ import type { WriteMethod } from "./http.ts"
 import { COMMENTS_PER_PAGE, upsertMarkedComment } from "./markedComment.ts"
 import type { MarkedComment } from "./markedComment.ts"
 import { gitlabFileHistory } from "./fileHistory.ts"
-import type { GitLabMergeRequestRef } from "./pullRequestUrl.ts"
+import type { GitLabMergeRequestRef, GitLabProjectRef } from "./pullRequestUrl.ts"
 import { inStackOrder, stackFromHost, walkStack } from "./stack.ts"
 import type { OpenPullRequests, StackCandidate } from "./stack.ts"
 
@@ -397,8 +397,7 @@ export class GitLabHost implements GitHost {
   }
 
   #projectApi(): string {
-    const { webOrigin, projectPath } = this.#ref
-    return `${webOrigin}/api/v4/projects/${encodeURIComponent(projectPath)}`
+    return gitlabProjectApi(this.#ref)
   }
 
   #mergeRequestApi(): string {
@@ -410,7 +409,7 @@ export class GitLabHost implements GitHost {
   }
 
   #headers(): Record<string, string> {
-    return this.#token === undefined ? {} : { "PRIVATE-TOKEN": this.#token }
+    return gitlabHeaders(this.#token)
   }
 
   #gitAuth(): GitHttpAuth | undefined {
@@ -419,6 +418,18 @@ export class GitLabHost implements GitHost {
 }
 
 /** GitLab's "locked" is an open merge request in the middle of being merged. */
+export function gitlabHeaders(token: string | undefined): Record<string, string> {
+  return token === undefined ? {} : { "PRIVATE-TOKEN": token }
+}
+
+export function gitlabApiBase(webOrigin: string): string {
+  return `${webOrigin}/api/v4`
+}
+
+export function gitlabProjectApi({ webOrigin, projectPath }: GitLabProjectRef): string {
+  return `${gitlabApiBase(webOrigin)}/projects/${encodeURIComponent(projectPath)}`
+}
+
 function gitlabState(state: string): PullRequestState {
   if (state === MERGED_STATE) return PullRequestState.Merged
   return state === CLOSED_STATE ? PullRequestState.Closed : PullRequestState.Open

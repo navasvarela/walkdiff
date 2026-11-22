@@ -4,7 +4,9 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { promisify } from "node:util"
 import { commitShaSchema, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema } from "@walkdiff/review-model"
-import type { CommitSha, ReviewModel } from "@walkdiff/review-model"
+import type { CommitSha, PullRequestListing, ReviewModel } from "@walkdiff/review-model"
+import { HostApiError, NotSignedInError } from "@walkdiff/providers"
+import type { PullRequestDirectory, RepositoryRef } from "@walkdiff/providers"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { API_KEY_HEADER, PLUGIN_API_VERSION, startAppServer } from "./appServer.ts"
 import type { AppServer } from "./appServer.ts"
@@ -127,5 +129,66 @@ describe("the connection file", () => {
     } finally {
       await rm(dataDir, { recursive: true, force: true })
     }
+  })
+})
+
+describe("finding PRs to review", () => {
+  const LISTED: PullRequestListing = { url: PR_URL, host: "github", displayName: "acme/app#7", repository: "acme/app", number: 7, title: "Cap retries", author: "dev", draft: false, updatedAt: "2026-11-20T09:30:00Z" }
+  const asked: { repository?: RepositoryRef; branch?: string } = {}
+  let dir = ""
+  let store: ReviewStore
+  let server: AppServer
+  let awaitingMyReview: () => Promise<readonly PullRequestListing[]> = async () => [LISTED]
+  const headers = { [API_KEY_HEADER]: KEY }
+  const get = (path: string): Promise<Response> => fetch(`${server.url}${path}`, { headers })
+  const directory: PullRequestDirectory = {
+    openFromBranch: async (branch) => {
+      asked.branch = branch
+      return [LISTED]
+    },
+    awaitingMyReview: () => awaitingMyReview(),
+  }
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), "walkdiff-lookup-"))
+    store = new ReviewStore(join(dir, "walkdiff.db"), () => new Date("2026-11-22T10:00:00.000Z"))
+    const service = new ReviewService(store, { generate: async () => Promise.reject(new Error("not used")), findStack: async () => undefined, log: () => undefined })
+    const directoryFor = async (repository: RepositoryRef): Promise<PullRequestDirectory> => {
+      asked.repository = repository
+      return directory
+    }
+    server = await startAppServer(store, service, { port: 0, apiKey: KEY, log: () => undefined, describeChecks: async () => [], directoryFor })
+  })
+
+  afterAll(async () => {
+    await server.close()
+    store.close()
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it("finds the open PR for the branch a plugin has checked out", async () => {
+    const response = await get(`api/pull-requests?remote=${encodeURIComponent("git@github.com:acme/app.git")}&branch=fix%2Fretries`)
+    expect(await response.json()).toEqual([LISTED])
+    expect(asked).toEqual({ repository: { host: "github", webOrigin: "https://github.com", owner: "acme", repo: "app" }, branch: "fix/retries" })
+  })
+
+  it("lists the PRs waiting for the user's review on that remote's host", async () => {
+    expect(await (await get(`api/review-requests?remote=${encodeURIComponent("https://github.com/acme/app.git")}`)).json()).toEqual([LISTED])
+  })
+
+  it("says what's missing from a question it can't answer", async () => {
+    expect((await get("api/pull-requests?branch=main")).status).toBe(400)
+    expect((await get(`api/pull-requests?remote=${encodeURIComponent("git@github.com:acme/app.git")}`)).status).toBe(400)
+    expect((await get(`api/review-requests?remote=${encodeURIComponent("git@git.example.org:acme/app.git")}`)).status).toBe(400)
+  })
+
+  it("passes on a missing login and the host's refusals", async () => {
+    const remote = encodeURIComponent("git@github.com:acme/app.git")
+    awaitingMyReview = () => Promise.reject(new NotSignedInError("Sign in"))
+    expect((await get(`api/review-requests?remote=${remote}`)).status).toBe(403)
+    awaitingMyReview = () => Promise.reject(new HostApiError(401, "https://api.github.com/search/issues", "Bad credentials"))
+    const refused = await get(`api/review-requests?remote=${remote}`)
+    expect(refused.status).toBe(502)
+    expect(await refused.json()).toEqual({ error: expect.stringContaining("Bad credentials") })
   })
 })

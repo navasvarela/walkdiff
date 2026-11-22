@@ -4,7 +4,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
 import { isTrustedHost, TRUSTED_GITHUB_HOSTS_VARIABLE, TRUSTED_GITLAB_HOSTS_VARIABLE } from "@walkdiff/providers"
-import type { HostTokens, PullRequestRef } from "@walkdiff/providers"
+import type { HostTokens, RepositoryRef } from "@walkdiff/providers"
 import { GitHostKind } from "@walkdiff/review-model"
 import { UsageError } from "./args.ts"
 
@@ -64,7 +64,7 @@ export const runCommand: CommandRunner = async (command, args) => {
  * for any host other than github.com when `GH_ENTERPRISE_TOKEN` is set, which would hand that
  * token to whatever link was pasted. No such lookup is used for GitLab: only the variable is read.
  */
-export async function hostTokensFor(ref: PullRequestRef, env: Environment, run: CommandRunner): Promise<HostTokens> {
+export async function hostTokensFor(ref: RepositoryRef, env: Environment, run: CommandRunner): Promise<HostTokens> {
   const tokens = readHostTokens(env)
   if (ref.host !== GitHostKind.GitHub || tokens.github !== undefined || !isTrustedHost(ref, tokens.trustedOrigins)) return tokens
   const output = await run("gh", ["auth", "token", "--hostname", new URL(ref.webOrigin).host])
