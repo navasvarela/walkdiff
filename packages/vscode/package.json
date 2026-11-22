@@ -1,0 +1,97 @@
+{
+  "name": "walkdiff-vscode",
+  "displayName": "Walkdiff",
+  "description": "Review GitHub pull requests and GitLab merge requests with Walkdiff: each changed function whole, where the rest of the code uses it, and what looks risky.",
+  "version": "0.1.0",
+  "publisher": "walkdiff",
+  "private": true,
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/navasvarela/walkdiff.git",
+    "directory": "packages/vscode"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": ["Other"],
+  "main": "./dist/extension.cjs",
+  "scripts": {
+    "build": "node build.ts"
+  },
+  "contributes": {
+    "commands": [
+      { "command": "walkdiff.reviewCurrentBranch", "title": "Review This Branch's Pull Request", "category": "Walkdiff", "icon": "$(git-pull-request)" },
+      { "command": "walkdiff.reviewRequested", "title": "Review a Pull Request Waiting for Me", "category": "Walkdiff", "icon": "$(inbox)" },
+      { "command": "walkdiff.reviewByLink", "title": "Review a Pull Request by Link", "category": "Walkdiff", "icon": "$(link)" },
+      { "command": "walkdiff.refreshList", "title": "Refresh", "category": "Walkdiff", "icon": "$(refresh)" },
+      { "command": "walkdiff.openReport", "title": "Open Report in Browser", "category": "Walkdiff", "icon": "$(link-external)" },
+      { "command": "walkdiff.analyzeAgain", "title": "Analyze Again", "category": "Walkdiff", "icon": "$(sync)" },
+      { "command": "walkdiff.removeReview", "title": "Remove from List", "category": "Walkdiff", "icon": "$(trash)" },
+      { "command": "walkdiff.openChange", "title": "Open Change", "category": "Walkdiff" },
+      { "command": "walkdiff.startApp", "title": "Start the Walkdiff App", "category": "Walkdiff" }
+    ],
+    "viewsContainers": {
+      "activitybar": [{ "id": "walkdiff", "title": "Walkdiff", "icon": "media/walkdiff.svg" }]
+    },
+    "views": {
+      "walkdiff": [{ "id": "walkdiff.reviews", "name": "Reviews" }]
+    },
+    "viewsWelcome": [
+      {
+        "view": "walkdiff.reviews",
+        "contents": "Review a pull request or merge request with Walkdiff.\n[Review This Branch's Pull Request](command:walkdiff.reviewCurrentBranch)\n[Review One Waiting for Me](command:walkdiff.reviewRequested)\n[Review One by Link](command:walkdiff.reviewByLink)\nReviews run in the Walkdiff app on your machine, which the extension starts if it isn't running."
+      }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "walkdiff.reviewCurrentBranch", "when": "view == walkdiff.reviews", "group": "navigation@1" },
+        { "command": "walkdiff.reviewRequested", "when": "view == walkdiff.reviews", "group": "navigation@2" },
+        { "command": "walkdiff.reviewByLink", "when": "view == walkdiff.reviews", "group": "navigation@3" },
+        { "command": "walkdiff.refreshList", "when": "view == walkdiff.reviews", "group": "navigation@4" }
+      ],
+      "view/item/context": [
+        { "command": "walkdiff.openReport", "when": "view == walkdiff.reviews && viewItem =~ /^review\\.ready/", "group": "inline@1" },
+        { "command": "walkdiff.analyzeAgain", "when": "view == walkdiff.reviews && viewItem =~ /^review\\./", "group": "review@1" },
+        { "command": "walkdiff.openReport", "when": "view == walkdiff.reviews && viewItem =~ /^review\\.ready/", "group": "review@2" },
+        { "command": "walkdiff.removeReview", "when": "view == walkdiff.reviews && viewItem =~ /^review\\./", "group": "review@3" }
+      ],
+      "commandPalette": [
+        { "command": "walkdiff.openReport", "when": "false" },
+        { "command": "walkdiff.analyzeAgain", "when": "false" },
+        { "command": "walkdiff.removeReview", "when": "false" },
+        { "command": "walkdiff.openChange", "when": "false" }
+      ]
+    },
+    "configuration": {
+      "title": "Walkdiff",
+      "properties": {
+        "walkdiff.command": {
+          "type": "string",
+          "default": "npx walkdiff",
+          "scope": "machine",
+          "markdownDescription": "How to run Walkdiff when the extension starts the app for you. It runs `<command> app --no-open` in a terminal."
+        },
+        "walkdiff.dataDir": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "The app's data directory, if you start it with `--data-dir`. Empty means the app's default, `$XDG_DATA_HOME/walkdiff` or `~/.local/share/walkdiff`."
+        },
+        "walkdiff.aiReview": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Ask for the AI review too when adding a pull request, if the app has one set up."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "@walkdiff/review-model": "workspace:*",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/vscode": "1.100.0"
+  }
+}
