@@ -190,7 +190,7 @@ Walkdiff installs pinned versions of [Semgrep](https://semgrep.dev),
 [Ruff](https://docs.astral.sh/ruff/), [zizmor](https://docs.zizmor.sh/) and
 [poutine](https://github.com/boostsecurityio/poutine) on its first run, or when you run
 `walkdiff setup`, checked against hashes in this repository, on macOS and Linux. They live in
-`~/.cache/walkdiff/scanners`, just for Walkdiff. Semgrep needs Python 3.10 or later. If one can't be
+`~/.cache/walkdiff/scanners`, just for Walkdiff. Semgrep needs Python 3.11 or later. If one can't be
 installed, Walkdiff still runs, and the Risks tab lists it under "Not checked". Copies on your `PATH`
 are used only when Walkdiff has none of its own. `--offline` skips installing them.
 
