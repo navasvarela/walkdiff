@@ -69,7 +69,7 @@ describe("stacks in the app", () => {
     const service = new ReviewService(store, {
       generate: async ({ ref, ai }) => {
         analyzed.push(`${ref.number}:${ai}`)
-        return { model: fakeModel(ref.number), reportDir: dir }
+        return { model: fakeModel(ref.number), reportDir: dir, repoDir: dir }
       },
       findStack: finder,
       log: (message) => logged.push(message),
@@ -282,7 +282,7 @@ describe("the stack endpoints", () => {
     service = new ReviewService(store, {
       generate: async ({ ref }) => {
         analyzed.push(ref.number)
-        return { model: fakeModel(ref.number), reportDir: dir }
+        return { model: fakeModel(ref.number), reportDir: dir, repoDir: dir }
       },
       findStack: async (ref) => (ref.number <= 5 ? stackOf(3, 4, 5) : undefined),
       log: () => undefined,

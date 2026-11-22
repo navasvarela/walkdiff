@@ -5,7 +5,9 @@ import { findInstalledScanners } from "@walkdiff/engine"
 import { gitHostFor } from "@walkdiff/providers"
 import type { GitHost, PullRequestRef } from "@walkdiff/providers"
 import type { AppOptions } from "./args.ts"
-import { startAppServer } from "./app/appServer.ts"
+import { newApiKey, PLUGIN_API_VERSION, startAppServer } from "./app/appServer.ts"
+import { removeOnExit, writeConnectionFile } from "./app/connectionFile.ts"
+import { walkdiffVersion } from "./version.ts"
 import { ReviewService } from "./app/reviewService.ts"
 import { ReviewStore } from "./app/reviewStore.ts"
 import { defaultCacheDir, defaultDataDir, hostTokensFor, runCommand } from "./environment.ts"
@@ -33,7 +35,7 @@ export async function runApp(options: AppOptions, deps: AppDependencies): Promis
   const service = new ReviewService(store, {
     generate: async ({ ref, ai, attachedCoverage, reportStep }) => {
       const settings = store.getSettings()
-      const model = await analyzePullRequest(
+      const { model, repoDir } = await analyzePullRequest(
         ref,
         { network: options.network, coveragePath: undefined, attachedCoverage, ai: ai ? settings.ai : undefined, disabledChecks: settings.disabledChecks },
         // Looked up per PR, so a token is only ever asked for the host it belongs to.
@@ -41,12 +43,14 @@ export async function runApp(options: AppOptions, deps: AppDependencies): Promis
       )
       const reportDir = defaultReportDir(cacheDir, ref)
       await writeReport(model, reportDir)
-      return { model, reportDir }
+      return { model, reportDir, repoDir }
     },
     findStack: async (ref) => (await hostFor(ref)).fetchStack(),
     log: deps.log,
   })
-  const server = await startAppServer(store, service, { port: options.port, log: deps.log, env: deps.env, offline: !options.network, hostFor })
+  const apiKey = newApiKey()
+  const server = await startAppServer(store, service, { port: options.port, log: deps.log, env: deps.env, offline: !options.network, hostFor, apiKey })
+  removeOnExit(await writeConnectionFile(dataDir, { url: server.url, apiKey, apiVersion: PLUGIN_API_VERSION, version: walkdiffVersion(), pid: process.pid }))
   deps.log(`Walkdiff is running at ${server.url} (Ctrl+C to stop)`, { fields: { url: server.url } })
   if (options.open && canOpenBrowser(process.platform, deps.env)) openBrowser(server.url, deps.log)
   const scanners = await findInstalledScanners()

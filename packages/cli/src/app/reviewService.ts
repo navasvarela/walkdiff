@@ -19,6 +19,8 @@ export type ReportGenerator = (request: ReportRequest) => Promise<GeneratedRepor
 export interface GeneratedReport {
   readonly model: ReviewModel
   readonly reportDir: string
+  /** The cached repository holding the PR's commits, for reading its files at base or head. */
+  readonly repoDir: string
 }
 
 /** The open PRs stacked with this one, undefined when it stands alone. */
@@ -221,10 +223,11 @@ function urlsByStack(reviews: readonly ReviewSummary[]): ReadonlyMap<number, Rea
   return grouped
 }
 
-function summarize({ model, reportDir }: GeneratedReport): CompletedAnalysis {
+function summarize({ model, reportDir, repoDir }: GeneratedReport): CompletedAnalysis {
   const units = model.files.flatMap(changedUnitsOf)
   return {
     reportDir,
+    repoDir,
     title: model.pullRequest.title,
     author: model.pullRequest.author,
     securityLevel: model.risk.securityLevel,

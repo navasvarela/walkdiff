@@ -37,6 +37,8 @@ const MIGRATIONS: readonly string[] = [
   // What the report was made from, to tell when the PR has moved on since.
   `ALTER TABLE reviews ADD COLUMN head_sha TEXT`,
   `ALTER TABLE reviews ADD COLUMN base_ref TEXT`,
+  // The cached repository holding the PR's commits, so plugins can read its files.
+  `ALTER TABLE reviews ADD COLUMN repo_dir TEXT`,
 ]
 
 const attachedCoverageSchema = z.object({ headSha: z.string(), coverage: testCoverageSchema })
@@ -57,6 +59,7 @@ const reviewRowSchema = z.object({
   status: z.enum(ReviewStatus),
   error: z.string().nullable(),
   report_dir: z.string().nullable(),
+  repo_dir: z.string().nullable(),
   ai: z.number(),
   title: z.string().nullable(),
   author: z.string().nullable(),
@@ -85,6 +88,7 @@ export interface NewReview {
 
 export interface CompletedAnalysis {
   readonly reportDir: string
+  readonly repoDir: string
   readonly title: string
   readonly author: string
   readonly securityLevel: string
@@ -142,6 +146,11 @@ export class ReviewStore {
     return this.#parsedRow(id)?.report_dir ?? undefined
   }
 
+  /** Undefined for reviews made before the app kept it, until they're refreshed. */
+  repoDirOf(id: number): string | undefined {
+    return this.#parsedRow(id)?.repo_dir ?? undefined
+  }
+
   add(review: NewReview): ReviewSummary {
     const now = this.#timestamp()
     const { lastInsertRowid } = this.#db
@@ -164,12 +173,13 @@ export class ReviewStore {
   markReady(id: number, analysis: CompletedAnalysis): void {
     this.#db
       .prepare(
-        `UPDATE reviews SET status = ?, error = NULL, report_dir = ?, title = ?, author = ?, security_level = ?,
+        `UPDATE reviews SET status = ?, error = NULL, report_dir = ?, repo_dir = ?, title = ?, author = ?, security_level = ?,
            units_to_review = ?, untouched_references = ?, findings = ?, coverage_source = ?, head_sha = ?, base_ref = ?, updated_at = ? WHERE id = ?`,
       )
       .run(
         ReviewStatus.Ready,
         analysis.reportDir,
+        analysis.repoDir,
         analysis.title,
         analysis.author,
         analysis.securityLevel,

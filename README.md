@@ -149,7 +149,7 @@ npx walkdiff app
 
 This runs a local page at `http://127.0.0.1:4317/`. Paste a pull request or merge request link to add it; analyses run one at a time, and the list shows each review's status and counts, and flags medium or high severity security findings. Refresh re-runs a review after new commits. The list is kept in SQLite under `~/.local/share/walkdiff`, so it survives restarts. If `GITHUB_TOKEN` is not set, the app asks the GitHub CLI for its login on that PR's host.
 
-The server listens only on your machine, refuses requests for any other host name, and its API needs a key that is created each run.
+The server listens only on your machine, refuses requests for any other host name, and its API needs a key that is created each run. Editor plugins and scripts can use the same API; [docs/app-api.md](docs/app-api.md) describes how to find the running app and call it.
 
 ## Private repositories
 
