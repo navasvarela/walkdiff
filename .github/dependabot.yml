@@ -16,6 +16,10 @@ updates:
       npm-minor-and-patch:
         update-types: [minor, patch]
     open-pull-requests-limit: 5
+    ignore:
+      # The VS Code extension's types match the oldest VS Code it supports (engines.vscode in
+      # packages/vscode/package.json), so it can't use APIs those versions lack. Move both together.
+      - dependency-name: "@types/vscode"
 
   # Workflows and the action pin actions to commit SHAs; Dependabot moves the SHA and its version comment.
   - package-ecosystem: github-actions

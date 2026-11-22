@@ -3,6 +3,7 @@ import { CheckId } from "@walkdiff/review-model"
 import type { CheckStatus, Destination } from "@walkdiff/review-model"
 import { OSV_SCANNER_BINARY } from "../dependencies/osvScanner.ts"
 import { GITLEAKS_BINARY } from "./gitleaks.ts"
+import { SEMGREP_NEEDS } from "./installScanners.ts"
 import { JSCPD_BINARY } from "./jscpd.ts"
 import { OXLINT_BINARY } from "./oxlint.ts"
 import { RUFF_BINARY } from "./ruff.ts"
@@ -25,7 +26,7 @@ const OSV_DESTINATION: Destination = { where: "OSV", what: "Names and versions o
 
 const CHECKS: readonly CheckDescription[] = [
   { id: CheckId.Gitleaks, name: "gitleaks", purpose: "Finds secrets in added code", binary: GITLEAKS_BINARY, install: "walkdiff setup", sends: null },
-  { id: CheckId.Semgrep, name: "Semgrep", purpose: "Finds risky code patterns", binary: SEMGREP_BINARY, install: "walkdiff setup, with Python 3.10 or later", sends: { where: "Semgrep registry", what: "A rule download; your code isn't uploaded", when: "Every review" } },
+  { id: CheckId.Semgrep, name: "Semgrep", purpose: "Finds risky code patterns", binary: SEMGREP_BINARY, install: `walkdiff setup, with ${SEMGREP_NEEDS}`, sends: { where: "Semgrep registry", what: "A rule download; your code isn't uploaded", when: "Every review" } },
   { id: CheckId.OsvDatabase, name: "OSV database", purpose: "Finds known vulnerabilities in new dependency versions", binary: null, install: null, sends: OSV_DESTINATION },
   { id: CheckId.OsvScanner, name: "osv-scanner", purpose: "Finds known vulnerabilities in pnpm, yarn and bun lockfiles", binary: OSV_SCANNER_BINARY, install: "walkdiff setup", sends: OSV_DESTINATION },
   { id: CheckId.Zizmor, name: "zizmor", purpose: "Finds security problems in GitHub Actions workflows", binary: ZIZMOR_BINARY, install: "walkdiff setup", sends: null },

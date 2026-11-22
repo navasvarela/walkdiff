@@ -195,7 +195,7 @@ walkdiff setup
 
 From a clone of the repository, that's `pnpm walkdiff setup`.
 
-Usually Semgrep is the one missing, because it needs Python 3.10 or later with the `venv` module. On Debian and Ubuntu, that's the `python3-venv` package. A network that blocks GitHub or PyPI also stops the install.
+Usually Semgrep is the one missing, because it needs Python 3.11 or later with the `venv` module. On Debian and Ubuntu, that's the `python3-venv` package. A network that blocks GitHub or PyPI also stops the install.
 
 If it says a download `failed 4 times, last with: responded 504` or `502`, GitHub's release downloads were down. Walkdiff tries each one four times over about half a minute before giving up. Run `walkdiff setup` again later; scanners already installed aren't downloaded again.
 
