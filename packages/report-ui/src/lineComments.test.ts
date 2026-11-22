@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { ChangedFile, FileDiff } from "@walkdiff/review-model"
-import { commentableLines, commentedLinesOf, describeRange, lineCommentKey, lineCommentsIn, rangeBetween, reviewCommentFromLines } from "./lineComments.ts"
+import { commentableLines, rangeBetween } from "@walkdiff/review-model"
+import { commentedLinesOf, lineCommentKey, lineCommentsIn, reviewCommentFromLines } from "./lineComments.ts"
 import { commentsAsMarkdown } from "./reviewProgress.ts"
 
 // Old lines 1-4 and new lines 1-4, with old line 2 replaced by new line 2, then a gap, then new line 20.
@@ -33,35 +34,6 @@ const DIFF: FileDiff = {
 }
 const FILE: ChangedFile = { diff: DIFF, noise: null, syntax: { status: "unsupportedLanguage" } }
 const lines = commentableLines(DIFF)
-
-describe("commentableLines", () => {
-  it("knows each line in the diff by both numbers where it has them", () => {
-    expect([...lines.new.keys()]).toEqual([1, 2, 3, 20])
-    expect([...lines.old.keys()]).toEqual([1, 2, 3])
-    expect(lines.new.get(3)).toEqual({ oldLine: 3, newLine: 3 })
-    expect(lines.new.get(2)).toEqual({ oldLine: null, newLine: 2 })
-  })
-})
-
-describe("rangeBetween", () => {
-  it.each([
-    ["new", 1, 3, "lines 1–3"],
-    ["new", 3, 1, "lines 1–3"],
-    ["new", 20, 20, "line 20"],
-    ["old", 2, 2, "line 2 (before)"],
-  ] as const)("picks %s lines %s to %s", (side, from, to, described) => {
-    const range = rangeBetween(lines, side, from, to)
-    expect(range === undefined ? undefined : describeRange(range)).toBe(described)
-  })
-
-  it.each([
-    ["new", 3, 20],
-    ["new", 4, 4],
-    ["old", 1, 4],
-  ] as const)("refuses %s lines %s to %s, which aren't all in the diff", (side, from, to) => {
-    expect(rangeBetween(lines, side, from, to)).toBeUndefined()
-  })
-})
 
 describe("line comments in the review record", () => {
   const range = rangeBetween(lines, "new", 1, 2)

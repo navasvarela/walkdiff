@@ -1,5 +1,6 @@
+import { describeRange } from "@walkdiff/review-model"
 import type { ReactElement } from "react"
-import { describeRange, lineCommentKey } from "../lineComments.ts"
+import { lineCommentKey } from "../lineComments.ts"
 import type { LineComment } from "../lineComments.ts"
 import type { ItemComment } from "../reviewProgress.ts"
 
