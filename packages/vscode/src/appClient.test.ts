@@ -41,6 +41,20 @@ describe("AppClient", () => {
     await expect(client.reviewRequests("git@github.com:acme/app.git")).rejects.toThrow(new AppRequestError(403, "Walkdiff needs your GitHub login."))
   })
 
+  it("posts a review, and replies and resolves by the host's thread id", async () => {
+    const sent: Sent[] = []
+    const client = new AppClient(CONNECTION, answering(201, { url: "https://github.com/acme/app/pull/7#pullrequestreview-1" }, sent))
+    const review = { event: "approve", body: "", headSha: "a".repeat(40), comments: [] } as const
+    expect(await client.submit(4, review)).toEqual({ url: "https://github.com/acme/app/pull/7#pullrequestreview-1" })
+    await client.reply(4, "PRRT_kw/1", "Fixed")
+    await client.setResolved(4, "PRRT_kw/1", true)
+    expect(sent.map(({ url, init }) => [init?.method, url.replace(CONNECTION.url, ""), init?.body])).toEqual([
+      ["POST", "api/reviews/4/submit", JSON.stringify(review)],
+      ["POST", "api/reviews/4/threads/PRRT_kw%2F1/reply", JSON.stringify({ body: "Fixed" })],
+      ["POST", "api/reviews/4/threads/PRRT_kw%2F1/resolve", JSON.stringify({ resolved: true })],
+    ])
+  })
+
   it("reads a file missing at one side as absent", async () => {
     expect(await new AppClient(CONNECTION, answering(404, { error: "No such file" })).file(1, "base", "src/new.ts")).toBeUndefined()
     expect(await new AppClient(CONNECTION, answering(200, { path: "a", side: "head", commit: "c", text: "hi\n" })).file(1, "head", "a")).toBe("hi\n")

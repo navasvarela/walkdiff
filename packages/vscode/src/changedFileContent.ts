@@ -13,6 +13,23 @@ function isFileSide(value: string | null): value is FileSide {
   return value === FileSide.Base || value === FileSide.Head
 }
 
+/** One side of a review's changed file, as a `walkdiff:` document shows it. */
+export interface ChangedFileRef {
+  readonly reviewId: number
+  readonly side: FileSide
+  /** The file's path at that side: its old path on the base side of a renamed file. */
+  readonly path: string
+}
+
+export function parseChangedFileUri(uri: vscode.Uri): ChangedFileRef | undefined {
+  if (uri.scheme !== CHANGED_FILE_SCHEME) return undefined
+  const query = new URLSearchParams(uri.query)
+  const reviewId = Number(query.get("review"))
+  const side = query.get("side")
+  if (!Number.isSafeInteger(reviewId) || reviewId <= 0 || !isFileSide(side)) return undefined
+  return { reviewId, side, path: uri.path.slice(1) }
+}
+
 /**
  * Serves changed files from the app, so a PR can be read in VS Code's diff editor without being
  * checked out. A file that doesn't exist at a side, such as an added file at base, reads as empty.
@@ -25,11 +42,9 @@ export class ChangedFileContent implements vscode.TextDocumentContentProvider {
   }
 
   async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
-    const query = new URLSearchParams(uri.query)
-    const reviewId = Number(query.get("review"))
-    const side = query.get("side")
-    if (!Number.isSafeInteger(reviewId) || !isFileSide(side)) return ""
+    const file = parseChangedFileUri(uri)
+    if (file === undefined) return ""
     const client = await this.#session.client()
-    return (await client.file(reviewId, side, uri.path.slice(1))) ?? ""
+    return (await client.file(file.reviewId, file.side, file.path)) ?? ""
   }
 }

@@ -1,5 +1,5 @@
-import { pullRequestListingSchema, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, reviewSummarySchema } from "@walkdiff/review-model"
-import type { PullRequestListing, ReviewModel, ReviewSummary } from "@walkdiff/review-model"
+import { conversationSchema, pullRequestListingSchema, REVIEW_MODEL_SCHEMA_VERSION, reviewModelSchema, reviewSummarySchema, submitResultSchema } from "@walkdiff/review-model"
+import type { Conversation, PullRequestListing, ReviewModel, ReviewSummary, SubmitResult, SubmitReview } from "@walkdiff/review-model"
 import { z } from "zod"
 import type { AppConnection } from "./connection.ts"
 
@@ -105,6 +105,24 @@ export class AppClient {
 
   reviewRequests(remote: string): Promise<PullRequestListing[]> {
     return this.#get(`api/review-requests?${new URLSearchParams({ remote }).toString()}`, z.array(pullRequestListingSchema))
+  }
+
+  /** The PR's review threads and reviewers, as its host has them now. */
+  conversation(id: number): Promise<Conversation> {
+    return this.#get(`api/reviews/${id}/conversation`, conversationSchema)
+  }
+
+  /** Posts a review to the PR. The app refuses it, with 409, when the PR has new commits since `headSha`. */
+  submit(id: number, review: SubmitReview): Promise<SubmitResult> {
+    return this.#send("POST", `api/reviews/${id}/submit`, review, submitResultSchema)
+  }
+
+  async reply(id: number, threadId: string, body: string): Promise<void> {
+    await this.#send("POST", `api/reviews/${id}/threads/${encodeURIComponent(threadId)}/reply`, { body }, z.unknown())
+  }
+
+  async setResolved(id: number, threadId: string, resolved: boolean): Promise<void> {
+    await this.#send("POST", `api/reviews/${id}/threads/${encodeURIComponent(threadId)}/resolve`, { resolved }, z.unknown())
   }
 
   /** The review's report page in the app, for a browser. */

@@ -1,7 +1,8 @@
 import { ReviewStatus, RiskSeverity } from "@walkdiff/review-model"
-import type { ReviewModel, ReviewSummary, Risk } from "@walkdiff/review-model"
+import type { ReviewSummary, Risk } from "@walkdiff/review-model"
 import * as vscode from "vscode"
 import type { AppSession } from "./appSession.ts"
+import type { ReportCache } from "./reportCache.ts"
 import { changedFileUri } from "./changedFileContent.ts"
 import { FileSide } from "./appClient.ts"
 import { changedFileRows, findingLabel, isAnalyzing, pullRequestFindings, reviewRow } from "./reviewRows.ts"
@@ -43,23 +44,19 @@ export interface ChangeToOpen {
   readonly line: number | undefined
 }
 
-interface CachedReport {
-  readonly updatedAt: string
-  readonly report: ReviewModel
-}
-
 /** The app's reviews, each ready one opening onto its changed files and their findings. */
 export class ReviewsView implements vscode.TreeDataProvider<Node> {
   readonly #session: AppSession
   readonly #changed = new vscode.EventEmitter<Node | undefined>()
-  readonly #reports = new Map<number, CachedReport>()
+  readonly #reports: ReportCache
   #statuses = new Map<number, ReviewStatus>()
   #poll: ReturnType<typeof setTimeout> | undefined
   readonly onDidChangeTreeData = this.#changed.event
   readonly openReport: (review: ReviewSummary) => Promise<void>
 
-  constructor(session: AppSession, openReport: (review: ReviewSummary) => Promise<void>) {
+  constructor(session: AppSession, reports: ReportCache, openReport: (review: ReviewSummary) => Promise<void>) {
     this.#session = session
+    this.#reports = reports
     this.openReport = openReport
   }
 
@@ -106,19 +103,10 @@ export class ReviewsView implements vscode.TreeDataProvider<Node> {
 
   async #reviewChildren(review: ReviewSummary): Promise<Node[]> {
     if (!review.hasReport) return []
-    const report = await this.#report(review)
+    const report = await this.#reports.current(review)
     const wholePullRequest = pullRequestFindings(report)
     const files = changedFileRows(report).map((row): Node => ({ kind: "file", review, row }))
     return wholePullRequest.length === 0 ? files : [{ kind: "pullRequestFindings", review, findings: wholePullRequest }, ...files]
-  }
-
-  /** The review's report, read again only when the review changed. */
-  async #report(review: ReviewSummary): Promise<ReviewModel> {
-    const cached = this.#reports.get(review.id)
-    if (cached?.updatedAt === review.updatedAt) return cached.report
-    const report = await (await this.#session.client()).report(review.id)
-    this.#reports.set(review.id, { updatedAt: review.updatedAt, report })
-    return report
   }
 
   /** Tells the user when an analysis they're waiting for finishes. */
