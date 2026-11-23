@@ -11,6 +11,7 @@ import type { ChangedFileRow } from "./reviewRows.ts"
 // Analyses take from seconds to minutes; checking every couple of seconds keeps the step shown current.
 const POLL_MS = 2_000
 export const OPEN_CHANGE_COMMAND = "walkdiff.openChange"
+const OPEN_REVIEW_COMMAND = "walkdiff.openReview"
 const OPEN_REPORT_CHOICE = "Open Report"
 
 export interface ReviewNode {
@@ -131,6 +132,7 @@ function reviewItem(review: ReviewSummary): vscode.TreeItem {
   item.tooltip = row.tooltip
   item.contextValue = row.contextValue
   item.iconPath = reviewIcon(review)
+  if (review.hasReport) item.command = { title: "Open Review", command: OPEN_REVIEW_COMMAND, arguments: [{ kind: "review", review }] }
   return item
 }
 

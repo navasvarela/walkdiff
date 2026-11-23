@@ -1,6 +1,7 @@
 # The packaged extension is the bundle, its manifest, README, licence and icons.
 **
 !dist/extension.cjs
+!dist/report.html
 !package.json
 !README.md
 !LICENSE.md

@@ -2,7 +2,7 @@
   "name": "walkdiff-vscode",
   "displayName": "Walkdiff",
   "description": "Review GitHub pull requests and GitLab merge requests with Walkdiff: each changed function whole, where the rest of the code uses it, and what looks risky.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "navasvarela",
   "preview": true,
   "private": true,
@@ -44,6 +44,12 @@
   },
   "contributes": {
     "commands": [
+      {
+        "command": "walkdiff.openReview",
+        "title": "Open Review",
+        "category": "Walkdiff",
+        "icon": "$(preview)"
+      },
       {
         "command": "walkdiff.reviewCurrentBranch",
         "title": "Review This Branch's Pull Request",
@@ -200,6 +206,11 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "walkdiff.openReview",
+          "when": "view == walkdiff.reviews && viewItem =~ /^review\\.ready/",
+          "group": "review@0"
+        },
         {
           "command": "walkdiff.submitReview",
           "when": "view == walkdiff.reviews && viewItem =~ /^review\\.ready/",

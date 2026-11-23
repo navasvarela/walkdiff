@@ -11,6 +11,7 @@ import { join } from "node:path"
  */
 const ROOT = import.meta.dirname
 const LICENSE = join(ROOT, "LICENSE.md")
+const REPOSITORY_FOLDER = "https://github.com/navasvarela/walkdiff"
 
 const manifest: unknown = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8"))
 const version = typeof manifest === "object" && manifest !== null && "version" in manifest && typeof manifest.version === "string" ? manifest.version : undefined
@@ -20,7 +21,9 @@ const out = `walkdiff-vscode-${version}.vsix`
 execFileSync("node", ["build.ts"], { cwd: ROOT, stdio: "inherit" })
 await copyFile(join(ROOT, "..", "..", "LICENSE.md"), LICENSE)
 try {
-  execFileSync(join(ROOT, "node_modules", ".bin", "vsce"), ["package", "--no-dependencies", "--out", out], { cwd: ROOT, stdio: "inherit" })
+  // The README's images and links are relative to this folder, which vsce would otherwise take as
+  // the repository's root; the registries show them from GitHub, so they stay out of the package.
+  execFileSync(join(ROOT, "node_modules", ".bin", "vsce"), ["package", "--no-dependencies", "--baseContentUrl", `${REPOSITORY_FOLDER}/blob/HEAD/packages/vscode`, "--baseImagesUrl", `${REPOSITORY_FOLDER}/raw/HEAD/packages/vscode`, "--out", out], { cwd: ROOT, stdio: "inherit" })
 } finally {
   await rm(LICENSE, { force: true })
 }

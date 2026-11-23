@@ -55,6 +55,14 @@ describe("AppClient", () => {
     ])
   })
 
+  it("forwards a report page's call as the page would have made it, error statuses included", async () => {
+    const sent: Sent[] = []
+    const answer = await new AppClient(CONNECTION, answering(409, { error: "This PR has new commits" }, sent)).forward("POST", "/api/reviews/4/submit", { event: "approve" })
+    expect(answer).toEqual({ status: 409, body: { error: "This PR has new commits" } })
+    expect(sent[0]?.url).toBe("http://127.0.0.1:4317/api/reviews/4/submit")
+    expect(new Headers(sent[0]?.init?.headers).get("x-walkdiff-key")).toBe("secret")
+  })
+
   it("reads a file missing at one side as absent", async () => {
     expect(await new AppClient(CONNECTION, answering(404, { error: "No such file" })).file(1, "base", "src/new.ts")).toBeUndefined()
     expect(await new AppClient(CONNECTION, answering(200, { path: "a", side: "head", commit: "c", text: "hi\n" })).file(1, "head", "a")).toBe("hi\n")

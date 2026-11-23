@@ -4,19 +4,25 @@ Review GitHub pull requests and GitLab merge requests in VS Code with [Walkdiff]
 
 ## What it does
 
-- **Review this branch's pull request.** With a branch checked out, the extension finds its open PR on GitHub or GitLab and starts a review.
-- **Review one waiting for you.** Lists the open PRs that ask you for a review, on the host of the repository you have open.
-- **Review one by link.** Paste any PR or MR link.
-- **Read the review in the editor.** The Walkdiff view in the activity bar lists your reviews and each one's progress. A finished review opens onto its changed files, with lockfiles and generated files last, and the findings in each file, worst first. Findings about the PR as a whole come first. Clicking a file opens the change in VS Code's diff editor, without checking the PR out; clicking a finding opens it at its line.
-- **Comment and submit your review.** In a review's diff, click beside any line the diff shows (or select several) to add a comment. Comments stay pending, kept with this workspace across restarts, until you run **Submit Review…** from the diff's title bar or the review's menu, and pick Comment, Approve or Request changes. A pending comment can be edited or deleted first.
-- **Follow the discussion.** The PR's comment threads from GitHub or GitLab appear on their lines. You can reply to a thread or resolve it there; replies post straight away.
-- **Open the full report.** Each review links to its report in your browser, with the review path and where changed code is used.
+**The same review as in the Walkdiff app, in a VS Code tab.** Open a review and you get its report: the brief with what to check first, the review path through the changes that matter most, all changes with where the rest of the code uses them, the risks overview, the AI review if you asked for one, and the PR's conversation, where you post your review.
+
+![A review's brief in VS Code: what needs attention, what to check, and the checks that ran](images/brief.png)
+
+![The review path: each stop says why it's there, with the changed code](images/review-path.png)
+
+![The Risks tab: findings by kind, each with what to check and the line it's on](images/risks.png)
+
+- **Start a review from where you are.** Review the pull request for the branch you have checked out, pick one that's waiting for your review, or paste a link to any PR or MR on GitHub or GitLab.
+- **Follow it in the Walkdiff view.** It lists your reviews with the step each analysis is on, and says when one is ready. Click a review to open its report.
+- **Use the editor too.** A review in the view also lists its changed files and their findings. A file opens in VS Code's diff editor without checking the PR out, and a finding opens at its line. Comment on any line the diff shows, and post those comments with **Submit Review…**. The PR's threads appear on their lines, where you can reply and resolve.
+
+![A pending comment on a line of the diff, with the finding the line was flagged for in the Walkdiff view](images/comments.png)
 
 ## Posting safely
 
 A review speaks for the commit its report was made from. If the PR gets new commits after that, Walkdiff posts nothing and asks you to analyze it again; your pending comments are kept. A pending comment whose lines are no longer in the diff after that goes in the review's text, naming the lines it was written on, rather than being lost.
 
-Comments go only on lines the diff shows, as on GitHub and GitLab themselves. Threads on code that has since changed aren't on any line, so only the report's Conversation tab shows them.
+In the diff editor, comments go only on lines the diff shows, as on GitHub and GitLab themselves. Threads on code that has since changed aren't on any line there; the report's Conversation tab shows them. The report and the diff editor keep their comments apart: each posts its own when you submit from it.
 
 ## How it works
 
@@ -40,6 +46,7 @@ From the repository root:
 
 ```sh
 pnpm install
+pnpm build:ui
 pnpm build:vscode
 code --extensionDevelopmentPath="$PWD/packages/vscode"
 ```
@@ -48,7 +55,7 @@ To install a build in your own VS Code, package it and install the `.vsix`:
 
 ```sh
 pnpm --filter walkdiff-vscode package
-code --install-extension packages/vscode/walkdiff-vscode-0.1.0.vsix
+code --install-extension packages/vscode/walkdiff-vscode-0.2.0.vsix
 ```
 
-The extension is bundled into `dist/extension.cjs` with rolldown. Its logic that doesn't need VS Code (the connection file, the API client, the rows of the reviews view) has unit tests that run with the rest: `pnpm test`. The app's API is described in [docs/app-api.md](https://github.com/navasvarela/walkdiff/blob/main/docs/app-api.md).
+The extension is bundled into `dist/extension.cjs` with rolldown. Building it also writes `dist/report.html`, the report UI the app serves, which the report panel fills with each review; run `pnpm build:ui` first. The panel's page has no key: it posts each call to the app to the extension, which passes on only the ones its review needs. The extension's logic that doesn't need VS Code (the connection file, the API client, the report page and the calls it may make, the rows of the reviews view) has unit tests that run with the rest: `pnpm test`. The app's API is described in [docs/app-api.md](https://github.com/navasvarela/walkdiff/blob/main/docs/app-api.md).

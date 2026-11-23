@@ -41,14 +41,20 @@ export class AppVersionError extends Error {
 
 export type Fetch = (url: string, init?: RequestInit) => Promise<Response>
 
+/** What the app answered: its status and JSON body. */
+export interface AppAnswer {
+  readonly status: number
+  readonly body: unknown
+}
+
 /** Calls a running Walkdiff app's API. Every answer is checked against the app's own schemas. */
 export class AppClient {
   readonly #connection: AppConnection
-  readonly #fetch: Fetch
+  readonly #fetchImpl: Fetch
 
   constructor(connection: AppConnection, fetchImpl: Fetch = fetch) {
     this.#connection = connection
-    this.#fetch = fetchImpl
+    this.#fetchImpl = fetchImpl
   }
 
   get version(): string {
@@ -134,10 +140,24 @@ export class AppClient {
     return this.#send("GET", path, undefined, schema)
   }
 
+  /**
+   * An API call made for a report page, passed on as the page would have made it: the app's status
+   * and JSON body, for the page to read. `path` is from the root, such as `/api/reviews`.
+   */
+  forward(method: string, path: string, body: unknown): Promise<AppAnswer> {
+    return this.#request(method, path.replace(/^\//, ""), body)
+  }
+
   async #send<T>(method: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+    const answer = await this.#request(method, path, body)
+    if (answer.status < 200 || answer.status >= 300) throw new AppRequestError(answer.status, errorSchema.safeParse(answer.body).data?.error ?? `The Walkdiff app answered ${answer.status}.`)
+    return schema.parse(answer.body)
+  }
+
+  async #request(method: string, path: string, body: unknown): Promise<AppAnswer> {
     let response: Response
     try {
-      response = await this.#fetch(new URL(path, this.#connection.url).toString(), {
+      response = await this.#fetchImpl(new URL(path, this.#connection.url).toString(), {
         method,
         headers: { [API_KEY_HEADER]: this.#connection.apiKey, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -146,9 +166,7 @@ export class AppClient {
       throw new AppGoneError("The Walkdiff app isn't running.", { cause: error })
     }
     if (response.status === UNAUTHORIZED) throw new AppGoneError("The Walkdiff app was restarted.")
-    const json: unknown = await response.json()
-    if (!response.ok) throw new AppRequestError(response.status, errorSchema.safeParse(json).data?.error ?? `The Walkdiff app answered ${response.status}.`)
-    return schema.parse(json)
+    return { status: response.status, body: await response.json() }
   }
 }
 
