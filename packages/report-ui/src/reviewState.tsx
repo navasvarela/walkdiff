@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactElement, ReactNode } from "react"
 import { isHostedPullRequest, progressKey } from "@walkdiff/review-model"
 import type { ProgressRecord, PullRequest, ReviewModel } from "@walkdiff/review-model"
+import { host } from "./host.ts"
 import { changedSinceReview, EMPTY_REVIEW_STATE, overallProgress, parseSavedState, serializeState, withComment, withReviewed } from "./reviewProgress.ts"
 import type { ReviewItem, ReviewState } from "./reviewProgress.ts"
 
@@ -38,26 +39,27 @@ function savedAs(pullRequest: PullRequest): string {
 }
 
 /**
- * Keeps progress and comments in this browser, per pull request, so they survive a new push.
+ * Keeps progress and comments where the page runs (this browser, or the editor showing it), per
+ * pull request, so they survive a new push.
  * Storage can be unavailable or full, as in a private window or some reports opened from disk:
  * the review then lasts until the page closes.
  */
 export function ReviewStateProvider({ review, children }: ReviewStateProviderProps): ReactElement {
   const key = `${STORAGE_KEY_PREFIX}${savedAs(review.pullRequest)}`
-  const [stateAtOpen] = useState(() => parseSavedState(readStorage(key)))
+  const [stateAtOpen] = useState(() => parseSavedState(host.readStorage(key)))
   const [state, setState] = useState(stateAtOpen)
   const changedAtOpen = useMemo(() => changedSinceReview(review.files, stateAtOpen), [review.files, stateAtOpen])
   // Saved on open too, so the app's list catches up with a report re-made after a push.
   useEffect(() => {
     const { headSha, baseRef } = review.pullRequest
     const progress: ProgressRecord = { ...overallProgress(review.files, state), drafts: state.comments.size, head: { headSha, baseRef } }
-    writeStorage(progressKey(savedAs(review.pullRequest)), JSON.stringify(progress))
+    host.writeStorage(progressKey(savedAs(review.pullRequest)), JSON.stringify(progress))
   }, [review.files, review.pullRequest, state])
   const update = useCallback(
     (change: (current: ReviewState) => ReviewState): void => {
       setState((current) => {
         const next = change(current)
-        writeStorage(key, serializeState(next))
+        host.writeStorage(key, serializeState(next))
         return next
       })
     },
@@ -74,20 +76,4 @@ export function ReviewStateProvider({ review, children }: ReviewStateProviderPro
     [state, changedAtOpen, stateAtOpen, update],
   )
   return <ReviewStateContext.Provider value={value}>{children}</ReviewStateContext.Provider>
-}
-
-function readStorage(key: string): string | null {
-  try {
-    return window.localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-
-function writeStorage(key: string, value: string): void {
-  try {
-    window.localStorage.setItem(key, value)
-  } catch {
-    // Progress is a convenience: without storage it lasts until the page closes.
-  }
 }

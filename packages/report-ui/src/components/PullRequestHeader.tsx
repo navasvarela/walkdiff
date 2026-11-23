@@ -1,4 +1,5 @@
 import type { ReactElement } from "react"
+import { host } from "../host.ts"
 import { isHostedPullRequest, SECURITY_SCAN_LIMITS, securitySummary } from "@walkdiff/review-model"
 import type { ChangedFile, PullRequest, RiskAssessment } from "@walkdiff/review-model"
 import { summarizeFile } from "../unitChange.ts"
@@ -58,7 +59,7 @@ export function PullRequestHeader({ pullRequest, files, risk, feedbackUrl }: Pul
   )
 }
 
-/** Only the local app adds this, so a report opened from a file or CI artifact has no link. */
+/** Only the local app's own page has one, so a report opened from a file, CI or an editor has no link. */
 export function homeUrl(): string | undefined {
-  return document.querySelector('meta[name="walkdiff-home"]')?.getAttribute("content") ?? undefined
+  return host.homeUrl()
 }
