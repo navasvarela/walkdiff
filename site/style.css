@@ -142,6 +142,11 @@ pre code { background: none; border: 0; padding: 0; font-size: 0.88em; white-spa
 .cards > div { border: 1px solid var(--line-strong); border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 8px; }
 .cards h3 { margin: 0; font-size: 20px; }
 .cards p { margin: 0; color: var(--text-body); }
+.cards pre { margin: 0; }
+/* Cards are narrow, so a command wraps rather than scrolling out of sight. */
+.cards pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* A card's closing link sits at its foot, so cards of different lengths line up. */
+.cards p:last-child:has(> a:only-child) { margin-top: auto; }
 
 /* Manual */
 .manual { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; padding-top: 48px; padding-bottom: 72px; }
