@@ -39,6 +39,21 @@ export class ReportUiFormatError extends Error {
  * module scripts and `fetch` on file:// URLs.
  */
 export async function writeReport(model: ReviewModel, reportDir: string): Promise<void> {
+  const page = await builtReportPage(JSON.stringify(model))
+  await mkdir(reportDir, { recursive: true })
+  await writeFile(join(reportDir, REPORT_PAGE_FILE), page)
+  await writeFile(join(reportDir, REVIEW_MODEL_FILE), JSON.stringify(model))
+}
+
+/**
+ * The built report UI as one page with this model in it. The VS Code extension builds its panel
+ * from this too, with a placeholder for the model.
+ *
+ * # Errors
+ *
+ * Throws `ReportUiMissingError` when the report UI hasn't been built.
+ */
+export async function builtReportPage(modelJson: string): Promise<string> {
   const pagePath = join(REPORT_UI_DIST, REPORT_PAGE_FILE)
   if (!(await isReadable(pagePath))) {
     throw new ReportUiMissingError()
@@ -49,9 +64,7 @@ export async function writeReport(model: ReviewModel, reportDir: string): Promis
       assetPaths(page).map(async (path): Promise<[string, string]> => [path, await readFile(join(REPORT_UI_DIST, path), "utf8")]),
     ),
   )
-  await mkdir(reportDir, { recursive: true })
-  await writeFile(join(reportDir, REPORT_PAGE_FILE), assembleReportPage(page, assets, JSON.stringify(model)))
-  await writeFile(join(reportDir, REVIEW_MODEL_FILE), JSON.stringify(model))
+  return assembleReportPage(page, assets, modelJson)
 }
 
 function assetPaths(page: string): string[] {

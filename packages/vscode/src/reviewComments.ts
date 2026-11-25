@@ -104,6 +104,10 @@ export class ReviewComments implements vscode.Disposable {
     if (diff === undefined || range === undefined) throw new UserFacingError("A comment can only go on lines the diff shows, within one of its hunks.")
     const draft = await this.#drafts.add(draftKeyOf(report, file.reviewId), diff.path, range, text.trim())
     this.#markAsDraft(thread, file.reviewId)
+    // A thread the reviewer started is VS Code's, not one a reload made: kept with the review's
+    // threads so the next reload replaces it with the draft's own.
+    const shown = this.#shown.get(file.reviewId)
+    if (shown !== undefined && !shown.includes(thread)) shown.push(thread)
     thread.comments = [...thread.comments, new DraftComment(draft, thread)]
   }
 
@@ -180,9 +184,11 @@ export class ReviewComments implements vscode.Disposable {
 
   async #load(reviewId: number): Promise<void> {
     const report = await this.#reports.latest(reviewId)
-    const threads = [...this.#draftThreads(reviewId, report), ...this.#hostThreads(reviewId, report, await this.#conversationThreads(reviewId))]
-    for (const thread of this.#shown.get(reviewId) ?? []) thread.dispose()
-    this.#shown.set(reviewId, threads)
+    const hostThreads = await this.#conversationThreads(reviewId)
+    // The old threads go before the new ones are made, so nothing made now is disposed with them.
+    const previous = this.#shown.get(reviewId) ?? []
+    for (const thread of previous) thread.dispose()
+    this.#shown.set(reviewId, [...this.#draftThreads(reviewId, report), ...this.#hostThreads(reviewId, report, hostThreads)])
   }
 
   /** The host's threads; none when the host can't be read, which the reviewer is told once. */
@@ -208,6 +214,8 @@ export class ReviewComments implements vscode.Disposable {
       const file = draftDocument(report, reviewId, first.path, first.range)
       const thread = this.#controller.createCommentThread(changedFileUri(file.reviewId, file.side, file.path), lineRangeOf(first.range), [])
       this.#markAsDraft(thread, reviewId)
+      // Pending comments are the reviewer's own work in progress, so they show when the file opens.
+      thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded
       thread.comments = drafts.map((draft) => new DraftComment(draft, thread))
       return [thread]
     })
@@ -233,8 +241,6 @@ export class ReviewComments implements vscode.Disposable {
     thread.label = PENDING_LABEL
     thread.canReply = true
     this.#origins.set(thread, { kind: "draft", reviewId })
-    const shown = this.#shown.get(reviewId)
-    if (shown !== undefined && !shown.includes(thread)) shown.push(thread)
   }
 
   #reviewIdOf(thread: vscode.CommentThread): number {

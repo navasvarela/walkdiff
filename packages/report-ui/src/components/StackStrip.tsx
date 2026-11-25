@@ -3,6 +3,7 @@ import type { ReactElement } from "react"
 import { numberLabel } from "@walkdiff/review-model"
 import type { ReviewSummary } from "@walkdiff/review-model"
 import { isConnectedToApp, loadReviewList, reviewId } from "../appApi.ts"
+import { host } from "../host.ts"
 import { stackPlaceOf } from "../stackPlace.ts"
 import type { StackPlace } from "../stackPlace.ts"
 
@@ -46,7 +47,13 @@ function Neighbour({ review, direction }: NeighbourProps): ReactElement {
   const where = direction === Direction.Below ? "The PR below this one" : "The PR above this one"
   if (!review.hasReport) return <span title={`${where}: no report yet`}>{text}</span>
   return (
-    <a href={`/reviews/${review.id}/`} title={where}>
+    <a
+      href={host.reviewUrl(review.id)}
+      title={where}
+      onClick={(event) => {
+        if (host.openReview(review.id)) event.preventDefault()
+      }}
+    >
       {text}
     </a>
   )

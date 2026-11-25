@@ -55,6 +55,14 @@ describe("AppClient", () => {
     ])
   })
 
+  it("forwards a report page's call as the page would have made it, error statuses included", async () => {
+    const sent: Sent[] = []
+    const answer = await new AppClient(CONNECTION, answering(409, { error: "This PR has new commits" }, sent)).forward("POST", "/api/reviews/4/submit", { event: "approve" })
+    expect(answer).toEqual({ status: 409, body: { error: "This PR has new commits" } })
+    expect(sent[0]?.url).toBe("http://127.0.0.1:4317/api/reviews/4/submit")
+    expect(new Headers(sent[0]?.init?.headers).get("x-walkdiff-key")).toBe("secret")
+  })
+
   it("reads a file missing at one side as absent", async () => {
     expect(await new AppClient(CONNECTION, answering(404, { error: "No such file" })).file(1, "base", "src/new.ts")).toBeUndefined()
     expect(await new AppClient(CONNECTION, answering(200, { path: "a", side: "head", commit: "c", text: "hi\n" })).file(1, "head", "a")).toBe("hi\n")
@@ -68,7 +76,7 @@ describe("AppClient", () => {
 
   it.each([
     [SUPPORTED_API_VERSION + 1, REVIEW_MODEL_SCHEMA_VERSION, "Update the Walkdiff extension"],
-    [SUPPORTED_API_VERSION, REVIEW_MODEL_SCHEMA_VERSION - 1, "Update Walkdiff (npx walkdiff@latest app)"],
+    [SUPPORTED_API_VERSION, REVIEW_MODEL_SCHEMA_VERSION - 1, "Update Walkdiff (npx walkdiff@latest)"],
   ])("says which side to update when the app speaks API %i and reports %i", async (apiVersion, reportSchemaVersion, advice) => {
     const client = new AppClient(CONNECTION, answering(200, { apiVersion, reportSchemaVersion, version: "0.14.0" }))
     await expect(client.checkVersions()).rejects.toThrow(AppVersionError)

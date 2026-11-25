@@ -103,7 +103,7 @@ describe("installScanners", () => {
 
   it("says what Semgrep needs when Python is missing", async () => {
     await installScanners(root, deps({ pins: [], run: async () => Promise.reject(new Error("ENOENT")) }))
-    expect(messages.join()).toContain("needs Python 3.10")
+    expect(messages.join()).toContain("needs Python 3.11")
     await expect(lstat(join(root, "bin", "semgrep"))).rejects.toThrow()
   })
 

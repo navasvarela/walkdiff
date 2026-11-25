@@ -4,6 +4,7 @@ import * as vscode from "vscode"
 import { AppGoneError, FileSide } from "./appClient.ts"
 import type { AppSession } from "./appSession.ts"
 import { changedFileUri, parseChangedFileUri } from "./changedFileContent.ts"
+import type { ReportPanels } from "./reportPanels.ts"
 import type { DraftComment, ReviewComments } from "./reviewComments.ts"
 import { reviewRow } from "./reviewRows.ts"
 import { currentHostBranch } from "./gitRepository.ts"
@@ -16,7 +17,7 @@ const START_AGAIN_CHOICE = "Start It"
 const HTTP_LINK = /^https?:\/\/\S+$/
 
 /** Registers every command in package.json, each reporting its failures to the user. */
-export function registerCommands(session: AppSession, view: ReviewsView, comments: ReviewComments): vscode.Disposable[] {
+export function registerCommands(session: AppSession, view: ReviewsView, comments: ReviewComments, panels: ReportPanels): vscode.Disposable[] {
   const commands = new Commands(session, view)
   const handlers: Readonly<Record<string, (...args: never[]) => Promise<void>>> = {
     "walkdiff.reviewCurrentBranch": () => commands.reviewCurrentBranch(),
@@ -25,6 +26,7 @@ export function registerCommands(session: AppSession, view: ReviewsView, comment
     "walkdiff.refreshList": async () => view.refresh(),
     "walkdiff.startApp": () => commands.startApp(),
     "walkdiff.openReport": (node: ReviewNode) => commands.openReport(node.review),
+    "walkdiff.openReview": async (target?: number | ReviewNode) => panels.open(await commands.reviewToShow(target)),
     "walkdiff.analyzeAgain": (node: ReviewNode) => commands.analyzeAgain(node.review),
     "walkdiff.removeReview": (node: ReviewNode) => commands.remove(node.review),
     [OPEN_CHANGE_COMMAND]: (change: ChangeToOpen) => openChange(change),
@@ -102,6 +104,15 @@ class Commands {
   async remove(review: ReviewSummary): Promise<void> {
     await (await this.#session.client()).remove(review.id)
     this.#view.refresh()
+  }
+
+  /** The review a panel should show, from its id (a stack link in a report), the view, or a pick. */
+  async reviewToShow(target: number | ReviewNode | undefined): Promise<ReviewSummary> {
+    if (target !== undefined && typeof target !== "number") return target.review
+    const id = target ?? (await this.reviewIdFor(undefined))
+    const review = (await (await this.#session.client()).reviews()).find((candidate) => candidate.id === id)
+    if (review === undefined || !review.hasReport) throw new UserFacingError("That review has no report yet. Add it in the Walkdiff view, and open it once it's ready.")
+    return review
   }
 
   /**

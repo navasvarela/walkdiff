@@ -107,8 +107,17 @@ export const SEMGREP_REQUIREMENTS = firstExisting([resolve(import.meta.dirname, 
 const SEMGREP_BINARY = "semgrep"
 const SEMGREP_COMPLETE_MARKER = ".complete"
 const SEMGREP_UNSUPPORTED_PLATFORMS: ReadonlySet<string> = new Set(["win32"])
-const HAS_SUPPORTED_PYTHON = "import sys; sys.exit(sys.version_info < (3, 10))"
-const NEEDS_PYTHON = "it needs Python 3.10 or later, with the venv module"
+/**
+ * The oldest Python Semgrep's environment installs on, which the lock is resolved for. Semgrep
+ * itself still runs on 3.10, but 3.10 is past its end of life and the fixed wcmatch in
+ * semgrep-overrides.txt needs 3.11.
+ */
+export const SEMGREP_MIN_PYTHON = { major: 3, minor: 11 } as const
+const SEMGREP_MIN_PYTHON_NAME = `${SEMGREP_MIN_PYTHON.major}.${SEMGREP_MIN_PYTHON.minor}`
+const HAS_SUPPORTED_PYTHON = `import sys; sys.exit(sys.version_info < (${SEMGREP_MIN_PYTHON.major}, ${SEMGREP_MIN_PYTHON.minor}))`
+const NEEDS_PYTHON = `it needs Python ${SEMGREP_MIN_PYTHON_NAME} or later, with the venv module`
+/** How the docs and messages say what Semgrep needs. */
+export const SEMGREP_NEEDS = `Python ${SEMGREP_MIN_PYTHON_NAME} or later`
 
 // Installing Semgrep's dependencies on a slow connection can take several minutes.
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000

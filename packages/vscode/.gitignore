@@ -1,2 +1,4 @@
 dist/
 *.vsix
+# Copied in from the repository root while packaging.
+LICENSE.md

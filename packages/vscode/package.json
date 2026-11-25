@@ -2,10 +2,29 @@
   "name": "walkdiff-vscode",
   "displayName": "Walkdiff",
   "description": "Review GitHub pull requests and GitLab merge requests with Walkdiff: each changed function whole, where the rest of the code uses it, and what looks risky.",
-  "version": "0.1.0",
-  "publisher": "walkdiff",
+  "version": "0.2.0",
+  "publisher": "navasvarela",
+  "preview": true,
   "private": true,
   "license": "FSL-1.1-ALv2",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#0d1117",
+    "theme": "dark"
+  },
+  "keywords": [
+    "code review",
+    "pull request",
+    "merge request",
+    "github",
+    "gitlab",
+    "security",
+    "diff"
+  ],
+  "homepage": "https://github.com/navasvarela/walkdiff/tree/main/packages/vscode#readme",
+  "bugs": {
+    "url": "https://github.com/navasvarela/walkdiff/issues"
+  },
   "type": "module",
   "repository": {
     "type": "git",
@@ -20,10 +39,17 @@
   ],
   "main": "./dist/extension.cjs",
   "scripts": {
-    "build": "node build.ts"
+    "build": "node build.ts",
+    "package": "node package.ts"
   },
   "contributes": {
     "commands": [
+      {
+        "command": "walkdiff.openReview",
+        "title": "Open Review",
+        "category": "Walkdiff",
+        "icon": "$(preview)"
+      },
       {
         "command": "walkdiff.reviewCurrentBranch",
         "title": "Review This Branch's Pull Request",
@@ -181,6 +207,11 @@
       ],
       "view/item/context": [
         {
+          "command": "walkdiff.openReview",
+          "when": "view == walkdiff.reviews && viewItem =~ /^review\\.ready/",
+          "group": "review@0"
+        },
+        {
           "command": "walkdiff.submitReview",
           "when": "view == walkdiff.reviews && viewItem =~ /^review\\.ready/",
           "group": "inline@0"
@@ -327,9 +358,9 @@
       "properties": {
         "walkdiff.command": {
           "type": "string",
-          "default": "npx walkdiff",
+          "default": "npx --yes walkdiff@latest",
           "scope": "machine",
-          "markdownDescription": "How to run Walkdiff when the extension starts the app for you. It runs `<command> app --no-open` in a terminal."
+          "markdownDescription": "How to run Walkdiff when the extension starts the app for you. It runs `<command> app --no-open` in a terminal. The default takes the newest release from npm; use `walkdiff` if you installed it yourself."
         },
         "walkdiff.dataDir": {
           "type": "string",
@@ -350,6 +381,8 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/vscode": "1.100.0"
+    "@types/vscode": "1.100.0",
+    "@vscode/vsce": "4.1.0",
+    "ovsx": "1.3.0"
   }
 }

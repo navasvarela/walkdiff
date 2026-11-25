@@ -8,6 +8,7 @@ import { creditedTo } from "../checks/credit.ts"
 import { isThirdParty } from "../scannedFile.ts"
 import type { ScannedFile } from "../scannedFile.ts"
 import { GITLEAKS_BINARY, gitleaksArgs, parseGitleaksReport } from "./gitleaks.ts"
+import { SEMGREP_NEEDS } from "./installScanners.ts"
 import { notRun, toRisks, TURNED_OFF_IN_SETTINGS, writeScanFiles } from "./scanWorkspace.ts"
 import type { ScanOutcome } from "./scanWorkspace.ts"
 import { firstErrorLine } from "./scannerProcess.ts"
@@ -39,7 +40,7 @@ export interface CodeScanResult {
 
 const SEMGREP_CHECK = "Semgrep code scan"
 const GITLEAKS_CHECK = "gitleaks secret scan"
-const SEMGREP_INSTALL = "not installed. Run `walkdiff setup` with Python 3.10 or later available, or use `brew install semgrep`"
+const SEMGREP_INSTALL = `not installed. Run \`walkdiff setup\` with ${SEMGREP_NEEDS} available, or use \`brew install semgrep\``
 const ZIZMOR_CHECK = "zizmor GitHub Actions scan"
 const ZIZMOR_INSTALL = "not installed. Run `walkdiff setup`, or use `brew install zizmor`"
 const WORKFLOW_FILE = /(^|\/)(\.github\/workflows\/[^/]+\.ya?ml|action\.ya?ml)$/

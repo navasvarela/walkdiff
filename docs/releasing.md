@@ -26,3 +26,30 @@ No npm token is stored anywhere: npm checks the workflow's identity on each publ
 ## Checking a package
 
 `npm view walkdiff --json` shows each version, and npmjs.com shows a provenance badge linking a version to the commit and workflow run that built it. `npm audit signatures` checks the signatures of what you installed.
+
+## The VS Code extension
+
+The extension in `packages/vscode` has its own version and its own tags, such as `vscode-v0.3.0`. Pushing one starts `.github/workflows/release-vscode.yml`, which publishes it to the VS Code Marketplace, to Open VSX if a token is set, and as a GitHub release with the `.vsix` attached. The npm release only starts from tags like `v0.14.0`, so neither starts the other.
+
+### One-time setup
+
+The Marketplace accepts the extension from a Microsoft Entra identity that trusts this workflow through OIDC, so no Marketplace token is stored anywhere. Microsoft's [publishing guide](https://code.visualstudio.com/api/working-with-extensions/publishing-extension) has the current screens for each step.
+
+1. In Microsoft Entra ID, create an app registration (or a user-assigned managed identity) for publishing. It needs no Azure subscription and no roles.
+2. Give it a federated credential for GitHub Actions:
+   - Organization: `navasvarela`
+   - Repository: `walkdiff`
+   - Entity type: Environment, named `vscode`
+3. Add the identity as a member of the `navasvarela` publisher on [marketplace.visualstudio.com/manage](https://marketplace.visualstudio.com/manage), with the Contributor role.
+4. In the GitHub repository's settings:
+   - Under **Environments**, create `vscode` and add yourself as a required reviewer, so every publish waits for your approval.
+   - Under **Secrets and variables → Actions → Variables**, add `VSCODE_MARKETPLACE_CLIENT_ID` and `VSCODE_MARKETPLACE_TENANT_ID`, the identity's client and tenant IDs. They aren't secrets.
+   - To publish to Open VSX too, add an Open VSX access token as the `OVSX_PAT` secret of the `vscode` environment. Without it, the workflow skips Open VSX.
+
+### Each release
+
+1. Open a PR that sets the new `version` in `packages/vscode/package.json`, and the version in the README's install example.
+2. Merge it, then tag the merge commit with a signed tag, such as `git tag -s vscode-v0.3.0 -m "Walkdiff for VS Code 0.3.0"`, and push the tag.
+3. Approve the `vscode` environment when the workflow asks. It checks the tag matches the version, runs the checks, packages the extension and publishes it. The Marketplace checks a new version for a few minutes before it's live.
+
+`pnpm --filter walkdiff-vscode package` builds the same `.vsix` locally, after `pnpm build:ui`.
