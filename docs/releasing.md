@@ -53,3 +53,11 @@ The Marketplace accepts the extension from a Microsoft Entra identity that trust
 3. Approve the `vscode` environment when the workflow asks. It checks the tag matches the version, runs the checks, packages the extension and publishes it. The Marketplace checks a new version for a few minutes before it's live.
 
 `pnpm --filter walkdiff-vscode package` builds the same `.vsix` locally, after `pnpm build:ui`.
+
+## The Neovim plugin
+
+The plugin in `packages/nvim` is installed straight from this repository, so a release is a tag people can pin, such as `nvim-v0.2.0`; nothing is published elsewhere, and no workflow starts from these tags.
+
+1. Open a PR that moves the pinned tag in the plugin's README install examples to the new one.
+2. Merge it, then tag the merge commit with a signed tag, such as `git tag -s nvim-v0.2.0 -m "Walkdiff for Neovim 0.2.0"`, and push the tag.
+3. Publish a GitHub release for the tag, not marked as the latest release so the npm release keeps that place: `gh release create nvim-v0.2.0 --verify-tag --latest=false --title "Walkdiff for Neovim 0.2.0" --notes-file notes.md`.

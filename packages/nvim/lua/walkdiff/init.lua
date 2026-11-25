@@ -4,7 +4,8 @@ local M = {}
 
 M.defaults = {
   -- How to run Walkdiff when the plugin starts the app: `<command> app --no-open`.
-  command = "npx walkdiff",
+  -- The newest release, without npx asking first: npx would otherwise reuse one it has cached.
+  command = "npx --yes walkdiff@latest",
   -- The app's data directory, if it's started with `--data-dir`. Nil means the app's default.
   data_dir = nil,
   -- Ask for the AI review too when adding a pull request, if the app has one set up.

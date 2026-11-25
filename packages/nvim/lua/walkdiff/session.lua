@@ -7,7 +7,7 @@ local errors = require("walkdiff.errors")
 local M = {}
 
 local START_CHOICE = "Start the Walkdiff app"
--- The first `npx walkdiff` downloads the package and its parsers, which can take a minute or two.
+-- The first run through npx downloads the package and its parsers, which can take a minute or two.
 local START_TIMEOUT_MS = 180000
 local START_POLL_MS = 500
 local TERMINAL_HEIGHT = 10

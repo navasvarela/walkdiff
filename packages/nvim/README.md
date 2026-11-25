@@ -26,13 +26,14 @@ You need Neovim 0.10 or later, `curl`, `git`, and Walkdiff 0.14.0 or later with 
 
 ## Installing
 
-The plugin lives in the `packages/nvim` folder of the Walkdiff repository, so it's added from there.
+The plugin lives in the `packages/nvim` folder of the Walkdiff repository, so it's added from there. Its releases are tagged `nvim-v0.1.0` and so on; pin one to stay on a release rather than the repository's main branch.
 
 With [lazy.nvim](https://github.com/folke/lazy.nvim), which has no option for a subfolder:
 
 ```lua
 {
   "navasvarela/walkdiff",
+  tag = "nvim-v0.1.0",
   config = function(plugin)
     vim.opt.runtimepath:append(plugin.dir .. "/packages/nvim")
     vim.cmd.runtime("plugin/walkdiff.lua")
@@ -44,10 +45,10 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim), which has no option for a 
 With [vim-plug](https://github.com/junegunn/vim-plug):
 
 ```vim
-Plug 'navasvarela/walkdiff', { 'rtp': 'packages/nvim' }
+Plug 'navasvarela/walkdiff', { 'rtp': 'packages/nvim', 'tag': 'nvim-v0.1.0' }
 ```
 
-With Neovim's own packages, clone the repository anywhere and add the folder to your `init.lua`:
+With Neovim's own packages, clone the repository anywhere, check out a release with `git checkout nvim-v0.1.0`, and add the folder to your `init.lua`:
 
 ```lua
 vim.opt.runtimepath:append("/path/to/walkdiff/packages/nvim")
@@ -59,8 +60,9 @@ vim.opt.runtimepath:append("/path/to/walkdiff/packages/nvim")
 
 ```lua
 require("walkdiff").setup({
-  -- How the plugin runs Walkdiff when it starts the app: `<command> app --no-open`.
-  command = "npx walkdiff",
+  -- How the plugin runs Walkdiff when it starts the app: `<command> app --no-open`. The default
+  -- takes the newest release from npm; use "walkdiff" if you installed it yourself.
+  command = "npx --yes walkdiff@latest",
   -- The app's data directory, if you start it with --data-dir. Nil means the app's default,
   -- $XDG_DATA_HOME/walkdiff or ~/.local/share/walkdiff.
   data_dir = nil,
