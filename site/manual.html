@@ -17,6 +17,7 @@
       <nav aria-label="Site">
         <a href="./">Vision</a>
         <a href="manual.html" aria-current="page">Manual</a>
+        <a href="./#editors">Editors</a>
         <a href="example/" class="optional">Example report</a>
         <a href="https://github.com/navasvarela/walkdiff">GitHub</a>
       </nav>
@@ -41,6 +42,7 @@
         <li><a href="#coverage">Test coverage</a></li>
         <li><a href="#ai">AI review</a></li>
         <li><a href="#app">The app</a></li>
+        <li><a href="#editors">In your editor</a></li>
         <li><a href="#private">Private repositories</a></li>
         <li><a href="#ci">In CI</a></li>
         <li><a href="#team-rules">Team rules</a></li>
@@ -260,6 +262,37 @@ walkdiff review https://github.com/owner/repo/pull/123</code></pre>
           <li><strong>Settings</strong> turn optional checks on or off, choose the AI provider, and show what leaves your machine.</li>
         </ul>
         <p>The server listens only on your machine, and its API needs a key created each run.</p>
+      </section>
+
+      <section id="editors">
+        <h2>In your editor</h2>
+        <p>Plugins for VS Code and Neovim start reviews and show them in the editor. They find the running app from a file it writes, start it in a terminal when it isn't running, and never see your GitHub or GitLab token. They need Walkdiff 0.14.0 or later.</p>
+        <h3>VS Code</h3>
+        <pre><code>code --install-extension navasvarela.walkdiff-vscode</code></pre>
+        <ul>
+          <li><strong>Start a review</strong> of the pull request for your branch, of one waiting for your review, or of any link, from the Walkdiff view in the activity bar.</li>
+          <li><strong>Open it</strong> as the app's report, in a VS Code tab: the brief, the review path, all changes, the risks and the conversation, where you post your review.</li>
+          <li><strong>Use the editor too.</strong> Changed files open in the diff editor without checking the PR out, with comments on any line the diff shows and the PR's threads on their lines.</li>
+        </ul>
+        <p>Install it from the <a href="https://marketplace.visualstudio.com/items?itemName=navasvarela.walkdiff-vscode">Visual Studio Marketplace</a>. Its settings are in the extension's <a href="https://github.com/navasvarela/walkdiff/tree/main/packages/vscode#readme">README</a>.</p>
+        <h3>Neovim</h3>
+        <pre><code>{
+  "navasvarela/walkdiff",
+  tag = "nvim-v0.1.0",
+  config = function(plugin)
+    vim.opt.runtimepath:append(plugin.dir .. "/packages/nvim")
+    vim.cmd.runtime("plugin/walkdiff.lua")
+    require("walkdiff").setup({})
+  end,
+}</code></pre>
+        <ul>
+          <li><strong><code>:Walkdiff branch</code></strong>, <strong><code>:Walkdiff requests</code></strong> and <strong><code>:Walkdiff link &lt;url&gt;</code></strong> start a review; <strong><code>:Walkdiff</code></strong> lists your reviews with their progress.</li>
+          <li><strong>A finished review</strong> lists its changed files and findings. A file opens in a tab with its base and head side by side in diff mode, and findings show as diagnostics and with <code>:Walkdiff findings</code> in the quickfix list.</li>
+          <li><strong><code>:Walkdiff report</code></strong> opens the full report in your browser, to walk the review path and post your review.</li>
+        </ul>
+        <p>It needs Neovim 0.10 or later, <code>curl</code> and <code>git</code>. <a href="https://github.com/navasvarela/walkdiff/tree/main/packages/nvim#readme">Its README</a> has vim-plug and plain packages too.</p>
+        <h3>Your own tools</h3>
+        <p>The plugins use the app's local API, which <a href="https://github.com/navasvarela/walkdiff/blob/main/docs/app-api.md">docs/app-api.md</a> describes for any script or editor.</p>
       </section>
 
       <section id="private">

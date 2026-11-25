@@ -17,6 +17,7 @@
       <nav aria-label="Site">
         <a href="./" aria-current="page">Vision</a>
         <a href="manual.html">Manual</a>
+        <a href="#editors">Editors</a>
         <a href="example/" class="optional">Example report</a>
         <a href="https://github.com/navasvarela/walkdiff">GitHub</a>
       </nav>
@@ -26,7 +27,7 @@
   <main>
     <div class="wrap hero">
       <div class="hero-text">
-        <p class="eyebrow">Now reads Kotlin and C# too</p>
+        <p class="eyebrow">Now in VS Code and Neovim</p>
         <h1>Review the change, not the diff.</h1>
         <p class="lede">
           A review companion for GitHub pull requests and GitLab merge requests. It shows each changed function
@@ -166,7 +167,35 @@
       </div>
     </section>
 
-    <section class="band" id="languages">
+    <section class="band" id="editors">
+      <div class="wrap">
+        <div class="section-intro">
+          <h2>In your editor</h2>
+          <p>Start a review from the branch you have open, and read it without leaving your editor. Both plugins talk to the Walkdiff app on your machine, which they start if it isn't running, and your GitHub or GitLab login stays with the app.</p>
+        </div>
+        <div class="cards">
+          <div>
+            <h3>VS Code</h3>
+            <p>The app's report in a VS Code tab: the brief, the review path, the risks and the conversation, where you post your review. Start reviews from your branch, from PRs waiting for you, or from a link, and comment on lines in the diff editor.</p>
+            <pre><code>code --install-extension navasvarela.walkdiff-vscode</code></pre>
+            <p><a href="https://marketplace.visualstudio.com/items?itemName=navasvarela.walkdiff-vscode">On the Visual Studio Marketplace</a></p>
+          </div>
+          <div>
+            <h3>Neovim</h3>
+            <p><code>:Walkdiff branch</code>, <code>:Walkdiff requests</code> and <code>:Walkdiff link</code> start reviews, and the list shows their progress. Changed files open side by side in diff mode, findings show as diagnostics and in the quickfix list, and the full report opens in your browser.</p>
+            <pre><code>{ "navasvarela/walkdiff", tag = "nvim-v0.1.0" }</code></pre>
+            <p><a href="https://github.com/navasvarela/walkdiff/tree/main/packages/nvim#readme">Setup for lazy.nvim, vim-plug and packages</a></p>
+          </div>
+          <div>
+            <h3>Your own tools</h3>
+            <p>The plugins use the app's local API, which any script or editor can use too: find the PR for a branch, start a review, read its report and files, and post a review.</p>
+            <p><a href="https://github.com/navasvarela/walkdiff/blob/main/docs/app-api.md">The app's API</a></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band alt" id="languages">
       <div class="wrap languages">
         <h2>Understands</h2>
         <ul class="pills" aria-label="Supported languages">
@@ -176,7 +205,7 @@
       </div>
     </section>
 
-    <section class="band alt" id="direction">
+    <section class="band" id="direction">
       <div class="wrap">
         <div class="section-intro">
           <h2>Where it's going</h2>
@@ -203,7 +232,7 @@
   <footer>
     <div class="wrap">
       <span>Source-available under the <a href="https://github.com/navasvarela/walkdiff/blob/main/LICENSE.md">Functional Source License</a>. Each version becomes Apache 2.0 two years after its release.</span>
-      <span class="links"><a href="https://github.com/navasvarela/walkdiff/blob/main/CHANGELOG.md">Changelog</a><a href="https://www.npmjs.com/package/walkdiff">npm</a><a href="https://github.com/navasvarela/walkdiff/blob/main/SECURITY.md">Security</a></span>
+      <span class="links"><a href="https://github.com/navasvarela/walkdiff/blob/main/CHANGELOG.md">Changelog</a><a href="https://www.npmjs.com/package/walkdiff">npm</a><a href="https://marketplace.visualstudio.com/items?itemName=navasvarela.walkdiff-vscode">VS Code</a><a href="https://github.com/navasvarela/walkdiff/blob/main/SECURITY.md">Security</a></span>
     </div>
   </footer>
 </body>
